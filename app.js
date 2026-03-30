@@ -582,9 +582,9 @@ async function analyzeStreetView(street) {
     const photoCount = samplePoints.length;
     const photoLabels = ['start', 'middle-start', 'middle', 'middle-end', 'end'];
 
-    // Fetch all Street View images as base64
+    // Fetch all Street View images as base64 — use HD for better AI analysis
     const imagePromises = samplePoints.map(pt => {
-      const url = getStreetViewUrl(pt.lat, pt.lng, pt.heading || 0);
+      const url = getStreetViewUrlHD(pt.lat, pt.lng, pt.heading || 0);
       return imageUrlToBase64(url);
     });
     const images = await Promise.all(imagePromises);
