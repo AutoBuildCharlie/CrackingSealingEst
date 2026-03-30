@@ -1995,23 +1995,23 @@ function drawAllHighlights() {
       const startCity = street.city || 'Start';
       const endCity   = street.endCity || 'End';
 
-      // Diamond at boundary midpoint
-      const bMarker = new google.maps.Marker({
-        position: street.boundaryPoint,
+      // Dashed perpendicular line across the street at boundary point
+      const streetHeading = calcHeading(path[0], path[path.length - 1]);
+      const perpHeading   = (streetHeading + 90) % 360;
+      const lineA = offsetPoint(street.boundaryPoint.lat, street.boundaryPoint.lng, perpHeading, 200);
+      const lineB = offsetPoint(street.boundaryPoint.lat, street.boundaryPoint.lng, (perpHeading + 180) % 360, 200);
+      const boundaryLine = new google.maps.Polyline({
+        path: [lineA, lineB],
+        geodesic: true,
+        strokeColor: '#f97316',
+        strokeOpacity: 0,
+        strokeWeight: 3,
+        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeWeight: 3, scale: 6 }, offset: '0', repeat: '20px' }],
         map: map,
-        title: street.boundaryNote,
-        icon: {
-          path: 'M 0,-10 10,0 0,10 -10,0 Z',
-          fillColor: '#f97316',
-          fillOpacity: 1,
-          strokeColor: '#fff',
-          strokeWeight: 2,
-          scale: 1
-        },
-        zIndex: 10
+        zIndex: 11
       });
-      bMarker.addListener('click', () => selectStreet(street.id));
-      polylines.push(bMarker);
+      boundaryLine.addListener('click', () => selectStreet(street.id));
+      polylines.push(boundaryLine);
 
       // City label — start side (35% along path)
       const t1 = Math.floor(path.length * 0.25);
