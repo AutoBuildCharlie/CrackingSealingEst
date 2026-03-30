@@ -323,6 +323,7 @@ async function saveStreet() {
   const analysis = await analyzeStreetView(street);
   street.analysis = analysis.text;
   street.rating = analysis.rating;
+  street.weedAlert = analysis.weedAlert || false;
   street.scannedAt = new Date().toISOString();
 
   // Save
@@ -487,7 +488,7 @@ async function analyzeStreetView(street) {
 
 Photos include corner/intersection views and mid-street views. Corners and cul-de-sacs typically show the worst cracking due to turning traffic — pay extra attention to these.
 
-Analyze ALL images together. Look for: cracks (alligator, longitudinal, transverse), potholes, fading, patches, wear, surface texture, color of asphalt, corner damage.
+Analyze ALL images together. Look for: cracks (alligator, longitudinal, transverse), potholes, fading, patches, wear, surface texture, color of asphalt, corner damage. Also look for any weeds, grass, or vegetation growing out of cracks or joints in the pavement.
 
 Use this rating scale:
 - Level 1: Zero to little cracks — pavement in good condition
@@ -502,8 +503,9 @@ Your response must include:
 2. WHAT I CAN SEE: 2-4 bullet points. Note corner vs mid-street differences. Note if condition varies along the street.
 3. CORNERS: Specifically note condition at intersections/corners if visible.
 4. WIDE CRACKS: If any cracks appear wider than 1.25 inches, note their location. If none visible, write "None detected from this view."
-5. WHAT I CAN'T SEE: 1-2 bullet points about limitations
-6. Level: [1/2/3/4]
+5. WEED/GRASS CONTROL: If you see any weeds, grass, or vegetation growing out of cracks or pavement joints, flag it with "🌿 WEED CONTROL NEEDED" and briefly describe the extent (light, moderate, heavy). If none visible, write "None detected."
+6. WHAT I CAN'T SEE: 1-2 bullet points about limitations
+7. Level: [1/2/3/4]
 
 Be honest. Weight toward the worst section. Do not guess — only rate what you can actually see.`
           },
@@ -517,11 +519,12 @@ Be honest. Weight toward the worst section. Do not guess — only rate what you 
     const text = data.choices?.[0]?.message?.content || '';
     if (!text) return analyzeWithPlaceholder(street);
     const rating = extractRating(text);
+    const weedAlert = extractWeedAlert(text);
 
     // Store how many photos were used
     street.photosScanned = validPairs.length;
 
-    return { text, rating };
+    return { text, rating, weedAlert };
   } catch (e) {
     console.error('AI analysis error:', e);
     return analyzeWithPlaceholder(street);
@@ -561,6 +564,13 @@ function extractRating(text) {
   if (lower.includes('fair')) return 'level-2';
   if (lower.includes('good')) return 'level-1';
   return 'level-2';
+}
+
+function extractWeedAlert(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes('weed control needed')) return true;
+  if (lower.includes('vegetation growing') || lower.includes('weeds growing') || lower.includes('grass growing')) return true;
+  return false;
 }
 
 function ratingLabel(rating) {
@@ -662,6 +672,7 @@ function renderStreetList() {
       <div class="street-card-name" title="${escHtml(s.name)}">${escHtml(s.name)}</div>
       ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}</div>` : ''}
       ${s.crossesBoundary ? `<div class="street-card-boundary">⚠ ${escHtml(s.boundaryNote)}</div>` : ''}
+      ${s.weedAlert ? `<div class="street-card-weed">🌿 Weed control needed</div>` : ''}
       <div class="street-card-meta">
         <span class="street-card-sqft">${s.sqft ? formatNumber(s.sqft) + ' sq ft' : 'No dimensions'}</span>
         <span class="rating-badge rating-${s.rating}" title="${ratingDescription(s.rating)}">${ratingLabel(s.rating)}</span>
@@ -698,6 +709,7 @@ function selectStreet(id) {
       <h3>${escHtml(street.name)}</h3>
       ${street.city ? `<div class="detail-jurisdiction">${escHtml(street.city)}${street.county ? ' — ' + escHtml(street.county) : ''}${street.state ? ', ' + escHtml(street.state) : ''}</div>` : ''}
       ${street.crossesBoundary ? `<div class="detail-boundary-warn">⚠ ${escHtml(street.boundaryNote)}</div>` : ''}
+      ${street.weedAlert ? `<div class="detail-weed-warn">🌿 Weed/grass control may be needed on this street</div>` : ''}
       <div class="detail-address">Added ${formatDate(street.createdAt)}</div>
     </div>
 
@@ -836,6 +848,7 @@ async function rescanStreet(id) {
   const analysis = await analyzeStreetView(street);
   street.analysis = analysis.text;
   street.rating = analysis.rating;
+  street.weedAlert = analysis.weedAlert || false;
   street.scannedAt = new Date().toISOString();
 
   saveStreets();
@@ -1557,10 +1570,11 @@ async function generateProjectReport() {
   });
   const cities = [...new Set(streets.map(s => s.city).filter(Boolean))];
   const boundaryStreets = streets.filter(s => s.crossesBoundary);
+  const weedStreets = streets.filter(s => s.weedAlert);
 
   // Build street summary for AI
   const streetSummary = streets.map(s =>
-    `- ${s.name}: ${formatNumber(s.length || 0)} ft, ${formatNumber(s.sqft || 0)} sq ft, Rating: ${s.rating}, City: ${s.city || 'Unknown'}`
+    `- ${s.name}: ${formatNumber(s.length || 0)} ft, ${formatNumber(s.sqft || 0)} sq ft, Rating: ${s.rating}, City: ${s.city || 'Unknown'}${s.weedAlert ? ', ⚠ WEED CONTROL NEEDED' : ''}`
   ).join('\n');
 
   // Get AI project summary
@@ -1575,11 +1589,11 @@ async function generateProjectReport() {
           messages: [
             {
               role: 'system',
-              content: `You are a pavement assessment expert writing a project summary for a road sealing company called GRSI. Be concise and professional. Include: overall project condition, priority streets that need immediate attention, recommendations for the work scope, and any concerns about boundary crossings. Format with bullet points.`
+              content: `You are a pavement assessment expert writing a project summary for a road sealing company called GRSI. Be concise and professional. Include: overall project condition, priority streets that need immediate attention, recommendations for the work scope, any concerns about boundary crossings, and if any streets have weed/grass control alerts, include a section noting which streets may need vegetation removal before sealing work can begin. Format with bullet points.`
             },
             {
               role: 'user',
-              content: `Project: ${activeProject.name}\nTotal streets: ${totalStreets}\nTotal sq ft: ${formatNumber(totalSqft)}\nTotal linear ft: ${formatNumber(totalLength)}\nCities: ${cities.join(', ') || 'Unknown'}\nBoundary crossings: ${boundaryStreets.length}\n\nStreet breakdown:\n${streetSummary}\n\nProvide a project summary with overall condition assessment, priority recommendations, and scope notes.`
+              content: `Project: ${activeProject.name}\nTotal streets: ${totalStreets}\nTotal sq ft: ${formatNumber(totalSqft)}\nTotal linear ft: ${formatNumber(totalLength)}\nCities: ${cities.join(', ') || 'Unknown'}\nBoundary crossings: ${boundaryStreets.length}\nStreets needing weed control: ${weedStreets.length}\n\nStreet breakdown:\n${streetSummary}\n\nProvide a project summary with overall condition assessment, priority recommendations, scope notes, and weed control recommendations if applicable.`
             }
           ],
           max_tokens: 600
@@ -1638,11 +1652,13 @@ async function generateProjectReport() {
 
     ${boundaryStreets.length > 0 ? `<div class="report-section" style="border-color:rgba(249,115,22,0.3)"><div class="report-label" style="color:var(--orange)">⚠ Boundary Crossings (${boundaryStreets.length})</div><div style="font-size:12px">${boundaryStreets.map(s => escHtml(s.boundaryNote)).join('<br>')}</div></div>` : ''}
 
+    ${weedStreets.length > 0 ? `<div class="report-section" style="border-color:rgba(34,197,94,0.3)"><div class="report-label" style="color:#22c55e">🌿 Weed/Grass Control (${weedStreets.length} street${weedStreets.length > 1 ? 's' : ''})</div><div style="font-size:12px">${weedStreets.map(s => escHtml(s.name?.split(',')[0] || 'Unknown')).join('<br>')}</div></div>` : ''}
+
     <div class="report-section">
       <div class="report-label">Street Breakdown</div>
       ${streets.map(s => `
         <div class="report-street-row">
-          <span>${escHtml(s.name?.split(',')[0] || 'Unknown')}</span>
+          <span>${escHtml(s.name?.split(',')[0] || 'Unknown')}${s.weedAlert ? ' 🌿' : ''}</span>
           <span>${formatNumber(s.sqft || 0)} sq ft</span>
           <span class="rating-badge rating-${s.rating}" title="${ratingDescription(s.rating)}">${ratingLabel(s.rating)}</span>
         </div>
