@@ -7,19 +7,22 @@
    localStorage key: "cse_streets"
    [
      {
-       id:        "uuid-string",
-       name:      "1200 W Ball Rd, Anaheim, CA",
-       lat:       33.8366,
-       lng:       -117.9143,
-       length:    500,         // feet
-       width:     24,          // feet
-       sqft:      12000,       // length * width
-       rating:    "fair",      // "good" | "fair" | "poor" | "critical" | "pending"
-       notes:     "Parking lot near freeway",
-       analysis:  "AI analysis text...",
-       svImage:   "street-view-url",
-       scannedAt: "2026-03-30T07:42:00Z",
-       createdAt: "2026-03-30T07:40:00Z"
+       id:             "uuid-string",
+       name:           "1200 W Ball Rd, Anaheim, CA",
+       lat:            33.8366,
+       lng:            -117.9143,
+       length:         500,
+       width:          24,
+       sqft:           12000,
+       rating:         "fair",      // "good"|"fair"|"poor"|"critical"|"pending"
+       notes:          "Parking lot near freeway",
+       analysis:       "AI analysis text...",
+       svImage:        "street-view-url",
+       highlightStart: { lat, lng },
+       highlightEnd:   { lat, lng },
+       photos:         [{ id, dataUrl, lat, lng, address, note, takenAt }],
+       scannedAt:      "2026-03-30T07:42:00Z",
+       createdAt:      "2026-03-30T07:40:00Z"
      }
    ]
 ──────────────────────────────────────────────────────────── */
@@ -64,6 +67,7 @@ function initMap() {
 
   renderStreetList();
   placeAllMarkers();
+  placePhotoMarkers();
   drawAllHighlights();
   updateStats();
 }
@@ -396,6 +400,25 @@ function selectStreet(id) {
       <div class="ai-analysis">${escHtml(street.notes)}</div>
     </div>` : ''}
 
+    <div class="detail-section">
+      <h4>On-Site Photos (${(street.photos || []).length})</h4>
+      <button class="btn-photo" onclick="openPhotoCapture('${street.id}')">Take Photo</button>
+      ${(street.photos || []).length > 0 ? `
+        <div class="photo-grid">
+          ${street.photos.map(p => `
+            <div class="photo-card">
+              <img src="${p.dataUrl}" alt="Crack photo" class="photo-thumb">
+              <div class="photo-info">
+                <small>${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</small>
+                <small>${new Date(p.takenAt).toLocaleDateString()}</small>
+              </div>
+              <button class="photo-delete" onclick="deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<p class="text-dim">No photos yet — take one on-site</p>'}
+    </div>
+
     <div class="detail-actions">
       ${street.highlightStart ?
         `<button class="btn-secondary" onclick="removeHighlight('${street.id}')">Clear Line</button>` :
@@ -500,6 +523,197 @@ function showToast(msg, duration = 2500) {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
   }, duration);
+}
+
+// ─── SEARCH LOCATION ───────────────────────────────────────
+async function searchLocation() {
+  const input = document.getElementById('search-input');
+  const query = input.value.trim();
+  if (!query) return;
+
+  showToast('Searching...');
+  const geo = await geocodeAddress(query);
+  if (!geo) {
+    showToast('Could not find that location — try adding a city name');
+    return;
+  }
+
+  map.setCenter({ lat: geo.lat, lng: geo.lng });
+  map.setZoom(17);
+  input.value = '';
+  showToast(`Found: ${geo.formatted}`);
+}
+
+// ─── NEAR ME (GPS) ─────────────────────────────────────────
+function goToMyLocation() {
+  if (!navigator.geolocation) {
+    showToast('GPS not available on this device');
+    return;
+  }
+
+  showToast('Getting your location...');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      map.setCenter({ lat, lng });
+      map.setZoom(18);
+
+      // Drop a blue "You" marker
+      if (window._myLocationMarker) window._myLocationMarker.setMap(null);
+      window._myLocationMarker = new google.maps.Marker({
+        position: { lat, lng },
+        map: map,
+        title: 'You are here',
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#3b82f6',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 3
+        }
+      });
+      showToast('Centered on your location');
+    },
+    (err) => {
+      showToast('Could not get your location — check GPS permissions');
+      console.error('Geolocation error:', err);
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+// ─── ON-SITE PHOTO CAPTURE ─────────────────────────────────
+function openPhotoCapture(streetId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.capture = 'environment'; // opens camera on mobile
+  input.onchange = (e) => handlePhotoCapture(e, streetId);
+  input.click();
+}
+
+async function handlePhotoCapture(e, streetId) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const street = streets.find(s => s.id === streetId);
+  if (!street) return;
+  if (!street.photos) street.photos = [];
+
+  showToast('Processing photo...');
+
+  // Compress image
+  const dataUrl = await compressPhoto(file, 800, 0.7);
+
+  // Get GPS from photo or fallback to device GPS
+  const photoLocation = await getPhotoGPS();
+
+  const photo = {
+    id: crypto.randomUUID?.() || Date.now().toString(36),
+    dataUrl: dataUrl,
+    lat: photoLocation?.lat || street.lat,
+    lng: photoLocation?.lng || street.lng,
+    address: '',
+    note: '',
+    takenAt: new Date().toISOString()
+  };
+
+  // Reverse geocode to get address
+  if (photo.lat && photo.lng) {
+    try {
+      const url = `${GEOCODE_BASE}?latlng=${photo.lat},${photo.lng}&key=${API_KEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status === 'OK' && data.results.length > 0) {
+        photo.address = data.results[0].formatted_address;
+      }
+    } catch (e) { /* skip */ }
+  }
+
+  street.photos.push(photo);
+  saveStreets();
+  placePhotoMarkers();
+  selectStreet(streetId);
+  showToast('Photo added with GPS location');
+}
+
+function getPhotoGPS() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  });
+}
+
+function compressPhoto(file, maxPx, quality) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxPx || h > maxPx) {
+          if (w > h) { h = h * maxPx / w; w = maxPx; }
+          else { w = w * maxPx / h; h = maxPx; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function deletePhoto(streetId, photoId) {
+  const street = streets.find(s => s.id === streetId);
+  if (!street || !street.photos) return;
+  street.photos = street.photos.filter(p => p.id !== photoId);
+  saveStreets();
+  placePhotoMarkers();
+  selectStreet(streetId);
+  showToast('Photo removed');
+}
+
+// ─── PHOTO MARKERS ON MAP ──────────────────────────────────
+let photoMarkers = [];
+
+function placePhotoMarkers() {
+  photoMarkers.forEach(m => m.setMap(null));
+  photoMarkers = [];
+
+  streets.forEach(street => {
+    if (!street.photos) return;
+    street.photos.forEach(photo => {
+      const marker = new google.maps.Marker({
+        position: { lat: photo.lat, lng: photo.lng },
+        map: map,
+        title: `Photo — ${photo.address || 'On-site'}`,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 7,
+          fillColor: '#a855f7',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 2
+        }
+      });
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: `<div style="max-width:200px;"><img src="${photo.dataUrl}" style="width:100%;border-radius:4px;"><br><small>${photo.address || ''}<br>${new Date(photo.takenAt).toLocaleString()}</small></div>`
+      });
+      marker.addListener('click', () => infoWindow.open(map, marker));
+      photoMarkers.push(marker);
+    });
+  });
 }
 
 // ─── HIGHLIGHT STREET ──────────────────────────────────────
