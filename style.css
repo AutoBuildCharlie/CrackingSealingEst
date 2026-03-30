@@ -159,6 +159,62 @@ body {
 }
 .btn-nearme:hover { border-color: #3b82f6; background: rgba(59,130,246,0.1); }
 
+/* ─── QUICK ACTIONS ────────────────────────────────────────── */
+.quick-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.qa-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+  transition: background 0.2s;
+}
+.qa-icon { font-size: 14px; }
+.qa-highlight {
+  background: rgba(59,130,246,0.1);
+  color: #3b82f6;
+  border-color: rgba(59,130,246,0.3);
+}
+.qa-highlight:hover { background: rgba(59,130,246,0.2); }
+.qa-photo {
+  background: rgba(168,85,247,0.1);
+  color: #a855f7;
+  border-color: rgba(168,85,247,0.3);
+}
+.qa-photo:hover { background: rgba(168,85,247,0.2); }
+
+.highlight-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(59,130,246,0.1);
+  border-bottom: 1px solid rgba(59,130,246,0.3);
+  font-size: 12px;
+  color: #3b82f6;
+  font-weight: 500;
+}
+.btn-cancel-highlight {
+  background: none;
+  border: 1px solid rgba(59,130,246,0.3);
+  color: #3b82f6;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
 .street-list {
   flex: 1;
   overflow-y: auto;

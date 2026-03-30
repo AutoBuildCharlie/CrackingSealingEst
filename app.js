@@ -716,41 +716,212 @@ function placePhotoMarkers() {
   });
 }
 
-// ─── HIGHLIGHT STREET ──────────────────────────────────────
+// ─── FREE HIGHLIGHT (from sidebar, no street needed) ───────
+function startFreeHighlight() {
+  highlightMode = 'free-start';
+  highlightStreetId = null;
+  clearTempMarkers();
+  document.getElementById('highlight-bar').classList.remove('hidden');
+  document.getElementById('highlight-bar-text').textContent = 'Click the START of the street on the map';
+  document.getElementById('detail-panel').classList.add('hidden');
+}
+
+function cancelHighlight() {
+  highlightMode = null;
+  highlightStreetId = null;
+  clearTempMarkers();
+  document.getElementById('highlight-bar').classList.add('hidden');
+  window._freeHighlightStart = null;
+}
+
+// ─── FREE PHOTO (from sidebar, assigns to nearest street or creates one) ──
+function startFreePhoto() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.capture = 'environment';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    showToast('Processing photo...');
+    const dataUrl = await compressPhoto(file, 800, 0.7);
+    const photoLocation = await getPhotoGPS();
+
+    const lat = photoLocation?.lat || map.getCenter().lat();
+    const lng = photoLocation?.lng || map.getCenter().lng();
+
+    // Find nearest street or create one
+    let street = findNearestStreet(lat, lng);
+    if (!street) {
+      // Auto-create a street from GPS location
+      let address = 'Unknown location';
+      try {
+        const geocoder = new google.maps.Geocoder();
+        const result = await new Promise((resolve) => {
+          geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+            resolve(status === 'OK' && results.length > 0 ? results[0].formatted_address : '');
+          });
+        });
+        if (result) address = result;
+      } catch (e) { /* skip */ }
+
+      street = {
+        id: crypto.randomUUID?.() || Date.now().toString(36),
+        name: address,
+        lat: lat,
+        lng: lng,
+        length: 0,
+        width: 24,
+        sqft: 0,
+        rating: 'pending',
+        notes: 'Auto-created from photo',
+        analysis: '',
+        svImage: getStreetViewUrl(lat, lng),
+        photos: [],
+        scannedAt: null,
+        createdAt: new Date().toISOString()
+      };
+      streets.push(street);
+    }
+
+    if (!street.photos) street.photos = [];
+    street.photos.push({
+      id: crypto.randomUUID?.() || Date.now().toString(36),
+      dataUrl: dataUrl,
+      lat: lat,
+      lng: lng,
+      address: street.name,
+      note: '',
+      takenAt: new Date().toISOString()
+    });
+
+    saveStreets();
+    renderStreetList();
+    placeAllMarkers();
+    placePhotoMarkers();
+    updateStats();
+    selectStreet(street.id);
+    showToast('Photo added with GPS location');
+  };
+  input.click();
+}
+
+function findNearestStreet(lat, lng) {
+  if (streets.length === 0) return null;
+  let nearest = null;
+  let minDist = Infinity;
+  streets.forEach(s => {
+    const dist = calcDistanceFt({ lat, lng }, { lat: s.lat, lng: s.lng });
+    if (dist < minDist) { minDist = dist; nearest = s; }
+  });
+  // Only match if within 500 feet
+  return minDist < 500 ? nearest : null;
+}
+
+// ─── HIGHLIGHT STREET (from detail panel) ──────────────────
 function startHighlight(id) {
   highlightStreetId = id;
   highlightMode = 'start';
   clearTempMarkers();
-  showToast('Click the START of the street on the map');
+  document.getElementById('highlight-bar').classList.remove('hidden');
+  document.getElementById('highlight-bar-text').textContent = 'Click the START of the street on the map';
   document.getElementById('detail-panel').classList.add('hidden');
 }
 
 function handleMapClick(latLng) {
   if (!highlightMode) return;
 
+  // Free highlight mode (no street yet)
+  if (highlightMode === 'free-start') {
+    window._freeHighlightStart = { lat: latLng.lat(), lng: latLng.lng() };
+    addTempMarker(latLng, 'S', '#22c55e');
+    highlightMode = 'free-end';
+    document.getElementById('highlight-bar-text').textContent = 'Now click the END of the street';
+    return;
+  }
+
+  if (highlightMode === 'free-end') {
+    const startPt = window._freeHighlightStart;
+    const endPt = { lat: latLng.lat(), lng: latLng.lng() };
+    addTempMarker(latLng, 'E', '#ef4444');
+
+    // Find nearest street or create one
+    (async () => {
+      let street = findNearestStreet(startPt.lat, startPt.lng);
+      if (!street) {
+        let address = 'Unknown location';
+        try {
+          const geocoder = new google.maps.Geocoder();
+          const result = await new Promise((resolve) => {
+            geocoder.geocode({ location: startPt }, (results, status) => {
+              resolve(status === 'OK' && results.length > 0 ? results[0].formatted_address : '');
+            });
+          });
+          if (result) address = result;
+        } catch (e) { /* skip */ }
+
+        street = {
+          id: crypto.randomUUID?.() || Date.now().toString(36),
+          name: address,
+          lat: startPt.lat,
+          lng: startPt.lng,
+          length: 0,
+          width: 24,
+          sqft: 0,
+          rating: 'pending',
+          notes: '',
+          analysis: '',
+          svImage: getStreetViewUrl(startPt.lat, startPt.lng),
+          photos: [],
+          scannedAt: null,
+          createdAt: new Date().toISOString()
+        };
+        streets.push(street);
+      }
+
+      street.highlightStart = startPt;
+      street.highlightEnd = endPt;
+      const distFt = calcDistanceFt(startPt, endPt);
+      street.length = Math.round(distFt);
+      street.sqft = street.length * (street.width || 24);
+
+      highlightMode = null;
+      window._freeHighlightStart = null;
+      document.getElementById('highlight-bar').classList.add('hidden');
+      saveStreets();
+      clearTempMarkers();
+      drawAllHighlights();
+      renderStreetList();
+      placeAllMarkers();
+      updateStats();
+      selectStreet(street.id);
+      showToast(`Street highlighted — ${formatNumber(street.length)} ft long, ${formatNumber(street.sqft)} sq ft`);
+    })();
+    return;
+  }
+
+  // Existing street highlight mode
   const street = streets.find(s => s.id === highlightStreetId);
   if (!street) return;
 
   if (highlightMode === 'start') {
-    // Place start marker
     street.highlightStart = { lat: latLng.lat(), lng: latLng.lng() };
     addTempMarker(latLng, 'S', '#22c55e');
     highlightMode = 'end';
-    showToast('Now click the END of the street');
+    document.getElementById('highlight-bar-text').textContent = 'Now click the END of the street';
 
   } else if (highlightMode === 'end') {
-    // Place end marker
     street.highlightEnd = { lat: latLng.lat(), lng: latLng.lng() };
     addTempMarker(latLng, 'E', '#ef4444');
 
-    // Calculate distance in feet
     const distFt = calcDistanceFt(street.highlightStart, street.highlightEnd);
     street.length = Math.round(distFt);
     street.sqft = street.length * (street.width || 24);
 
-    // Done
     highlightMode = null;
     highlightStreetId = null;
+    document.getElementById('highlight-bar').classList.add('hidden');
     saveStreets();
     clearTempMarkers();
     drawAllHighlights();
