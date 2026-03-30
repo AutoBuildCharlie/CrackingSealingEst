@@ -187,6 +187,12 @@ body {
   border-color: rgba(59,130,246,0.3);
 }
 .qa-highlight:hover { background: rgba(59,130,246,0.2); }
+.qa-highlight.qa-active {
+  background: #3b82f6;
+  color: #fff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 12px rgba(59,130,246,0.5);
+}
 .qa-photo {
   background: rgba(168,85,247,0.1);
   color: #a855f7;

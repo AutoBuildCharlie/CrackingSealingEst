@@ -716,22 +716,35 @@ function placePhotoMarkers() {
   });
 }
 
-// ─── FREE HIGHLIGHT (from sidebar, no street needed) ───────
+// ─── FREE HIGHLIGHT (continuous drawing mode) ──────────────
+let drawingMode = false;
+
 function startFreeHighlight() {
+  if (drawingMode) { stopDrawingMode(); return; }
+  drawingMode = true;
   highlightMode = 'free-start';
   highlightStreetId = null;
   clearTempMarkers();
   document.getElementById('highlight-bar').classList.remove('hidden');
-  document.getElementById('highlight-bar-text').textContent = 'Click the START of the street on the map';
+  document.getElementById('highlight-bar-text').textContent = 'Click the START of street 1';
   document.getElementById('detail-panel').classList.add('hidden');
+  // Change button to active state
+  document.querySelector('.qa-highlight').classList.add('qa-active');
 }
 
 function cancelHighlight() {
+  stopDrawingMode();
+}
+
+function stopDrawingMode() {
+  drawingMode = false;
   highlightMode = null;
   highlightStreetId = null;
   clearTempMarkers();
   document.getElementById('highlight-bar').classList.add('hidden');
+  document.querySelector('.qa-highlight').classList.remove('qa-active');
   window._freeHighlightStart = null;
+  window._drawCount = 0;
 }
 
 // ─── FREE PHOTO (from sidebar, assigns to nearest street or creates one) ──
@@ -832,12 +845,12 @@ function startHighlight(id) {
 function handleMapClick(latLng) {
   if (!highlightMode) return;
 
-  // Free highlight mode (no street yet)
+  // Free highlight mode — continuous drawing
   if (highlightMode === 'free-start') {
     window._freeHighlightStart = { lat: latLng.lat(), lng: latLng.lng() };
     addTempMarker(latLng, 'S', '#22c55e');
     highlightMode = 'free-end';
-    document.getElementById('highlight-bar-text').textContent = 'Now click the END of the street';
+    document.getElementById('highlight-bar-text').textContent = 'Now click the END of this street';
     return;
   }
 
@@ -846,39 +859,35 @@ function handleMapClick(latLng) {
     const endPt = { lat: latLng.lat(), lng: latLng.lng() };
     addTempMarker(latLng, 'E', '#ef4444');
 
-    // Find nearest street or create one
     (async () => {
-      let street = findNearestStreet(startPt.lat, startPt.lng);
-      if (!street) {
-        let address = 'Unknown location';
-        try {
-          const geocoder = new google.maps.Geocoder();
-          const result = await new Promise((resolve) => {
-            geocoder.geocode({ location: startPt }, (results, status) => {
-              resolve(status === 'OK' && results.length > 0 ? results[0].formatted_address : '');
-            });
+      // Create a new street for this highlight
+      let address = 'Unknown location';
+      try {
+        const geocoder = new google.maps.Geocoder();
+        const result = await new Promise((resolve) => {
+          geocoder.geocode({ location: startPt }, (results, status) => {
+            resolve(status === 'OK' && results.length > 0 ? results[0].formatted_address : '');
           });
-          if (result) address = result;
-        } catch (e) { /* skip */ }
+        });
+        if (result) address = result;
+      } catch (e) { /* skip */ }
 
-        street = {
-          id: crypto.randomUUID?.() || Date.now().toString(36),
-          name: address,
-          lat: startPt.lat,
-          lng: startPt.lng,
-          length: 0,
-          width: 24,
-          sqft: 0,
-          rating: 'pending',
-          notes: '',
-          analysis: '',
-          svImage: getStreetViewUrl(startPt.lat, startPt.lng),
-          photos: [],
-          scannedAt: null,
-          createdAt: new Date().toISOString()
-        };
-        streets.push(street);
-      }
+      const street = {
+        id: crypto.randomUUID?.() || Date.now().toString(36),
+        name: address,
+        lat: startPt.lat,
+        lng: startPt.lng,
+        length: 0,
+        width: 24,
+        sqft: 0,
+        rating: 'pending',
+        notes: '',
+        analysis: '',
+        svImage: getStreetViewUrl(startPt.lat, startPt.lng),
+        photos: [],
+        scannedAt: null,
+        createdAt: new Date().toISOString()
+      };
 
       street.highlightStart = startPt;
       street.highlightEnd = endPt;
@@ -886,17 +895,22 @@ function handleMapClick(latLng) {
       street.length = Math.round(distFt);
       street.sqft = street.length * (street.width || 24);
 
-      highlightMode = null;
-      window._freeHighlightStart = null;
-      document.getElementById('highlight-bar').classList.add('hidden');
+      streets.push(street);
       saveStreets();
       clearTempMarkers();
       drawAllHighlights();
       renderStreetList();
       placeAllMarkers();
       updateStats();
-      selectStreet(street.id);
-      showToast(`Street highlighted — ${formatNumber(street.length)} ft long, ${formatNumber(street.sqft)} sq ft`);
+
+      // Track how many streets drawn
+      window._drawCount = (window._drawCount || 0) + 1;
+
+      // Stay in drawing mode — ready for next street
+      highlightMode = 'free-start';
+      window._freeHighlightStart = null;
+      document.getElementById('highlight-bar-text').textContent = `Street ${window._drawCount} done (${formatNumber(street.length)} ft) — click START of next street, or Done`;
+      showToast(`${formatNumber(street.length)} ft — ${formatNumber(street.sqft)} sq ft`);
     })();
     return;
   }
