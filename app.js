@@ -840,12 +840,12 @@ function selectStreet(id) {
       <div class="detail-stat">
         <div class="detail-stat-label">Rating</div>
         <div class="detail-stat-value"><span class="rating-badge rating-${street.rating}">${ratingLabel(street.rating)}</span></div>
-        <div class="rating-picker">
-          <button class="rp-btn ${street.rating === 'level-1' ? 'rp-active' : ''}" style="--rp-color:#22c55e" onclick="setRating('${street.id}','level-1')">1</button>
-          <button class="rp-btn ${street.rating === 'level-2' ? 'rp-active' : ''}" style="--rp-color:#eab308" onclick="setRating('${street.id}','level-2')">2</button>
-          <button class="rp-btn ${street.rating === 'level-3' ? 'rp-active' : ''}" style="--rp-color:#f97316" onclick="setRating('${street.id}','level-3')">3</button>
-          <button class="rp-btn ${street.rating === 'level-4' ? 'rp-active' : ''}" style="--rp-color:#ef4444" onclick="setRating('${street.id}','level-4')">4</button>
-        </div>
+        <select class="rating-select rating-${street.rating}" onchange="setRating('${street.id}', this.value)">
+          <option value="level-1" ${street.rating === 'level-1' ? 'selected' : ''}>LVL 1 — Little cracks</option>
+          <option value="level-2" ${street.rating === 'level-2' ? 'selected' : ''}>LVL 2 — Light cracks</option>
+          <option value="level-3" ${street.rating === 'level-3' ? 'selected' : ''}>LVL 3 — Deep + alligator</option>
+          <option value="level-4" ${street.rating === 'level-4' ? 'selected' : ''}>LVL 4 — Severe</option>
+        </select>
       </div>
       <div class="detail-stat">
         <div class="detail-stat-label">Length</div>

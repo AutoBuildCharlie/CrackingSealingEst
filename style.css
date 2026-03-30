@@ -595,32 +595,24 @@ body {
   font-weight: 700;
   margin-top: 2px;
 }
-.rating-picker {
-  display: flex;
-  gap: 4px;
+.rating-select {
   margin-top: 4px;
-}
-.rp-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
+  width: 100%;
+  padding: 5px 6px;
   background: var(--bg-dark);
-  color: var(--rp-color);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  outline: none;
 }
-.rp-btn:hover {
-  border-color: var(--rp-color);
-  background: rgba(255,255,255,0.05);
-}
-.rp-active {
-  border-color: var(--rp-color);
-  background: var(--rp-color);
-  color: #000;
-}
+.rating-select:focus { border-color: var(--accent); }
+.rating-select.rating-level-1 { border-color: #22c55e; color: #22c55e; }
+.rating-select.rating-level-2 { border-color: #eab308; color: #eab308; }
+.rating-select.rating-level-3 { border-color: #f97316; color: #f97316; }
+.rating-select.rating-level-4 { border-color: #ef4444; color: #ef4444; }
 
 .detail-section {
   margin-bottom: 16px;
