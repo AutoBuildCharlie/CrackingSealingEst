@@ -68,9 +68,8 @@ function initMap() {
     }
   });
 
-  // Map click listeners
+  // Map click listener
   map.addListener('click', (e) => handleMapClick(e.latLng));
-  map.addListener('dblclick', (e) => handleMapDblClick(e.latLng));
 
   renderProjectSelector();
   renderStreetList();
@@ -964,7 +963,8 @@ function startFreeHighlight() {
   clearTempMarkers();
   clearTempPolyline();
   document.getElementById('highlight-bar').classList.remove('hidden');
-  document.getElementById('highlight-bar-text').textContent = 'Click along the street to trace it — double-click to finish';
+  document.getElementById('highlight-bar-text').textContent = 'Click along the street to trace it';
+  document.getElementById('btn-next-street').classList.add('hidden');
   document.getElementById('detail-panel').classList.add('hidden');
   document.querySelector('.qa-highlight').classList.add('qa-active');
 }
@@ -1102,16 +1102,14 @@ function handleMapClick(latLng) {
     map: map
   });
 
+  // Show Next Street button after 2+ points
+  if (tempPath.length >= 2) {
+    document.getElementById('btn-next-street').classList.remove('hidden');
+  }
+
   // Calculate running total length
   const totalFt = calcPathLength(tempPath);
-  document.getElementById('highlight-bar-text').textContent = `${tempPath.length} points — ${formatNumber(Math.round(totalFt))} ft — click next point or double-click to finish`;
-}
-
-// Double-click finishes the current street
-function handleMapDblClick(latLng) {
-  if (highlightMode !== 'drawing' || tempPath.length < 2) return;
-
-  finishCurrentStreet();
+  document.getElementById('highlight-bar-text').textContent = `${tempPath.length} points — ${formatNumber(Math.round(totalFt))} ft`;
 }
 
 async function finishCurrentStreet() {
@@ -1175,7 +1173,8 @@ async function finishCurrentStreet() {
   updateStats();
 
   drawCount++;
-  document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} done (${formatNumber(totalFt)} ft) — start next street or click Done`;
+  document.getElementById('btn-next-street').classList.add('hidden');
+  document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} saved — click next street or Done`;
   showToast(`${formatNumber(totalFt)} ft — ${formatNumber(street.sqft)} sq ft — ${street.city || 'Unknown'}`);
 
   // Boundary crossing warning
