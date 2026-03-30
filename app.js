@@ -638,12 +638,9 @@ function selectStreet(id) {
   map.setZoom(16);
 
   // If Street View is open, jump to this street
-  if (streetViewPano && !document.getElementById('streetview-panel').classList.contains('hidden')) {
+  const svOpen = streetViewPano && !document.getElementById('streetview-panel').classList.contains('hidden');
+  if (svOpen) {
     streetViewPano.setPosition({ lat: street.lat, lng: street.lng });
-    if (miniMapMarker) {
-      miniMapMarker.setPosition({ lat: street.lat, lng: street.lng });
-      if (miniMap) miniMap.setCenter({ lat: street.lat, lng: street.lng });
-    }
   }
 
   // Show detail panel
@@ -721,6 +718,60 @@ function selectStreet(id) {
       <button class="btn-danger" onclick="deleteStreet('${street.id}')">Delete</button>
     </div>
   `;
+
+  // If Street View is open, add mini map at the top of the detail panel
+  if (svOpen) {
+    const miniMapDiv = document.createElement('div');
+    miniMapDiv.innerHTML = `
+      <div class="detail-section">
+        <h4>Your Position</h4>
+        <div id="mini-map" style="width:100%;height:200px;border-radius:8px;border:1px solid var(--border);margin-bottom:6px;"></div>
+        <div id="mini-map-address" class="detail-jurisdiction" style="font-size:11px;">Loading location...</div>
+      </div>
+    `;
+    const detailContent = document.getElementById('detail-content');
+    detailContent.insertBefore(miniMapDiv, detailContent.children[1]);
+
+    // Build mini map
+    setTimeout(() => {
+      miniMap = new google.maps.Map(document.getElementById('mini-map'), {
+        center: { lat: street.lat, lng: street.lng },
+        zoom: 17,
+        mapTypeId: 'roadmap',
+        styles: darkMapStyle(),
+        disableDefaultUI: true,
+        zoomControl: true
+      });
+
+      miniMapMarker = new google.maps.Marker({
+        position: { lat: street.lat, lng: street.lng },
+        map: miniMap,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }
+      });
+
+      // Draw highlighted streets on mini map
+      miniMapLines = [];
+      streets.forEach(s => {
+        const pts = s.path;
+        if (!pts || pts.length < 2) return;
+        const line = new google.maps.Polyline({ path: pts, strokeColor: ratingColor(s.rating), strokeOpacity: 0.9, strokeWeight: 5, map: miniMap });
+        miniMapLines.push(line);
+      });
+
+      // Track position changes
+      if (streetViewPano) {
+        streetViewPano.addListener('position_changed', () => {
+          const pos = streetViewPano.getPosition();
+          if (miniMapMarker) { miniMapMarker.setPosition(pos); miniMap.setCenter(pos); }
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode({ location: { lat: pos.lat(), lng: pos.lng() } }, (results, status) => {
+            const el = document.getElementById('mini-map-address');
+            if (el && status === 'OK' && results.length > 0) el.textContent = results[0].formatted_address;
+          });
+        });
+      }
+    }, 100);
+  }
 }
 
 function closeDetailPanel() {
@@ -1084,98 +1135,9 @@ function openStreetViewAt(lat, lng) {
     }
   );
 
-  // Show mini map in detail panel
-  showMiniMap(lat, lng);
-
-  // Update mini map marker when Street View position changes
-  streetViewPano.addListener('position_changed', () => {
-    const pos = streetViewPano.getPosition();
-    if (miniMapMarker) {
-      miniMapMarker.setPosition(pos);
-      miniMap.setCenter(pos);
-    }
-  });
-}
-
-function showMiniMap(lat, lng) {
-  const detailPanel = document.getElementById('detail-panel');
-  detailPanel.classList.remove('hidden');
-
-  document.getElementById('detail-content').innerHTML = `
-    <div class="detail-header">
-      <h3>Street View Navigation</h3>
-      <div class="detail-address">Move around in Street View — your position shows on the map below</div>
-    </div>
-    <div id="mini-map" style="width:100%;height:280px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;"></div>
-    <div id="mini-map-address" class="detail-jurisdiction">Loading location...</div>
-  `;
-
-  // Create mini map (roadmap, not satellite)
-  miniMap = new google.maps.Map(document.getElementById('mini-map'), {
-    center: { lat, lng },
-    zoom: 17,
-    mapTypeId: 'roadmap',
-    styles: darkMapStyle(),
-    disableDefaultUI: true,
-    zoomControl: true
-  });
-
-  // "You are here" marker
-  miniMapMarker = new google.maps.Marker({
-    position: { lat, lng },
-    map: miniMap,
-    title: 'You are here',
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 10,
-      fillColor: '#f59e0b',
-      fillOpacity: 1,
-      strokeColor: '#fff',
-      strokeWeight: 3
-    }
-  });
-
-  // Draw all highlighted streets on mini map
-  miniMapLines = [];
-  streets.forEach(street => {
-    const pathPoints = street.path;
-    if (!pathPoints || pathPoints.length < 2) return;
-
-    const color = ratingColor(street.rating);
-    const line = new google.maps.Polyline({
-      path: pathPoints,
-      strokeColor: color,
-      strokeOpacity: 0.9,
-      strokeWeight: 5,
-      map: miniMap
-    });
-    miniMapLines.push(line);
-
-    // Start/end markers
-    [{ pos: pathPoints[0], label: 'S', clr: '#22c55e' },
-     { pos: pathPoints[pathPoints.length - 1], label: 'E', clr: '#ef4444' }].forEach(m => {
-      const mk = new google.maps.Marker({
-        position: m.pos,
-        map: miniMap,
-        label: { text: m.label, color: '#fff', fontWeight: '700', fontSize: '9px' },
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: m.clr, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 1.5 }
-      });
-      miniMapLines.push(mk);
-    });
-  });
-
-  // Update address as user moves
-  if (streetViewPano) {
-    streetViewPano.addListener('position_changed', () => {
-      const pos = streetViewPano.getPosition();
-      const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({ location: { lat: pos.lat(), lng: pos.lng() } }, (results, status) => {
-        const el = document.getElementById('mini-map-address');
-        if (el && status === 'OK' && results.length > 0) {
-          el.textContent = results[0].formatted_address;
-        }
-      });
-    });
+  // If a street is selected, refresh the detail panel to include mini map
+  if (activeStreetId) {
+    selectStreet(activeStreetId);
   }
 }
 
