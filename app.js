@@ -32,13 +32,14 @@ let activeStreetId = null;
 const STORAGE_KEY = 'cse_streets';
 const GEOCODE_BASE = 'https://maps.googleapis.com/maps/api/geocode/json';
 const SV_BASE = 'https://maps.googleapis.com/maps/api/streetview';
-const API_KEY = getMapKey();
+let API_KEY = '';
 
 // ─── OPENAI PROXY (for AI crack analysis) ──────────────────
 const AI_PROXY = ''; // Cloudflare Worker URL — add later
 
 // ─── INIT ──────────────────────────────────────────────────
 function initMap() {
+  API_KEY = getMapKey();
   streets = loadStreets();
 
   map = new google.maps.Map(document.getElementById('map'), {
