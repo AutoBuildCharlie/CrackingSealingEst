@@ -1283,6 +1283,124 @@ function calcDistanceFt(p1, p2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ─── PROJECT REPORT ────────────────────────────────────────
+async function generateProjectReport() {
+  if (streets.length === 0) {
+    showToast('Add some streets first');
+    return;
+  }
+
+  // Show modal with loading
+  document.getElementById('report-overlay').classList.remove('hidden');
+  document.getElementById('report-overlay').style.display = 'flex';
+  document.getElementById('report-title').textContent = `${activeProject.name} — Report`;
+  document.getElementById('report-content').innerHTML = '<div class="scan-spinner" style="margin:20px auto;"></div><p style="text-align:center;color:var(--text-dim);">AI is analyzing the full project...</p>';
+
+  // Build stats
+  const totalStreets = streets.length;
+  const totalSqft = streets.reduce((s, st) => s + (st.sqft || 0), 0);
+  const totalLength = streets.reduce((s, st) => s + (st.length || 0), 0);
+  const ratingCounts = { good: 0, fair: 0, poor: 0, critical: 0, pending: 0 };
+  streets.forEach(s => ratingCounts[s.rating] = (ratingCounts[s.rating] || 0) + 1);
+  const cities = [...new Set(streets.map(s => s.city).filter(Boolean))];
+  const boundaryStreets = streets.filter(s => s.crossesBoundary);
+
+  // Build street summary for AI
+  const streetSummary = streets.map(s =>
+    `- ${s.name}: ${formatNumber(s.length || 0)} ft, ${formatNumber(s.sqft || 0)} sq ft, Rating: ${s.rating}, City: ${s.city || 'Unknown'}`
+  ).join('\n');
+
+  // Get AI project summary
+  let aiSummary = '';
+  if (AI_PROXY) {
+    try {
+      const res = await fetch(AI_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a pavement assessment expert writing a project summary for a road sealing company called GRSI. Be concise and professional. Include: overall project condition, priority streets that need immediate attention, recommendations for the work scope, and any concerns about boundary crossings. Format with bullet points.`
+            },
+            {
+              role: 'user',
+              content: `Project: ${activeProject.name}\nTotal streets: ${totalStreets}\nTotal sq ft: ${formatNumber(totalSqft)}\nTotal linear ft: ${formatNumber(totalLength)}\nCities: ${cities.join(', ') || 'Unknown'}\nBoundary crossings: ${boundaryStreets.length}\n\nStreet breakdown:\n${streetSummary}\n\nProvide a project summary with overall condition assessment, priority recommendations, and scope notes.`
+            }
+          ],
+          max_tokens: 600
+        })
+      });
+      const data = await res.json();
+      aiSummary = data.choices?.[0]?.message?.content || 'AI analysis unavailable';
+    } catch (e) {
+      aiSummary = 'AI analysis unavailable — check connection';
+    }
+  } else {
+    aiSummary = 'Connect AI proxy for project analysis';
+  }
+
+  // Build report HTML
+  document.getElementById('report-content').innerHTML = `
+    <div class="report-stats-grid">
+      <div class="report-section">
+        <div class="report-label">Streets</div>
+        <div class="report-value">${totalStreets}</div>
+      </div>
+      <div class="report-section">
+        <div class="report-label">Total Sq Ft</div>
+        <div class="report-value">${formatNumber(totalSqft)}</div>
+      </div>
+      <div class="report-section">
+        <div class="report-label">Linear Ft</div>
+        <div class="report-value">${formatNumber(totalLength)}</div>
+      </div>
+    </div>
+
+    <div class="report-stats-grid">
+      <div class="report-section">
+        <div class="report-label">Good</div>
+        <div class="report-value" style="color:#22c55e">${ratingCounts.good}</div>
+      </div>
+      <div class="report-section">
+        <div class="report-label">Fair</div>
+        <div class="report-value" style="color:#eab308">${ratingCounts.fair}</div>
+      </div>
+      <div class="report-section">
+        <div class="report-label">Poor / Critical</div>
+        <div class="report-value" style="color:#ef4444">${ratingCounts.poor + ratingCounts.critical}</div>
+      </div>
+    </div>
+
+    ${cities.length > 0 ? `<div class="report-section"><div class="report-label">Jurisdictions</div><div>${cities.join(', ')}</div></div>` : ''}
+
+    ${boundaryStreets.length > 0 ? `<div class="report-section" style="border-color:rgba(249,115,22,0.3)"><div class="report-label" style="color:var(--orange)">⚠ Boundary Crossings (${boundaryStreets.length})</div><div style="font-size:12px">${boundaryStreets.map(s => escHtml(s.boundaryNote)).join('<br>')}</div></div>` : ''}
+
+    <div class="report-section">
+      <div class="report-label">Street Breakdown</div>
+      ${streets.map(s => `
+        <div class="report-street-row">
+          <span>${escHtml(s.name?.split(',')[0] || 'Unknown')}</span>
+          <span>${formatNumber(s.sqft || 0)} sq ft</span>
+          <span class="rating-badge rating-${s.rating}">${s.rating}</span>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="report-section">
+      <div class="report-label">AI Project Summary</div>
+      <div class="report-ai">${escHtml(aiSummary)}</div>
+    </div>
+  `;
+}
+
+function closeReport(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('report-overlay').classList.add('hidden');
+  document.getElementById('report-overlay').style.display = 'none';
+}
+
 // ─── GET MAP KEY (from script tag) ─────────────────────────
 function getMapKey() {
   const script = document.querySelector('script[src*="maps.googleapis.com"]');

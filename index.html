@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cracking &amp; Sealing Est.</title>
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=23">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -29,8 +29,18 @@
         <span class="stat-label">Avg Rating</span>
         <span class="stat-value" id="avg-rating">—</span>
       </div>
+      <button class="btn-report" onclick="generateProjectReport()" title="Generate project report">Report</button>
     </div>
   </header>
+
+  <!-- ─── REPORT MODAL ───────────────────────────────────── -->
+  <div id="report-overlay" class="modal-overlay hidden" onclick="closeReport(event)">
+    <div class="modal report-modal" onclick="event.stopPropagation()">
+      <button class="btn-close" onclick="closeReport()" style="position:absolute;top:10px;right:14px;">&times;</button>
+      <h3 id="report-title">Project Report</h3>
+      <div id="report-content" class="report-content">Generating report...</div>
+    </div>
+  </div>
 
   <!-- ─── MAIN LAYOUT ────────────────────────────────────── -->
   <main id="app-main">
@@ -123,7 +133,7 @@
   </div>
 
   <!-- ─── SCRIPTS ─────────────────────────────────────────── -->
-  <script src="app.js?v=22"></script>
+  <script src="app.js?v=23"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap">
   </script>
