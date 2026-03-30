@@ -362,11 +362,10 @@ function getStreetViewUrl(lat, lng, heading = 0) {
 
 // Determine how many mid-street photos based on length
 function getMidPhotoCount(lengthFt) {
-  if (lengthFt < 200) return 0;   // cul-de-sacs — corners only
-  if (lengthFt < 500) return 1;   // small streets — 1 mid
-  if (lengthFt < 1500) return 2;  // standard — 2 mid
-  if (lengthFt < 3000) return 3;  // long — 3 mid
-  return 4;                        // major — 4 mid
+  if (lengthFt < 500) return 0;   // side streets — corners only
+  if (lengthFt < 1500) return 1;  // standard — 1 mid
+  if (lengthFt < 3000) return 2;  // long — 2 mid
+  return 3;                        // major — 3 mid
 }
 
 // Calculate sample points + corner coverage
@@ -379,8 +378,8 @@ function getSamplePoints(street) {
   const heading = calcHeading(startPt, endPt);
   const length = street.length || 0;
 
-  // Cul-de-sacs — 1 photo only, looking down the street
-  if (length < 200) {
+  // Cul-de-sacs and side streets (under 500 ft) — 1 photo from center
+  if (length < 500) {
     const midLat = (startPt.lat + endPt.lat) / 2;
     const midLng = (startPt.lng + endPt.lng) / 2;
     return [{ lat: midLat, lng: midLng, heading: heading, label: 'Center' }];
