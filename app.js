@@ -476,13 +476,19 @@ Photos include corner/intersection views and mid-street views. Corners and cul-d
 
 Analyze ALL images together. Look for: cracks (alligator, longitudinal, transverse), potholes, fading, patches, wear, surface texture, color of asphalt, corner damage.
 
+Use this rating scale:
+- Level 1: Zero to little cracks — pavement in good condition
+- Level 2: Moderate light amount of cracks — some visible cracking
+- Level 3: Moderate heavy amount, deep cracks and alligator cracking
+- Level 4: Alligator cracking everywhere, deep cracks and heavy cracking every 3-5 feet
+
 Your response must include:
 1. PHOTOS ANALYZED: ${validPairs.length} images covering ${formatNumber(street.length || 0)} ft
 2. WHAT I CAN SEE: 2-4 bullet points. Note corner vs mid-street differences. Note if condition varies along the street.
 3. CORNERS: Specifically note condition at intersections/corners if visible.
 4. WHAT I CAN'T SEE: 1-2 bullet points about limitations
 5. RECOMMENDATION: Whether on-site inspection is needed and why
-6. Rating: [good/fair/poor/critical]
+6. Level: [1/2/3/4]
 
 Be honest. Weight toward the worst section. Do not guess — only rate what you can actually see.`
           },
@@ -530,23 +536,48 @@ function imageUrlToBase64(url) {
 
 function extractRating(text) {
   const lower = text.toLowerCase();
-  if (lower.includes('rating: critical') || lower.includes('rating:critical')) return 'critical';
-  if (lower.includes('rating: poor') || lower.includes('rating:poor')) return 'poor';
-  if (lower.includes('rating: fair') || lower.includes('rating:fair')) return 'fair';
-  if (lower.includes('rating: good') || lower.includes('rating:good')) return 'good';
-  return 'fair';
+  if (lower.includes('level: 4') || lower.includes('level:4') || lower.includes('rating: 4')) return 'level-4';
+  if (lower.includes('level: 3') || lower.includes('level:3') || lower.includes('rating: 3')) return 'level-3';
+  if (lower.includes('level: 2') || lower.includes('level:2') || lower.includes('rating: 2')) return 'level-2';
+  if (lower.includes('level: 1') || lower.includes('level:1') || lower.includes('rating: 1')) return 'level-1';
+  // Fallback for old ratings
+  if (lower.includes('critical')) return 'level-4';
+  if (lower.includes('poor')) return 'level-3';
+  if (lower.includes('fair')) return 'level-2';
+  if (lower.includes('good')) return 'level-1';
+  return 'level-2';
+}
+
+function ratingLabel(rating) {
+  switch (rating) {
+    case 'level-1': return 'LVL 1';
+    case 'level-2': return 'LVL 2';
+    case 'level-3': return 'LVL 3';
+    case 'level-4': return 'LVL 4';
+    default: return rating.toUpperCase();
+  }
+}
+
+function ratingDescription(rating) {
+  switch (rating) {
+    case 'level-1': return 'Zero to little cracks';
+    case 'level-2': return 'Moderate light amount of cracks';
+    case 'level-3': return 'Moderate heavy, deep cracks & alligator';
+    case 'level-4': return 'Alligator everywhere, deep cracks every 3-5 ft';
+    default: return '';
+  }
 }
 
 // Placeholder analysis when AI proxy isn't connected yet
 function analyzeWithPlaceholder(street) {
-  const ratings = ['good', 'fair', 'poor', 'critical'];
-  const rating = ratings[Math.floor(Math.random() * ratings.length)];
+  const levels = ['level-1', 'level-2', 'level-3', 'level-4'];
+  const rating = levels[Math.floor(Math.random() * levels.length)];
 
   const analyses = {
-    good: `Street View Assessment — ${street.name}\n\n• Pavement appears to be in good overall condition\n• No major cracking or deterioration visible from street level\n• Surface color and texture appear consistent\n• Minimal patching observed\n\nNote: This is a preliminary scan from Street View. On-site inspection recommended for accurate crack measurement.\n\nRating: Good`,
-    fair: `Street View Assessment — ${street.name}\n\n• Some visible surface wear and minor cracking detected\n• Possible longitudinal cracking along lane edges\n• Pavement color suggests moderate aging\n• Some areas may have previous patch work\n\nNote: This is a preliminary scan from Street View. On-site inspection recommended for accurate crack measurement.\n\nRating: Fair`,
-    poor: `Street View Assessment — ${street.name}\n\n• Significant pavement deterioration visible\n• Multiple crack patterns detected (possible alligator cracking)\n• Surface appears rough and uneven in areas\n• Evidence of previous repairs that may need re-sealing\n\nNote: This is a preliminary scan from Street View. On-site inspection recommended for accurate crack measurement.\n\nRating: Poor`,
-    critical: `Street View Assessment — ${street.name}\n\n• Severe pavement distress visible from street level\n• Extensive cracking across multiple areas\n• Possible potholes or surface failures detected\n• Immediate attention recommended\n\nNote: This is a preliminary scan from Street View. On-site inspection recommended for accurate crack measurement.\n\nRating: Critical`
+    'level-1': `Street View Assessment — ${street.name}\n\n• Pavement appears to be in good overall condition\n• Zero to little cracking visible\n• Surface color and texture appear consistent\n\nNote: This is an automated scan from Street View.\n\nLevel: 1`,
+    'level-2': `Street View Assessment — ${street.name}\n\n• Some visible surface wear and minor cracking detected\n• Moderate light amount of cracks\n• Pavement color suggests some aging\n\nNote: This is an automated scan from Street View.\n\nLevel: 2`,
+    'level-3': `Street View Assessment — ${street.name}\n\n• Significant pavement deterioration visible\n• Moderate heavy cracking with deep cracks and alligator patterns\n• Surface appears rough and uneven in areas\n\nNote: This is an automated scan from Street View.\n\nLevel: 3`,
+    'level-4': `Street View Assessment — ${street.name}\n\n• Severe pavement distress visible\n• Alligator cracking everywhere\n• Deep cracks and heavy cracking every 3-5 feet\n\nNote: This is an automated scan from Street View.\n\nLevel: 4`
   };
 
   return { text: analyses[rating], rating };
@@ -593,10 +624,10 @@ function fitMapToMarkers() {
 
 function ratingColor(rating) {
   switch (rating) {
-    case 'good': return '#22c55e';
-    case 'fair': return '#eab308';
-    case 'poor': return '#f97316';
-    case 'critical': return '#ef4444';
+    case 'level-1': case 'good': return '#22c55e';
+    case 'level-2': case 'fair': return '#eab308';
+    case 'level-3': case 'poor': return '#f97316';
+    case 'level-4': case 'critical': return '#ef4444';
     default: return '#94a3b8';
   }
 }
@@ -618,7 +649,7 @@ function renderStreetList() {
       ${s.crossesBoundary ? `<div class="street-card-boundary">⚠ ${escHtml(s.boundaryNote)}</div>` : ''}
       <div class="street-card-meta">
         <span class="street-card-sqft">${s.sqft ? formatNumber(s.sqft) + ' sq ft' : 'No dimensions'}</span>
-        <span class="rating-badge rating-${s.rating}">${s.rating}</span>
+        <span class="rating-badge rating-${s.rating}" title="${ratingDescription(s.rating)}">${ratingLabel(s.rating)}</span>
       </div>
     </div>
   `).join('');
@@ -662,7 +693,8 @@ function selectStreet(id) {
       </div>
       <div class="detail-stat">
         <div class="detail-stat-label">Rating</div>
-        <div class="detail-stat-value"><span class="rating-badge rating-${street.rating}">${street.rating}</span></div>
+        <div class="detail-stat-value"><span class="rating-badge rating-${street.rating}">${ratingLabel(street.rating)}</span></div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">${ratingDescription(street.rating)}</div>
       </div>
       <div class="detail-stat">
         <div class="detail-stat-label">Length</div>
@@ -855,16 +887,12 @@ function updateStats() {
   const totalSqft = streets.reduce((sum, s) => sum + (s.sqft || 0), 0);
   document.getElementById('total-sqft').textContent = formatNumber(totalSqft);
 
-  // Average rating
-  const ratingValues = { good: 4, fair: 3, poor: 2, critical: 1, pending: 0 };
+  // Average rating (Level 1-4)
+  const ratingValues = { 'level-1': 1, 'level-2': 2, 'level-3': 3, 'level-4': 4, good: 1, fair: 2, poor: 3, critical: 4, pending: 0 };
   const rated = streets.filter(s => s.rating !== 'pending');
   if (rated.length > 0) {
     const avg = rated.reduce((sum, s) => sum + (ratingValues[s.rating] || 0), 0) / rated.length;
-    let avgLabel = 'Good';
-    if (avg < 1.5) avgLabel = 'Critical';
-    else if (avg < 2.5) avgLabel = 'Poor';
-    else if (avg < 3.5) avgLabel = 'Fair';
-    document.getElementById('avg-rating').textContent = avgLabel;
+    document.getElementById('avg-rating').textContent = 'LVL ' + Math.round(avg);
   } else {
     document.getElementById('avg-rating').textContent = '—';
   }
@@ -1503,8 +1531,15 @@ async function generateProjectReport() {
   const totalStreets = streets.length;
   const totalSqft = streets.reduce((s, st) => s + (st.sqft || 0), 0);
   const totalLength = streets.reduce((s, st) => s + (st.length || 0), 0);
-  const ratingCounts = { good: 0, fair: 0, poor: 0, critical: 0, pending: 0 };
-  streets.forEach(s => ratingCounts[s.rating] = (ratingCounts[s.rating] || 0) + 1);
+  const ratingCounts = { 'level-1': 0, 'level-2': 0, 'level-3': 0, 'level-4': 0 };
+  streets.forEach(s => {
+    let r = s.rating;
+    if (r === 'good') r = 'level-1';
+    if (r === 'fair') r = 'level-2';
+    if (r === 'poor') r = 'level-3';
+    if (r === 'critical') r = 'level-4';
+    ratingCounts[r] = (ratingCounts[r] || 0) + 1;
+  });
   const cities = [...new Set(streets.map(s => s.city).filter(Boolean))];
   const boundaryStreets = streets.filter(s => s.crossesBoundary);
 
@@ -1561,18 +1596,26 @@ async function generateProjectReport() {
       </div>
     </div>
 
-    <div class="report-stats-grid">
+    <div class="report-stats-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
       <div class="report-section">
-        <div class="report-label">Good</div>
-        <div class="report-value" style="color:#22c55e">${ratingCounts.good}</div>
+        <div class="report-label">LVL 1</div>
+        <div class="report-value" style="color:#22c55e">${ratingCounts['level-1']}</div>
+        <div style="font-size:9px;color:var(--text-dim)">Little cracks</div>
       </div>
       <div class="report-section">
-        <div class="report-label">Fair</div>
-        <div class="report-value" style="color:#eab308">${ratingCounts.fair}</div>
+        <div class="report-label">LVL 2</div>
+        <div class="report-value" style="color:#eab308">${ratingCounts['level-2']}</div>
+        <div style="font-size:9px;color:var(--text-dim)">Light cracks</div>
       </div>
       <div class="report-section">
-        <div class="report-label">Poor / Critical</div>
-        <div class="report-value" style="color:#ef4444">${ratingCounts.poor + ratingCounts.critical}</div>
+        <div class="report-label">LVL 3</div>
+        <div class="report-value" style="color:#f97316">${ratingCounts['level-3']}</div>
+        <div style="font-size:9px;color:var(--text-dim)">Deep + alligator</div>
+      </div>
+      <div class="report-section">
+        <div class="report-label">LVL 4</div>
+        <div class="report-value" style="color:#ef4444">${ratingCounts['level-4']}</div>
+        <div style="font-size:9px;color:var(--text-dim)">Severe</div>
       </div>
     </div>
 
@@ -1586,7 +1629,7 @@ async function generateProjectReport() {
         <div class="report-street-row">
           <span>${escHtml(s.name?.split(',')[0] || 'Unknown')}</span>
           <span>${formatNumber(s.sqft || 0)} sq ft</span>
-          <span class="rating-badge rating-${s.rating}">${s.rating}</span>
+          <span class="rating-badge rating-${s.rating}" title="${ratingDescription(s.rating)}">${ratingLabel(s.rating)}</span>
         </div>
       `).join('')}
     </div>
