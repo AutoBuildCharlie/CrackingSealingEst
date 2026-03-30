@@ -920,7 +920,7 @@ function selectStreet(id) {
       <div class="scan-photo-grid">
         ${street.scanPhotos.map((p, i) => `
           <div class="scan-photo-card" onclick="openLightbox(${JSON.stringify(street.scanPhotos).replace(/"/g, '&quot;')}, ${i})" title="Click to enlarge">
-            <img src="${p.url}" alt="${escHtml(p.label)}" class="scan-photo-img" onerror="this.style.display='none'">
+            <img src="${p.hdUrl || p.url}" alt="${escHtml(p.label)}" class="scan-photo-img" onerror="this.style.display='none'">
             <div class="scan-photo-label">${escHtml(p.label)}</div>
           </div>
         `).join('')}
