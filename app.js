@@ -297,10 +297,11 @@ function migrateScanPhotos() {
   let changed = false;
   projects.forEach(p => {
     p.streets.forEach(s => {
-      if (!s.scanPhotos && s.scannedAt) {
+      if (s.scannedAt && (!s.scanPhotos || !s.scanPhotos[0]?.hdUrl)) {
         const pts = getSamplePoints(s);
         s.scanPhotos = pts.map(pt => ({
           url: getStreetViewUrl(pt.lat, pt.lng, pt.heading || 0),
+          hdUrl: getStreetViewUrlHD(pt.lat, pt.lng, pt.heading || 0),
           label: pt.label
         }));
         s.photosScanned = pts.length;
@@ -504,6 +505,10 @@ function getStreetViewUrl(lat, lng, heading = 0) {
   return `${SV_BASE}?size=640x300&location=${lat},${lng}&heading=${heading}&pitch=-10&fov=100&key=${API_KEY}`;
 }
 
+function getStreetViewUrlHD(lat, lng, heading = 0) {
+  return `${SV_BASE}?size=640x640&location=${lat},${lng}&heading=${heading}&pitch=-10&fov=80&key=${API_KEY}`;
+}
+
 // ─── AI ANALYSIS ───────────────────────────────────────────
 
 // Determine how many mid-street photos based on length
@@ -657,6 +662,7 @@ Be honest. Weight toward the worst section. Do not guess — only rate what you 
     street.photosScanned = validPairs.length;
     street.scanPhotos = samplePoints.map(pt => ({
       url: getStreetViewUrl(pt.lat, pt.lng, pt.heading || 0),
+      hdUrl: getStreetViewUrlHD(pt.lat, pt.lng, pt.heading || 0),
       label: pt.label
     }));
 
@@ -1293,7 +1299,7 @@ function lightboxNav(dir) {
 
 function _renderLightbox() {
   const p = _lbPhotos[_lbIdx];
-  document.getElementById('lightbox-img').src = p.url;
+  document.getElementById('lightbox-img').src = p.hdUrl || p.url;
   document.getElementById('lightbox-label').textContent = p.label;
   document.getElementById('lightbox-count').textContent = `${_lbIdx + 1} / ${_lbPhotos.length}`;
 }
