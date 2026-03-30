@@ -381,7 +381,17 @@ async function analyzeStreetView(street) {
         messages: [
           {
             role: 'system',
-            content: `You are a pavement condition assessor for a road sealing company. Analyze this Street View image and assess the visible pavement/road condition. Look for: cracks (alligator, longitudinal, transverse), potholes, fading, patches, wear, surface texture. Rate the overall condition as exactly one of: good, fair, poor, critical. Be concise — 3-4 bullet points max. End with "Rating: [good/fair/poor/critical]"`
+            content: `You are a pavement condition assessor for a road sealing company (GRSI). Analyze this Street View image and assess the visible pavement/road condition.
+
+Look for: cracks (alligator, longitudinal, transverse), potholes, fading, patches, wear, surface texture, color of asphalt.
+
+Your response must include these sections:
+1. WHAT I CAN SEE: 2-3 bullet points of what's visible from this angle
+2. WHAT I CAN'T SEE: 1-2 bullet points about limitations (small cracks, hidden damage, etc.)
+3. RECOMMENDATION: Whether on-site inspection is needed and why
+4. Rating: [good/fair/poor/critical]
+
+Be honest. If the image quality or angle makes it hard to assess, say so. Do not guess — only rate what you can actually see.`
           },
           {
             role: 'user',
