@@ -2082,8 +2082,11 @@ function drawAllHighlights() {
         if (d < minDist) { minDist = d; boundaryT = idx / (path.length - 1); }
       });
 
-      const startLabelPos = getPathPointAt(path, boundaryT / 2);
-      const endLabelPos   = getPathPointAt(path, boundaryT + (1 - boundaryT) / 2);
+      const startLabelMid = getPathPointAt(path, boundaryT / 2);
+      const endLabelMid   = getPathPointAt(path, boundaryT + (1 - boundaryT) / 2);
+      const perpUp = (streetHeading + 270) % 360;
+      const startLabelPos = offsetPoint(startLabelMid.lat, startLabelMid.lng, perpUp, 120);
+      const endLabelPos   = offsetPoint(endLabelMid.lat,   endLabelMid.lng,   perpUp, 120);
 
       const startLabel = new google.maps.Marker({
         position: startLabelPos,
