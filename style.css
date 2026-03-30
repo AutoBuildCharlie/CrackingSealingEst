@@ -311,6 +311,20 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.street-card-city {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.street-card-boundary {
+  font-size: 10px;
+  color: var(--orange);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.street-card-warning {
+  border-color: rgba(249,115,22,0.4) !important;
+}
 .street-card-meta {
   display: flex;
   justify-content: space-between;
@@ -403,6 +417,22 @@ body {
 .detail-header h3 {
   font-size: 16px;
   font-weight: 700;
+  margin-bottom: 4px;
+}
+.detail-jurisdiction {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+.detail-boundary-warn {
+  font-size: 12px;
+  color: var(--orange);
+  font-weight: 600;
+  background: rgba(249,115,22,0.1);
+  border: 1px solid rgba(249,115,22,0.3);
+  border-radius: 4px;
+  padding: 4px 8px;
   margin-bottom: 4px;
 }
 .detail-header .detail-address {

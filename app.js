@@ -193,6 +193,30 @@ function migrateOldData() {
   } catch { /* skip */ }
 }
 
+// ─── CITY/COUNTY DETECTION ──────────────────────────────────
+function geocodeDetails(latLng) {
+  return new Promise((resolve) => {
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ location: latLng }, (results, status) => {
+      if (status !== 'OK' || !results.length) {
+        resolve({ address: '', city: '', county: '', state: '' });
+        return;
+      }
+      const components = results[0].address_components;
+      const get = (type) => {
+        const c = components.find(c => c.types.includes(type));
+        return c ? c.long_name : '';
+      };
+      resolve({
+        address: results[0].formatted_address,
+        city: get('locality') || get('sublocality') || get('neighborhood'),
+        county: get('administrative_area_level_2'),
+        state: get('administrative_area_level_1')
+      });
+    });
+  });
+}
+
 // ─── MODAL CONTROLS ────────────────────────────────────────
 function openAddStreetModal() {
   document.getElementById('modal-overlay').classList.remove('hidden');
@@ -441,8 +465,10 @@ function renderStreetList() {
   }
 
   container.innerHTML = streets.map(s => `
-    <div class="street-card ${s.id === activeStreetId ? 'active' : ''}" onclick="selectStreet('${s.id}')">
+    <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''}" onclick="selectStreet('${s.id}')">
       <div class="street-card-name" title="${escHtml(s.name)}">${escHtml(s.name)}</div>
+      ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}</div>` : ''}
+      ${s.crossesBoundary ? `<div class="street-card-boundary">⚠ ${escHtml(s.boundaryNote)}</div>` : ''}
       <div class="street-card-meta">
         <span class="street-card-sqft">${s.sqft ? formatNumber(s.sqft) + ' sq ft' : 'No dimensions'}</span>
         <span class="rating-badge rating-${s.rating}">${s.rating}</span>
@@ -471,6 +497,8 @@ function selectStreet(id) {
   document.getElementById('detail-content').innerHTML = `
     <div class="detail-header">
       <h3>${escHtml(street.name)}</h3>
+      ${street.city ? `<div class="detail-jurisdiction">${escHtml(street.city)}${street.county ? ' — ' + escHtml(street.county) : ''}${street.state ? ', ' + escHtml(street.state) : ''}</div>` : ''}
+      ${street.crossesBoundary ? `<div class="detail-boundary-warn">⚠ ${escHtml(street.boundaryNote)}</div>` : ''}
       <div class="detail-address">Added ${formatDate(street.createdAt)}</div>
     </div>
 
@@ -1038,23 +1066,18 @@ async function finishCurrentStreet() {
   }
 
   const firstPt = tempPath[0];
+  const lastPt = tempPath[tempPath.length - 1];
   const totalFt = Math.round(calcPathLength(tempPath));
 
-  // Geocode the first point for the street name
-  let address = 'Unknown location';
-  try {
-    const geocoder = new google.maps.Geocoder();
-    const result = await new Promise((resolve) => {
-      geocoder.geocode({ location: firstPt }, (results, status) => {
-        resolve(status === 'OK' && results.length > 0 ? results[0].formatted_address : '');
-      });
-    });
-    if (result) address = result;
-  } catch (e) { /* skip */ }
+  // Geocode start and end points for address + city/county
+  const [startGeo, endGeo] = await Promise.all([
+    geocodeDetails(firstPt),
+    geocodeDetails(lastPt)
+  ]);
 
   const street = {
     id: crypto.randomUUID?.() || Date.now().toString(36),
-    name: address,
+    name: startGeo.address || 'Unknown location',
     lat: firstPt.lat,
     lng: firstPt.lng,
     length: totalFt,
@@ -1065,10 +1088,24 @@ async function finishCurrentStreet() {
     analysis: '',
     svImage: getStreetViewUrl(firstPt.lat, firstPt.lng),
     path: [...tempPath],
+    city: startGeo.city,
+    county: startGeo.county,
+    state: startGeo.state,
+    endCity: endGeo.city,
+    endCounty: endGeo.county,
+    crossesBoundary: (startGeo.city !== endGeo.city) || (startGeo.county !== endGeo.county),
+    boundaryNote: '',
     photos: [],
     scannedAt: null,
     createdAt: new Date().toISOString()
   };
+
+  // Build boundary warning
+  if (startGeo.city && endGeo.city && startGeo.city !== endGeo.city) {
+    street.boundaryNote = `Crosses city line: ${startGeo.city} → ${endGeo.city}`;
+  } else if (startGeo.county && endGeo.county && startGeo.county !== endGeo.county) {
+    street.boundaryNote = `Crosses county line: ${startGeo.county} → ${endGeo.county}`;
+  }
 
   streets.push(street);
   saveStreets();
@@ -1084,7 +1121,12 @@ async function finishCurrentStreet() {
 
   drawCount++;
   document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} done (${formatNumber(totalFt)} ft) — start next street or click Done`;
-  showToast(`${formatNumber(totalFt)} ft — ${formatNumber(street.sqft)} sq ft`);
+  showToast(`${formatNumber(totalFt)} ft — ${formatNumber(street.sqft)} sq ft — ${street.city || 'Unknown'}`);
+
+  // Boundary crossing warning
+  if (street.crossesBoundary) {
+    setTimeout(() => showToast(`⚠ ${street.boundaryNote}`, 5000), 1500);
+  }
 
   // Auto-scan in background
   analyzeStreetView(street).then(analysis => {
