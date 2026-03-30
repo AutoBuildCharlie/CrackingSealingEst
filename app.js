@@ -370,25 +370,30 @@ function getMidPhotoCount(lengthFt) {
 }
 
 // Calculate sample points + corner coverage
-// Always takes photos at start and end looking in multiple directions
 function getSamplePoints(street) {
   const path = street.path;
-  if (!path || path.length < 2) return [{ lat: street.lat, lng: street.lng, heading: 0 }];
+  if (!path || path.length < 2) return [{ lat: street.lat, lng: street.lng, heading: 0, label: 'Center' }];
 
   const startPt = path[0];
   const endPt = path[path.length - 1];
-
-  // Calculate heading from start to end
   const heading = calcHeading(startPt, endPt);
+  const length = street.length || 0;
+
+  // Cul-de-sacs — 1 photo only, looking down the street
+  if (length < 200) {
+    const midLat = (startPt.lat + endPt.lat) / 2;
+    const midLng = (startPt.lng + endPt.lng) / 2;
+    return [{ lat: midLat, lng: midLng, heading: heading, label: 'Center' }];
+  }
 
   const points = [];
 
-  // START CORNER — 2 photos looking in different directions
+  // START CORNER — 2 photos
   points.push({ ...startPt, heading: heading, label: 'Start (looking down street)' });
   points.push({ ...startPt, heading: (heading + 90) % 360, label: 'Start corner (cross street)' });
 
-  // MID-STREET — evenly spaced looking down the street
-  const midCount = getMidPhotoCount(street.length || 0);
+  // MID-STREET — evenly spaced
+  const midCount = getMidPhotoCount(length);
   for (let i = 1; i <= midCount; i++) {
     const t = i / (midCount + 1);
     points.push({
@@ -399,7 +404,7 @@ function getSamplePoints(street) {
     });
   }
 
-  // END CORNER — 2 photos looking in different directions
+  // END CORNER — 2 photos
   points.push({ ...endPt, heading: (heading + 180) % 360, label: 'End (looking back)' });
   points.push({ ...endPt, heading: (heading + 270) % 360, label: 'End corner (cross street)' });
 
