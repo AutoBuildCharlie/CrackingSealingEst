@@ -537,37 +537,26 @@ function getSamplePoints(street) {
   const endPt   = path[path.length - 1];
   const headingForward  = calcHeading(startPt, endPt);
   const headingBackward = (headingForward + 180) % 360;
-  const perpRight       = (headingForward + 90) % 360;  // right side of road
-  const perpLeft        = (headingForward + 270) % 360; // left side of road
   const length = street.length || 0;
-  const halfWidth = ((street.width || 32) / 2) * 0.55;  // 55% of half-width stays in lane
 
   const points = [];
 
   if (isMainStreet(street)) {
-    // ── MAIN STREET — multi-lane coverage ──────────────────
-    // START: right curb + center (both looking forward)
-    const startCurb = offsetPoint(startPt.lat, startPt.lng, perpRight, halfWidth);
-    points.push({ ...startCurb, heading: headingForward, label: 'Start — right lanes' });
-    points.push({ ...startPt,   heading: headingForward, label: 'Start — center' });
+    // ── MAIN STREET — center line, 1 photo every 400ft ─────
+    points.push({ ...startPt, heading: headingForward, label: 'Start (looking in)' });
 
-    // MID-POINTS every 400ft: right curb + center + left curb
     const midCount = Math.min(6, Math.floor(length / 400));
     for (let i = 1; i <= midCount; i++) {
       const t = i / (midCount + 1);
-      const midLat = startPt.lat + (endPt.lat - startPt.lat) * t;
-      const midLng = startPt.lng + (endPt.lng - startPt.lng) * t;
-      const midRight = offsetPoint(midLat, midLng, perpRight, halfWidth);
-      const midLeft  = offsetPoint(midLat, midLng, perpLeft,  halfWidth);
-      points.push({ ...midRight,             heading: headingForward, label: `Mid-point ${i} — right lanes` });
-      points.push({ lat: midLat, lng: midLng, heading: headingForward, label: `Mid-point ${i} — center` });
-      points.push({ ...midLeft,              heading: headingForward, label: `Mid-point ${i} — left lanes` });
+      points.push({
+        lat: startPt.lat + (endPt.lat - startPt.lat) * t,
+        lng: startPt.lng + (endPt.lng - startPt.lng) * t,
+        heading: headingForward,
+        label: `Mid-point ${i}`
+      });
     }
 
-    // END: center + right curb (both looking backward)
-    const endCurb = offsetPoint(endPt.lat, endPt.lng, perpRight, halfWidth);
-    points.push({ ...endPt,   heading: headingBackward, label: 'End — center' });
-    points.push({ ...endCurb, heading: headingBackward, label: 'End — right lanes' });
+    points.push({ ...endPt, heading: headingBackward, label: 'End (looking in)' });
 
   } else {
     // ── RESIDENTIAL — 1 photo per 200ft, start + end only ──
