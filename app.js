@@ -114,6 +114,7 @@ function createProject(name) {
     id: crypto.randomUUID?.() || Date.now().toString(36),
     name: name,
     includeWideCracks: false, // default: skip 1.25"+ cracks
+    aiEnabled: true, // AI analysis + photo capture on by default
     streets: [],
     createdAt: new Date().toISOString()
   };
@@ -190,6 +191,10 @@ function renderProjectSelector() {
       <span class="wc-label">1.25"+</span>
       <span class="wc-status ${activeProject.includeWideCracks ? 'wc-on' : 'wc-off'}">${activeProject.includeWideCracks ? 'IN' : 'OUT'}</span>
     </div>
+    <div class="wide-crack-toggle ${activeProject.aiEnabled !== false ? 'ai-toggle-on' : 'ai-toggle-off'}" onclick="toggleAI()" title="${activeProject.aiEnabled !== false ? 'AI analysis & photo capture ON — click to turn off' : 'AI analysis & photo capture OFF — click to turn on'}">
+      <span class="wc-label">AI</span>
+      <span class="wc-status ${activeProject.aiEnabled !== false ? 'wc-on' : 'wc-off'}">${activeProject.aiEnabled !== false ? 'ON' : 'OFF'}</span>
+    </div>
   `;
 }
 
@@ -198,6 +203,16 @@ function toggleWideCracks() {
   saveProjects();
   renderProjectSelector();
   showToast(activeProject.includeWideCracks ? 'Wide cracks (1.25"+) now IN scope' : 'Wide cracks (1.25"+) now OUT of scope');
+}
+
+function toggleAI() {
+  activeProject.aiEnabled = activeProject.aiEnabled === false ? true : false;
+  saveProjects();
+  renderProjectSelector();
+  renderStreetList();
+  // Re-render detail panel if a street is selected
+  if (activeStreetId) selectStreet(activeStreetId);
+  showToast(activeProject.aiEnabled ? 'AI analysis & photos ON' : 'AI analysis & photos OFF — manual mode');
 }
 
 function addNewProject() {
@@ -318,13 +333,15 @@ async function saveStreet() {
     createdAt: new Date().toISOString()
   };
 
-  // Run AI scan on Street View image
-  showScanModal('AI analyzing pavement condition...');
-  const analysis = await analyzeStreetView(street);
-  street.analysis = analysis.text;
-  street.rating = analysis.rating;
-  street.weedAlert = analysis.weedAlert || false;
-  street.scannedAt = new Date().toISOString();
+  // Run AI scan if enabled
+  if (activeProject.aiEnabled !== false) {
+    showScanModal('AI analyzing pavement condition...');
+    const analysis = await analyzeStreetView(street);
+    street.analysis = analysis.text;
+    street.rating = analysis.rating;
+    street.weedAlert = analysis.weedAlert || false;
+    street.scannedAt = new Date().toISOString();
+  }
 
   // Save
   streets.push(street);
@@ -339,7 +356,7 @@ async function saveStreet() {
   selectStreet(street.id);
   fitMapToMarkers();
 
-  showToast('Street added and scanned');
+  showToast(activeProject.aiEnabled !== false ? 'Street added and scanned' : 'Street added (AI off)');
   } catch (err) {
     console.error('Save street error:', err);
     hideScanModal();
@@ -738,6 +755,7 @@ function selectStreet(id) {
       <img class="streetview-img" src="${street.svImage}" alt="Street View of ${escHtml(street.name)}" onclick="openStreetViewAt(${street.lat}, ${street.lng})" style="cursor:pointer" title="Click to open interactive Street View" onerror="this.src=''; this.alt='Street View not available'">
     </div>
 
+    ${activeProject.aiEnabled !== false ? `
     <div class="detail-section">
       <h4>AI Pavement Analysis ${street.photosScanned ? `(${street.photosScanned} photo${street.photosScanned > 1 ? 's' : ''} scanned)` : ''}
         <button class="btn-edit-analysis" onclick="toggleEditAnalysis('${street.id}')" id="edit-analysis-btn">Edit</button>
@@ -751,6 +769,11 @@ function selectStreet(id) {
         </div>
       </div>
     </div>
+    ` : `
+    <div class="detail-section">
+      <div class="ai-off-notice">AI analysis is off for this project</div>
+    </div>
+    `}
 
     <div class="detail-section">
       <h4>Admin Notes
@@ -766,6 +789,7 @@ function selectStreet(id) {
       </div>
     </div>
 
+    ${activeProject.aiEnabled !== false ? `
     <div class="detail-section">
       <h4>On-Site Photos (${(street.photos || []).length})</h4>
       <button class="btn-photo" onclick="openPhotoCapture('${street.id}')">Take Photo</button>
@@ -784,13 +808,14 @@ function selectStreet(id) {
         </div>
       ` : '<p class="text-dim">No photos yet — take one on-site</p>'}
     </div>
+    ` : ''}
 
     <div class="detail-actions">
       ${(street.path || street.highlightStart) ?
         `<button class="btn-secondary" onclick="removeHighlight('${street.id}')">Clear Line</button>` :
         `<button class="btn-highlight" onclick="startFreeHighlight()">Highlight Street</button>`
       }
-      <button class="btn-rescan" onclick="rescanStreet('${street.id}')">Re-scan</button>
+      ${activeProject.aiEnabled !== false ? `<button class="btn-rescan" onclick="rescanStreet('${street.id}')">Re-scan</button>` : ''}
       <button class="btn-danger" onclick="deleteStreet('${street.id}')">Delete</button>
     </div>
   `;
@@ -924,6 +949,10 @@ function saveAdminNotes(id) {
 
 // ─── RESCAN STREET ─────────────────────────────────────────
 async function rescanStreet(id) {
+  if (activeProject.aiEnabled === false) {
+    showToast('AI is off — turn it on to re-scan');
+    return;
+  }
   const street = streets.find(s => s.id === id);
   if (!street) return;
 
