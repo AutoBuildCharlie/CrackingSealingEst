@@ -32,7 +32,7 @@ let activeStreetId = null;
 const STORAGE_KEY = 'cse_streets';
 const GEOCODE_BASE = 'https://maps.googleapis.com/maps/api/geocode/json';
 const SV_BASE = 'https://maps.googleapis.com/maps/api/streetview';
-const API_KEY = 'AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8';
+const API_KEY = getMapKey();
 
 // ─── OPENAI PROXY (for AI crack analysis) ──────────────────
 const AI_PROXY = ''; // Cloudflare Worker URL — add later
@@ -477,6 +477,14 @@ function showToast(msg, duration = 2500) {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
   }, duration);
+}
+
+// ─── GET MAP KEY (from script tag) ─────────────────────────
+function getMapKey() {
+  const script = document.querySelector('script[src*="maps.googleapis.com"]');
+  if (!script) return '';
+  const match = script.src.match(/key=([^&]+)/);
+  return match ? match[1] : '';
 }
 
 // ─── DARK MAP STYLE ────────────────────────────────────────
