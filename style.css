@@ -820,6 +820,12 @@ body {
   gap: 12px;
 }
 .form-row .form-group { flex: 1; }
+.form-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: -4px 0 12px 0;
+  font-style: italic;
+}
 .modal-actions {
   display: flex;
   justify-content: flex-end;

@@ -20,7 +20,7 @@
    Street object shape:
    {
      id, name, lat, lng, length, width, sqft,
-     rating, notes, analysis, adminNotes, weedAlert, svImage,
+     rating, roadType, notes, analysis, adminNotes, weedAlert, svImage,
      path: [{ lat, lng }, ...],
      photos: [{ id, dataUrl, lat, lng, address, note, takenAt }],
      scannedAt, createdAt
@@ -281,12 +281,45 @@ function geocodeDetails(latLng) {
   });
 }
 
+// ─── ROAD TYPE DETECTION (OpenStreetMap) ───────────────────
+// Standard curb-to-curb widths by road classification (US DOT / AASHTO)
+const ROAD_TYPES = {
+  residential:  { label: 'Residential',     width: 32 },
+  living_street:{ label: 'Residential',     width: 28 },
+  unclassified: { label: 'Local Road',      width: 30 },
+  tertiary:     { label: 'Collector',       width: 36 },
+  tertiary_link:{ label: 'Collector Ramp',  width: 32 },
+  secondary:    { label: 'Minor Arterial',  width: 44 },
+  secondary_link:{ label: 'Arterial Ramp',  width: 36 },
+  primary:      { label: 'Major Arterial',  width: 52 },
+  primary_link: { label: 'Arterial Ramp',   width: 40 },
+  trunk:        { label: 'Highway',         width: 60 },
+  trunk_link:   { label: 'Highway Ramp',    width: 36 },
+  service:      { label: 'Alley / Service', width: 18 },
+};
+
+async function detectRoadType(lat, lng) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=17`, {
+      headers: { 'User-Agent': 'CrackingSealingEst/1.0' }
+    });
+    const data = await res.json();
+    const osmType = data.type || data.class || '';
+    const road = ROAD_TYPES[osmType];
+    if (road) return { type: osmType, label: road.label, width: road.width };
+    // Fallback: default to residential
+    return { type: osmType || 'unknown', label: 'Residential', width: 32 };
+  } catch (e) {
+    console.error('Road type detection error:', e);
+    return { type: 'unknown', label: 'Residential', width: 32 };
+  }
+}
+
 // ─── MODAL CONTROLS ────────────────────────────────────────
 function openAddStreetModal() {
   document.getElementById('modal-overlay').classList.remove('hidden');
   document.getElementById('input-street-name').value = '';
   document.getElementById('input-length').value = '';
-  document.getElementById('input-width').value = '';
   document.getElementById('input-notes').value = '';
   document.getElementById('input-street-name').focus();
 }
@@ -313,7 +346,6 @@ function hideScanModal() {
 async function saveStreet() {
   const name = document.getElementById('input-street-name').value.trim();
   const length = parseFloat(document.getElementById('input-length').value) || 0;
-  const width = parseFloat(document.getElementById('input-width').value) || 0;
   const notes = document.getElementById('input-notes').value.trim();
 
   if (!name) {
@@ -333,6 +365,12 @@ async function saveStreet() {
       return;
     }
 
+  showScanModal('Detecting road type...');
+
+  // Detect road type from OpenStreetMap
+  const roadInfo = await detectRoadType(geo.lat, geo.lng);
+  const width = roadInfo.width;
+
   showScanModal('Pulling Street View imagery...');
 
   // Build street object
@@ -344,6 +382,7 @@ async function saveStreet() {
     length: length,
     width: width,
     sqft: length * width,
+    roadType: roadInfo.label,
     rating: 'pending',
     notes: notes,
     analysis: '',
@@ -706,7 +745,7 @@ function renderStreetList() {
     <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''}" onclick="selectStreet('${s.id}')">
       <button class="street-card-delete" onclick="event.stopPropagation(); deleteStreet('${s.id}')" title="Delete">&times;</button>
       <div class="street-card-name" title="${escHtml(s.name)}">${escHtml(s.name)}</div>
-      ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}</div>` : ''}
+      ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}${s.roadType ? ' · ' + escHtml(s.roadType) : ''}</div>` : (s.roadType ? `<div class="street-card-city">${escHtml(s.roadType)}</div>` : '')}
       ${s.crossesBoundary ? `<div class="street-card-boundary">⚠ ${escHtml(s.boundaryNote)}</div>` : ''}
       ${s.weedAlert ? `<div class="street-card-weed">🌿 Weed control needed</div>` : ''}
       <div class="street-card-meta">
@@ -766,6 +805,7 @@ function selectStreet(id) {
       <div class="detail-stat">
         <div class="detail-stat-label">Width</div>
         <div class="detail-stat-value">${street.width ? street.width + ' ft' : '—'}</div>
+        ${street.roadType ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">${escHtml(street.roadType)}</div>` : ''}
       </div>
     </div>
 
