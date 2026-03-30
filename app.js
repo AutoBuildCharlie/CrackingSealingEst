@@ -404,6 +404,7 @@ function geocodeDetails(latLng) {
       };
       resolve({
         address: results[0].formatted_address,
+        route: get('route'),
         city: get('locality') || get('sublocality') || get('neighborhood'),
         county: get('administrative_area_level_2'),
         state: get('administrative_area_level_1')
@@ -1875,9 +1876,10 @@ async function saveHighlightedStreet(startPt, endPt) {
   const midIdx = Math.floor(roadPath.length / 2);
   const midPt = roadPath[midIdx] || startPt;
 
-  const [startGeo, endGeo, roadInfo] = await Promise.all([
+  const [startGeo, endGeo, midGeo, roadInfo] = await Promise.all([
     geocodeDetails(startPt),
     geocodeDetails(endPt),
+    geocodeDetails(midPt),
     detectRoadType(midPt.lat, midPt.lng)
   ]);
 
@@ -1885,7 +1887,7 @@ async function saveHighlightedStreet(startPt, endPt) {
 
   const street = {
     id: crypto.randomUUID?.() || Date.now().toString(36),
-    name: startGeo.address || 'Unknown location',
+    name: midGeo.route || startGeo.route || startGeo.address || 'Unknown location',
     lat: startPt.lat,
     lng: startPt.lng,
     length: roadLengthFt,
