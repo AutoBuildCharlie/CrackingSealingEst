@@ -326,6 +326,20 @@ body {
 .btn-danger:hover {
   background: rgba(239,68,68,0.25);
 }
+.btn-highlight {
+  background: rgba(59,130,246,0.15);
+  color: #3b82f6;
+  border: 1px solid rgba(59,130,246,0.3);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  flex: 1;
+}
+.btn-highlight:hover {
+  background: rgba(59,130,246,0.25);
+}
 .btn-rescan {
   background: rgba(34,197,94,0.15);
   color: var(--green);

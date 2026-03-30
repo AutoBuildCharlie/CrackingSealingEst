@@ -29,6 +29,10 @@ let map = null;
 let markers = [];
 let streets = [];
 let activeStreetId = null;
+let highlightMode = null; // null | 'start' | 'end'
+let highlightStreetId = null;
+let highlightMarkers = []; // temp start/end markers
+let polylines = []; // drawn street lines
 const STORAGE_KEY = 'cse_streets';
 const GEOCODE_BASE = 'https://maps.googleapis.com/maps/api/geocode/json';
 const SV_BASE = 'https://maps.googleapis.com/maps/api/streetview';
@@ -55,8 +59,12 @@ function initMap() {
     }
   });
 
+  // Map click listener for highlight mode
+  map.addListener('click', (e) => handleMapClick(e.latLng));
+
   renderStreetList();
   placeAllMarkers();
+  drawAllHighlights();
   updateStats();
 }
 
@@ -389,6 +397,10 @@ function selectStreet(id) {
     </div>` : ''}
 
     <div class="detail-actions">
+      ${street.highlightStart ?
+        `<button class="btn-secondary" onclick="removeHighlight('${street.id}')">Clear Line</button>` :
+        `<button class="btn-highlight" onclick="startHighlight('${street.id}')">Highlight Street</button>`
+      }
       <button class="btn-rescan" onclick="rescanStreet('${street.id}')">Re-scan</button>
       <button class="btn-danger" onclick="deleteStreet('${street.id}')">Delete</button>
     </div>
@@ -488,6 +500,139 @@ function showToast(msg, duration = 2500) {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
   }, duration);
+}
+
+// ─── HIGHLIGHT STREET ──────────────────────────────────────
+function startHighlight(id) {
+  highlightStreetId = id;
+  highlightMode = 'start';
+  clearTempMarkers();
+  showToast('Click the START of the street on the map');
+  document.getElementById('detail-panel').classList.add('hidden');
+}
+
+function handleMapClick(latLng) {
+  if (!highlightMode) return;
+
+  const street = streets.find(s => s.id === highlightStreetId);
+  if (!street) return;
+
+  if (highlightMode === 'start') {
+    // Place start marker
+    street.highlightStart = { lat: latLng.lat(), lng: latLng.lng() };
+    addTempMarker(latLng, 'S', '#22c55e');
+    highlightMode = 'end';
+    showToast('Now click the END of the street');
+
+  } else if (highlightMode === 'end') {
+    // Place end marker
+    street.highlightEnd = { lat: latLng.lat(), lng: latLng.lng() };
+    addTempMarker(latLng, 'E', '#ef4444');
+
+    // Calculate distance in feet
+    const distFt = calcDistanceFt(street.highlightStart, street.highlightEnd);
+    street.length = Math.round(distFt);
+    street.sqft = street.length * (street.width || 24);
+
+    // Done
+    highlightMode = null;
+    highlightStreetId = null;
+    saveStreets();
+    clearTempMarkers();
+    drawAllHighlights();
+    updateStats();
+    renderStreetList();
+    selectStreet(street.id);
+    showToast(`Street highlighted — ${formatNumber(street.length)} ft long, ${formatNumber(street.sqft)} sq ft`);
+  }
+}
+
+function addTempMarker(latLng, label, color) {
+  const marker = new google.maps.Marker({
+    position: latLng,
+    map: map,
+    label: { text: label, color: '#fff', fontWeight: '700', fontSize: '12px' },
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 12,
+      fillColor: color,
+      fillOpacity: 1,
+      strokeColor: '#fff',
+      strokeWeight: 2
+    }
+  });
+  highlightMarkers.push(marker);
+}
+
+function clearTempMarkers() {
+  highlightMarkers.forEach(m => m.setMap(null));
+  highlightMarkers = [];
+}
+
+function drawAllHighlights() {
+  // Clear existing polylines
+  polylines.forEach(p => p.setMap(null));
+  polylines = [];
+
+  streets.forEach(street => {
+    if (!street.highlightStart || !street.highlightEnd) return;
+
+    const color = ratingColor(street.rating);
+    const line = new google.maps.Polyline({
+      path: [street.highlightStart, street.highlightEnd],
+      geodesic: true,
+      strokeColor: color,
+      strokeOpacity: 0.9,
+      strokeWeight: 6,
+      map: map
+    });
+
+    // Click polyline to select street
+    line.addListener('click', () => selectStreet(street.id));
+    polylines.push(line);
+
+    // Start/end markers
+    [{ pos: street.highlightStart, label: 'S', clr: '#22c55e' },
+     { pos: street.highlightEnd, label: 'E', clr: '#ef4444' }].forEach(m => {
+      const mk = new google.maps.Marker({
+        position: m.pos,
+        map: map,
+        label: { text: m.label, color: '#fff', fontWeight: '700', fontSize: '11px' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: m.clr,
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 2
+        }
+      });
+      mk.addListener('click', () => selectStreet(street.id));
+      polylines.push(mk); // store so we can clear later
+    });
+  });
+}
+
+function removeHighlight(id) {
+  const street = streets.find(s => s.id === id);
+  if (!street) return;
+  delete street.highlightStart;
+  delete street.highlightEnd;
+  saveStreets();
+  drawAllHighlights();
+  selectStreet(id);
+  showToast('Highlight removed');
+}
+
+function calcDistanceFt(p1, p2) {
+  // Haversine formula — returns distance in feet
+  const R = 20902231; // Earth radius in feet
+  const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+  const dLng = (p2.lng - p1.lng) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 // ─── GET MAP KEY (from script tag) ─────────────────────────
