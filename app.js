@@ -140,7 +140,25 @@ function switchProject(id) {
 
 function deleteProject(id) {
   if (projects.length <= 1) { showToast('Cannot delete the only project'); return; }
-  if (!confirm('Delete this project and all its streets?')) return;
+  const container = document.getElementById('project-selector');
+  // Toggle off if already showing
+  const existing = container.querySelector('.delete-confirm');
+  if (existing) { existing.remove(); return; }
+
+  const confirmEl = document.createElement('div');
+  confirmEl.className = 'delete-confirm';
+  confirmEl.style.marginTop = '6px';
+  confirmEl.innerHTML = `
+    <span>Delete project and all streets?</span>
+    <div class="delete-confirm-btns">
+      <button class="dc-yes" onclick="event.stopPropagation(); doDeleteProject('${id}')">Yes, delete</button>
+      <button class="dc-no" onclick="event.stopPropagation(); this.parentElement.parentElement.remove()">Cancel</button>
+    </div>
+  `;
+  container.appendChild(confirmEl);
+}
+
+function doDeleteProject(id) {
   projects = projects.filter(p => p.id !== id);
   saveProjects();
   switchProject(projects[0].id);
@@ -596,27 +614,37 @@ async function rescanStreet(id) {
 
 // ─── DELETE STREET ─────────────────────────────────────────
 function deleteStreet(id) {
-  // Show inline confirm below the card
+  // Toggle off if already showing
   const existing = document.getElementById('delete-confirm-' + id);
-  if (existing) { existing.remove(); return; } // toggle off
+  if (existing) { existing.remove(); return; }
 
   // Remove any other open confirms
   document.querySelectorAll('.delete-confirm').forEach(el => el.remove());
 
-  const card = document.querySelector(`.street-card[onclick*="${id}"]`);
-  if (!card) return;
+  // Try to find the card in sidebar
+  const cards = document.querySelectorAll('.street-card');
+  let targetCard = null;
+  cards.forEach(c => { if (c.getAttribute('onclick')?.includes(id)) targetCard = c; });
 
-  const confirm = document.createElement('div');
-  confirm.id = 'delete-confirm-' + id;
-  confirm.className = 'delete-confirm';
-  confirm.innerHTML = `
+  // If found in sidebar, insert after card. Otherwise insert in detail panel actions.
+  const confirmEl = document.createElement('div');
+  confirmEl.id = 'delete-confirm-' + id;
+  confirmEl.className = 'delete-confirm';
+  confirmEl.innerHTML = `
     <span>Delete this street?</span>
     <div class="delete-confirm-btns">
       <button class="dc-yes" onclick="event.stopPropagation(); confirmDelete('${id}')">Yes, delete</button>
       <button class="dc-no" onclick="event.stopPropagation(); this.parentElement.parentElement.remove()">Cancel</button>
     </div>
   `;
-  card.after(confirm);
+
+  if (targetCard) {
+    targetCard.after(confirmEl);
+  } else {
+    // Insert in detail panel
+    const actions = document.querySelector('.detail-actions');
+    if (actions) actions.after(confirmEl);
+  }
 }
 
 function confirmDelete(id) {
