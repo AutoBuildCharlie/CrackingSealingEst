@@ -77,6 +77,9 @@ function initMap() {
   placePhotoMarkers();
   drawAllHighlights();
   updateStats();
+
+  // Auto-fix streets missing road type (runs once per device)
+  migrateRoadTypes();
 }
 
 // ─── STORAGE & PROJECTS ────────────────────────────────────
@@ -255,6 +258,35 @@ function migrateOldData() {
     streets = activeProject.streets;
     saveProjects();
   }
+}
+
+// ─── MIGRATE ROAD TYPES (one-time, runs on load) ──────────
+async function migrateRoadTypes() {
+  // Find all streets across all projects missing roadType
+  const toFix = [];
+  projects.forEach(p => {
+    p.streets.forEach(s => {
+      if (!s.roadType && s.lat && s.lng) toFix.push(s);
+    });
+  });
+  if (toFix.length === 0) return;
+
+  showToast(`Updating road types for ${toFix.length} street${toFix.length > 1 ? 's' : ''}...`);
+
+  for (const s of toFix) {
+    const info = await detectRoadType(s.lat, s.lng);
+    s.roadType = info.label;
+    s.width = info.width;
+    s.sqft = (s.length || 0) * info.width;
+    // Nominatim rate limit: 1 req/sec
+    await new Promise(r => setTimeout(r, 1100));
+  }
+
+  saveProjects();
+  renderStreetList();
+  updateStats();
+  if (activeStreetId) selectStreet(activeStreetId);
+  showToast(`${toFix.length} street${toFix.length > 1 ? 's' : ''} updated with road types`);
 }
 
 // ─── CITY/COUNTY DETECTION ──────────────────────────────────
