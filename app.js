@@ -1967,8 +1967,8 @@ async function saveHighlightedStreet(startPt, endPt) {
   document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} saved (${formatNumber(roadLengthFt)} ft) — click next street or Done`;
   showToast(`${formatNumber(roadLengthFt)} ft — ${formatNumber(street.sqft)} sq ft`);
 
-  // Prompt user to confirm/set street name
-  promptStreetName(street, roadInfo.name || '');
+  // Auto-set name from Nominatim — user can rename from the detail panel
+  if (roadInfo.name) { street.name = roadInfo.name; saveStreets(); renderStreetList(); }
 
   if (street.crossesBoundary) {
     setTimeout(() => showToast(`⚠ ${street.boundaryNote}`, 5000), 1500);
