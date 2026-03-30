@@ -801,10 +801,17 @@ function renderStreetList() {
 }
 
 // ─── SELECT STREET (detail panel) ──────────────────────────
+let lastDrawnActiveId = null;
 function selectStreet(id) {
   activeStreetId = id;
   const street = streets.find(s => s.id === id);
   if (!street) return;
+
+  // Redraw highlights if active street changed (for thickness)
+  if (lastDrawnActiveId !== id) {
+    lastDrawnActiveId = id;
+    drawAllHighlights();
+  }
 
   // Highlight card
   renderStreetList();
@@ -1765,37 +1772,31 @@ function drawAllHighlights() {
     if (!pathPoints || pathPoints.length < 2) return;
 
     const color = ratingColor(street.rating);
+    const isActive = street.id === activeStreetId;
+
+    // Glow outline behind the main line for depth
+    const glow = new google.maps.Polyline({
+      path: pathPoints,
+      geodesic: true,
+      strokeColor: color,
+      strokeOpacity: 0.25,
+      strokeWeight: 14,
+      map: map
+    });
+    glow.addListener('click', () => selectStreet(street.id));
+    polylines.push(glow);
+
+    // Main line — thick, round caps
     const line = new google.maps.Polyline({
       path: pathPoints,
       geodesic: true,
       strokeColor: color,
       strokeOpacity: 0.9,
-      strokeWeight: 6,
+      strokeWeight: isActive ? 8 : 6,
       map: map
     });
-
     line.addListener('click', () => selectStreet(street.id));
     polylines.push(line);
-
-    // Start marker
-    const startMk = new google.maps.Marker({
-      position: pathPoints[0],
-      map: map,
-      label: { text: 'S', color: '#fff', fontWeight: '700', fontSize: '11px' },
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }
-    });
-    startMk.addListener('click', () => selectStreet(street.id));
-    polylines.push(startMk);
-
-    // End marker
-    const endMk = new google.maps.Marker({
-      position: pathPoints[pathPoints.length - 1],
-      map: map,
-      label: { text: 'E', color: '#fff', fontWeight: '700', fontSize: '11px' },
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: '#ef4444', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }
-    });
-    endMk.addListener('click', () => selectStreet(street.id));
-    polylines.push(endMk);
   });
 }
 
