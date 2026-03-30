@@ -519,44 +519,36 @@ function getMidPhotoCount(lengthFt) {
   return 3;                        // major — 3 mid
 }
 
-// Calculate sample points + corner coverage
+// Calculate sample points — always looking INTO the street from each endpoint
 function getSamplePoints(street) {
   const path = street.path;
-  if (!path || path.length < 2) return [{ lat: street.lat, lng: street.lng, heading: 0, label: 'Center' }];
+  if (!path || path.length < 2) return [{ lat: street.lat, lng: street.lng, heading: 0, label: 'Start' }];
 
   const startPt = path[0];
   const endPt = path[path.length - 1];
-  const heading = calcHeading(startPt, endPt);
+  const headingForward  = calcHeading(startPt, endPt);  // start → end
+  const headingBackward = (headingForward + 180) % 360; // end → start
   const length = street.length || 0;
-
-  // Cul-de-sacs and side streets (under 500 ft) — 1 photo from center
-  if (length < 500) {
-    const midLat = (startPt.lat + endPt.lat) / 2;
-    const midLng = (startPt.lng + endPt.lng) / 2;
-    return [{ lat: midLat, lng: midLng, heading: heading, label: 'Center' }];
-  }
 
   const points = [];
 
-  // START CORNER — 2 photos
-  points.push({ ...startPt, heading: heading, label: 'Start (looking down street)' });
-  points.push({ ...startPt, heading: (heading + 90) % 360, label: 'Start corner (cross street)' });
+  // START — looking down the street toward the end
+  points.push({ ...startPt, heading: headingForward, label: 'Start (looking in)' });
 
-  // MID-STREET — evenly spaced
+  // MID-STREET — evenly spaced, looking in the forward direction
   const midCount = getMidPhotoCount(length);
   for (let i = 1; i <= midCount; i++) {
     const t = i / (midCount + 1);
     points.push({
       lat: startPt.lat + (endPt.lat - startPt.lat) * t,
       lng: startPt.lng + (endPt.lng - startPt.lng) * t,
-      heading: heading,
+      heading: headingForward,
       label: `Mid-point ${i}`
     });
   }
 
-  // END CORNER — 2 photos
-  points.push({ ...endPt, heading: (heading + 180) % 360, label: 'End (looking back)' });
-  points.push({ ...endPt, heading: (heading + 270) % 360, label: 'End corner (cross street)' });
+  // END — looking back into the street toward the start
+  points.push({ ...endPt, heading: headingBackward, label: 'End (looking in)' });
 
   return points;
 }
