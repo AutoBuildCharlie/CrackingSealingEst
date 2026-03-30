@@ -962,9 +962,9 @@ function startFreeHighlight() {
   tempPath = [];
   clearTempMarkers();
   clearTempPolyline();
+  window._drawStart = null;
   document.getElementById('highlight-bar').classList.remove('hidden');
-  document.getElementById('highlight-bar-text').textContent = 'Click along the street to trace it';
-  document.getElementById('btn-next-street').classList.add('hidden');
+  document.getElementById('highlight-bar-text').textContent = 'Click the START of a street';
   document.getElementById('detail-panel').classList.add('hidden');
   document.querySelector('.qa-highlight').classList.add('qa-active');
 }
@@ -978,6 +978,7 @@ function stopDrawingMode() {
   highlightMode = null;
   highlightStreetId = null;
   tempPath = [];
+  window._drawStart = null;
   clearTempMarkers();
   clearTempPolyline();
   document.getElementById('highlight-bar').classList.add('hidden');
@@ -1084,63 +1085,54 @@ function handleMapClick(latLng) {
 
   if (highlightMode !== 'drawing') return;
 
-  const point = { lat: latLng.lat(), lng: latLng.lng() };
-  tempPath.push(point);
+  if (!window._drawStart) {
+    // Click 1 = START of street
+    window._drawStart = { lat: latLng.lat(), lng: latLng.lng() };
+    clearTempMarkers();
+    clearTempPolyline();
+    addTempMarker(latLng, 'S', '#22c55e');
+    document.getElementById('highlight-bar-text').textContent = 'Now click the END of this street';
+  } else {
+    // Click 2 = END of street → auto-save
+    const startPt = window._drawStart;
+    const endPt = { lat: latLng.lat(), lng: latLng.lng() };
+    addTempMarker(latLng, 'E', '#ef4444');
 
-  // Add dot marker
-  const isFirst = tempPath.length === 1;
-  addTempMarker(latLng, isFirst ? 'S' : String(tempPath.length), isFirst ? '#22c55e' : '#3b82f6');
+    // Draw preview line
+    tempPolyline = new google.maps.Polyline({
+      path: [startPt, endPt],
+      strokeColor: '#3b82f6',
+      strokeOpacity: 0.8,
+      strokeWeight: 5,
+      map: map
+    });
 
-  // Draw/update live polyline
-  if (tempPolyline) tempPolyline.setMap(null);
-  tempPolyline = new google.maps.Polyline({
-    path: tempPath,
-    geodesic: true,
-    strokeColor: '#3b82f6',
-    strokeOpacity: 0.8,
-    strokeWeight: 5,
-    map: map
-  });
-
-  // Show Next Street button after 2+ points
-  if (tempPath.length >= 2) {
-    document.getElementById('btn-next-street').classList.remove('hidden');
+    // Save street
+    saveHighlightedStreet(startPt, endPt);
   }
-
-  // Calculate running total length
-  const totalFt = calcPathLength(tempPath);
-  document.getElementById('highlight-bar-text').textContent = `${tempPath.length} points — ${formatNumber(Math.round(totalFt))} ft`;
 }
 
-async function finishCurrentStreet() {
-  if (tempPath.length < 2) {
-    showToast('Need at least 2 points');
-    return;
-  }
+async function saveHighlightedStreet(startPt, endPt) {
+  const distFt = Math.round(calcDistanceFt(startPt, endPt));
 
-  const firstPt = tempPath[0];
-  const lastPt = tempPath[tempPath.length - 1];
-  const totalFt = Math.round(calcPathLength(tempPath));
-
-  // Geocode start and end points for address + city/county
   const [startGeo, endGeo] = await Promise.all([
-    geocodeDetails(firstPt),
-    geocodeDetails(lastPt)
+    geocodeDetails(startPt),
+    geocodeDetails(endPt)
   ]);
 
   const street = {
     id: crypto.randomUUID?.() || Date.now().toString(36),
     name: startGeo.address || 'Unknown location',
-    lat: firstPt.lat,
-    lng: firstPt.lng,
-    length: totalFt,
+    lat: startPt.lat,
+    lng: startPt.lng,
+    length: distFt,
     width: 24,
-    sqft: totalFt * 24,
+    sqft: distFt * 24,
     rating: 'pending',
     notes: '',
     analysis: '',
-    svImage: getStreetViewUrl(firstPt.lat, firstPt.lng),
-    path: [...tempPath],
+    svImage: getStreetViewUrl(startPt.lat, startPt.lng),
+    path: [startPt, endPt],
     city: startGeo.city,
     county: startGeo.county,
     state: startGeo.state,
@@ -1153,7 +1145,6 @@ async function finishCurrentStreet() {
     createdAt: new Date().toISOString()
   };
 
-  // Build boundary warning
   if (startGeo.city && endGeo.city && startGeo.city !== endGeo.city) {
     street.boundaryNote = `Crosses city line: ${startGeo.city} → ${endGeo.city}`;
   } else if (startGeo.county && endGeo.county && startGeo.county !== endGeo.county) {
@@ -1164,7 +1155,7 @@ async function finishCurrentStreet() {
   saveStreets();
 
   // Reset for next street
-  tempPath = [];
+  window._drawStart = null;
   clearTempMarkers();
   clearTempPolyline();
   drawAllHighlights();
@@ -1173,11 +1164,9 @@ async function finishCurrentStreet() {
   updateStats();
 
   drawCount++;
-  document.getElementById('btn-next-street').classList.add('hidden');
-  document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} saved — click next street or Done`;
-  showToast(`${formatNumber(totalFt)} ft — ${formatNumber(street.sqft)} sq ft — ${street.city || 'Unknown'}`);
+  document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} saved (${formatNumber(distFt)} ft) — click next street or Done`;
+  showToast(`${formatNumber(distFt)} ft — ${formatNumber(street.sqft)} sq ft`);
 
-  // Boundary crossing warning
   if (street.crossesBoundary) {
     setTimeout(() => showToast(`⚠ ${street.boundaryNote}`, 5000), 1500);
   }
