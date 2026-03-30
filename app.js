@@ -180,20 +180,23 @@ function renderProjectSelector() {
   const container = document.getElementById('project-selector');
   if (!container) return;
   container.innerHTML = `
-    <select id="project-dropdown" onchange="switchProject(this.value)">
-      ${projects.map(p => `<option value="${p.id}" ${p.id === activeProject.id ? 'selected' : ''}>${p.name} (${p.streets.length})</option>`).join('')}
-    </select>
-    <button class="btn-project-action" onclick="addNewProject()" title="New Project">+</button>
-    <button class="btn-project-action" onclick="renameProject('${activeProject.id}')" title="Rename">&#9998;</button>
-    <button class="btn-project-action btn-project-delete" onclick="deleteProject('${activeProject.id}')" title="Delete">&#128465;</button>
-    </select>
-    <div class="wide-crack-toggle" onclick="toggleWideCracks()" title="${activeProject.includeWideCracks ? 'Wide cracks (1.25&quot;+) INCLUDED in scope' : 'Wide cracks (1.25&quot;+) NOT in scope — click to change'}">
-      <span class="wc-label">1.25"+</span>
-      <span class="wc-status ${activeProject.includeWideCracks ? 'wc-on' : 'wc-off'}">${activeProject.includeWideCracks ? 'IN' : 'OUT'}</span>
+    <div class="project-row">
+      <select id="project-dropdown" onchange="switchProject(this.value)">
+        ${projects.map(p => `<option value="${p.id}" ${p.id === activeProject.id ? 'selected' : ''}>${p.name} (${p.streets.length})</option>`).join('')}
+      </select>
+      <button class="btn-project-action" onclick="addNewProject()" title="New Project">+ New</button>
+      <button class="btn-project-action" onclick="renameProject('${activeProject.id}')" title="Rename">Rename</button>
+      <button class="btn-project-action btn-project-delete" onclick="deleteProject('${activeProject.id}')" title="Delete">Delete</button>
     </div>
-    <div class="wide-crack-toggle ${activeProject.aiEnabled !== false ? 'ai-toggle-on' : 'ai-toggle-off'}" onclick="toggleAI()" title="${activeProject.aiEnabled !== false ? 'AI analysis & photo capture ON — click to turn off' : 'AI analysis & photo capture OFF — click to turn on'}">
-      <span class="wc-label">AI</span>
-      <span class="wc-status ${activeProject.aiEnabled !== false ? 'wc-on' : 'wc-off'}">${activeProject.aiEnabled !== false ? 'ON' : 'OFF'}</span>
+    <div class="project-toggles">
+      <div class="toggle-pill" onclick="toggleWideCracks()" title="${activeProject.includeWideCracks ? 'Wide cracks (1.25&quot;+) INCLUDED in scope' : 'Wide cracks (1.25&quot;+) NOT in scope — click to change'}">
+        <span class="toggle-label">Wide Cracks (1.25"+)</span>
+        <span class="toggle-value ${activeProject.includeWideCracks ? 'toggle-on' : 'toggle-off'}">${activeProject.includeWideCracks ? 'IN SCOPE' : 'OUT'}</span>
+      </div>
+      <div class="toggle-pill" onclick="toggleAI()" title="${activeProject.aiEnabled !== false ? 'AI analysis & photo capture ON — click to turn off' : 'AI analysis & photo capture OFF — click to turn on'}">
+        <span class="toggle-label">AI Analysis</span>
+        <span class="toggle-value ${activeProject.aiEnabled !== false ? 'toggle-on' : 'toggle-off'}">${activeProject.aiEnabled !== false ? 'ON' : 'OFF'}</span>
+      </div>
     </div>
   `;
 }
