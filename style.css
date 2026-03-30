@@ -294,7 +294,24 @@ body {
   margin-bottom: 6px;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
 }
+.street-card-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.street-card:hover .street-card-delete { opacity: 1; }
+.street-card-delete:hover { color: var(--red); }
 .street-card:hover {
   border-color: var(--accent);
   box-shadow: 0 0 12px var(--accent-glow);

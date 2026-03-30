@@ -466,6 +466,7 @@ function renderStreetList() {
 
   container.innerHTML = streets.map(s => `
     <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''}" onclick="selectStreet('${s.id}')">
+      <button class="street-card-delete" onclick="event.stopPropagation(); deleteStreet('${s.id}')" title="Delete">&times;</button>
       <div class="street-card-name" title="${escHtml(s.name)}">${escHtml(s.name)}</div>
       ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}</div>` : ''}
       ${s.crossesBoundary ? `<div class="street-card-boundary">⚠ ${escHtml(s.boundaryNote)}</div>` : ''}
