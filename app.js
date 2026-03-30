@@ -628,8 +628,12 @@ Be honest. Weight toward the worst section. Do not guess — only rate what you 
     const rating = extractRating(text);
     const weedAlert = extractWeedAlert(text);
 
-    // Store how many photos were used
+    // Store scan photo info
     street.photosScanned = validPairs.length;
+    street.scanPhotos = samplePoints.map(pt => ({
+      url: getStreetViewUrl(pt.lat, pt.lng, pt.heading || 0),
+      label: pt.label
+    }));
 
     return { text, rating, weedAlert };
   } catch (e) {
@@ -878,6 +882,20 @@ function selectStreet(id) {
       <h4>Street View</h4>
       <img class="streetview-img" src="${street.svImage}" alt="Street View of ${escHtml(street.name)}" onclick="openStreetViewAt(${street.lat}, ${street.lng})" style="cursor:pointer" title="Click to open interactive Street View" onerror="this.src=''; this.alt='Street View not available'">
     </div>
+
+    ${(street.scanPhotos && street.scanPhotos.length > 0) ? `
+    <div class="detail-section">
+      <h4>Photos AI Analyzed (${street.scanPhotos.length})</h4>
+      <div class="scan-photo-grid">
+        ${street.scanPhotos.map(p => `
+          <div class="scan-photo-card">
+            <img src="${p.url}" alt="${escHtml(p.label)}" class="scan-photo-img" onerror="this.style.display='none'">
+            <div class="scan-photo-label">${escHtml(p.label)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
 
     ${activeProject.aiEnabled !== false ? `
     <div class="detail-section analysis-section-${street.rating}">
