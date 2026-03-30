@@ -1089,6 +1089,7 @@ function setRating(id, rating) {
   renderStreetList();
   updateStats();
   placeAllMarkers();
+  drawAllHighlights();
   selectStreet(id);
   showToast(`Rating set to ${ratingLabel(rating)}`);
 }
