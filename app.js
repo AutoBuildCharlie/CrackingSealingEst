@@ -360,13 +360,19 @@ function getStreetViewUrl(lat, lng, heading = 0) {
 
 // ─── AI ANALYSIS ───────────────────────────────────────────
 async function analyzeStreetView(street) {
-  // If no AI proxy configured, use built-in heuristic placeholder
   if (!AI_PROXY) {
     return analyzeWithPlaceholder(street);
   }
 
   try {
+    // Fetch Street View image and convert to base64
     const svUrl = getStreetViewUrl(street.lat, street.lng);
+    const base64 = await imageUrlToBase64(svUrl);
+    if (!base64) {
+      console.warn('Could not load Street View image, using placeholder');
+      return analyzeWithPlaceholder(street);
+    }
+
     const res = await fetch(AI_PROXY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -375,13 +381,13 @@ async function analyzeStreetView(street) {
         messages: [
           {
             role: 'system',
-            content: `You are a pavement condition assessor for a road sealing company. Analyze the Street View image and assess the visible pavement/road condition. Look for: cracks (alligator, longitudinal, transverse), potholes, fading, patches, wear. Rate the overall condition as exactly one of: good, fair, poor, critical. Be concise — 3-4 bullet points max. End with "Rating: [good/fair/poor/critical]"`
+            content: `You are a pavement condition assessor for a road sealing company. Analyze this Street View image and assess the visible pavement/road condition. Look for: cracks (alligator, longitudinal, transverse), potholes, fading, patches, wear, surface texture. Rate the overall condition as exactly one of: good, fair, poor, critical. Be concise — 3-4 bullet points max. End with "Rating: [good/fair/poor/critical]"`
           },
           {
             role: 'user',
             content: [
               { type: 'text', text: `Assess the pavement condition visible in this Street View image of: ${street.name}` },
-              { type: 'image_url', image_url: { url: svUrl } }
+              { type: 'image_url', image_url: { url: base64 } }
             ]
           }
         ],
@@ -391,12 +397,34 @@ async function analyzeStreetView(street) {
 
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content || '';
+    if (!text) return analyzeWithPlaceholder(street);
     const rating = extractRating(text);
     return { text, rating };
   } catch (e) {
     console.error('AI analysis error:', e);
     return analyzeWithPlaceholder(street);
   }
+}
+
+// Fetch an image URL and return as base64 data URL
+function imageUrlToBase64(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      try {
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      } catch (e) {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
 }
 
 function extractRating(text) {
