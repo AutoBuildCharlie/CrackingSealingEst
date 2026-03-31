@@ -1210,7 +1210,10 @@ function selectStreet(id) {
             <div class="photo-card" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').photos, ${i}, '${street.id}')" style="cursor:pointer" title="Click to view">
               <img src="${p.dataUrl}" alt="Crack photo" class="photo-thumb">
               <div class="photo-info">
-                <small>${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</small>
+                <small>
+                  ${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}
+                  ${p.lat ? `<button class="btn-photo-jump" onclick="event.stopPropagation();map.panTo({lat:${p.lat},lng:${p.lng}});map.setZoom(19)" title="Jump to location on map">&#128205;</button>` : ''}
+                </small>
                 <small>${new Date(p.takenAt).toLocaleDateString()}</small>
                 ${p.note ? `<small class="photo-note">${escHtml(p.note)}</small>` : ''}
               </div>
