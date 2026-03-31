@@ -359,34 +359,36 @@ function addNewProject() {
 // Migrate old data from cse_streets to projects
 function migrateOldData() {
   const oldData = localStorage.getItem('cse_streets');
-  if (!oldData) return;
-  try {
-    const oldStreets = JSON.parse(oldData);
-    if (oldStreets.length > 0) {
-      activeProject.streets = oldStreets;
-      streets = activeProject.streets;
-      saveProjects();
-    }
-    localStorage.removeItem('cse_streets');
-  } catch { /* skip */ }
+  if (oldData) {
+    try {
+      const oldStreets = JSON.parse(oldData);
+      if (oldStreets.length > 0) {
+        activeProject.streets = oldStreets;
+        streets = activeProject.streets;
+        saveProjects();
+      }
+      localStorage.removeItem('cse_streets');
+    } catch { /* skip */ }
+  }
 
-  // Migrate old rating names → Level 1-4
+  // Always run field migrations regardless of whether old data existed
   const ratingMap = { good: 'level-1', fair: 'level-2', poor: 'level-3', critical: 'level-4' };
   let changed = false;
   projects.forEach(p => {
     p.streets.forEach(s => {
-      if (ratingMap[s.rating]) {
-        s.rating = ratingMap[s.rating];
-        changed = true;
-      }
-      // Migrate streets missing rrPhotos array
+      if (ratingMap[s.rating]) { s.rating = ratingMap[s.rating]; changed = true; }
       if (!s.rrPhotos) { s.rrPhotos = []; changed = true; }
+      if (!s.photos) { s.photos = []; changed = true; }
+      if (!s.scanPhotos) { s.scanPhotos = []; changed = true; }
+      if (s.weedAlert === undefined) { s.weedAlert = false; changed = true; }
+      if (s.ravelingAlert === undefined) { s.ravelingAlert = false; changed = true; }
+      if (s.rrAlert === undefined) { s.rrAlert = false; changed = true; }
     });
-    // Migrate projects missing type field — default to crack-seal
     if (!p.type) { p.type = 'crack-seal'; changed = true; }
-    // Migrate projects missing detectRR field — default to off
     if (p.detectRR === undefined) { p.detectRR = false; changed = true; }
     if (!p.rrMinSize) { p.rrMinSize = '2x2'; changed = true; }
+    if (p.aiEnabled === undefined) { p.aiEnabled = true; changed = true; }
+    if (!p.scanModel) { p.scanModel = 'gpt-4o'; changed = true; }
   });
   if (changed) {
     streets = activeProject.streets;
@@ -1051,6 +1053,9 @@ async function imageUrlToBase64(url) {
 }
 
 function extractRating(text) {
+  // Handle bracket format "Level: [3]" as well as plain "Level: 3"
+  const bracketMatch = text.match(/Level:\s*\[?([1-4])\]?/i);
+  if (bracketMatch) return `level-${bracketMatch[1]}`;
   const lower = text.toLowerCase();
   if (lower.includes('level: 4') || lower.includes('level:4') || lower.includes('rating: 4')) return 'level-4';
   if (lower.includes('level: 3') || lower.includes('level:3') || lower.includes('rating: 3')) return 'level-3';
@@ -1113,9 +1118,10 @@ function extractWeedAlert(text) {
 }
 
 function extractWeedNotes(text) {
-  const match = text.match(/4\.\s*WEED\/GRASS CONTROL[:\s]+([\s\S]*?)(?=5\.\s*RAVELING|6\.\s*WHAT I CAN'T SEE|7\.\s*Level:|$)/i);
+  // Section number varies depending on whether R&R section is present — match any number prefix
+  const match = text.match(/\d+\.\s*WEED\/GRASS CONTROL[:\s]+([\s\S]*?)(?=\d+\.\s*RAVELING|\d+\.\s*REMOVE|\d+\.\s*WHAT I CAN'T SEE|\d+\.\s*Level:|$)/i);
   if (match) return match[1].trim();
-  const match2 = text.match(/WEED\/GRASS CONTROL[:\s]+([\s\S]*?)(?=RAVELING|WHAT I CAN'T SEE|Level:|$)/i);
+  const match2 = text.match(/WEED\/GRASS CONTROL[:\s]+([\s\S]*?)(?=RAVELING|REMOVE\s*[&and]+\s*REPLACE|WHAT I CAN'T SEE|Level:|$)/i);
   return match2 ? match2[1].trim() : '';
 }
 
@@ -1127,9 +1133,10 @@ function extractRavelingAlert(text) {
 }
 
 function extractRavelingNotes(text) {
-  const match = text.match(/5\.\s*RAVELING[:\s]+([\s\S]*?)(?=6\.\s*WHAT I CAN'T SEE|7\.\s*Level:|$)/i);
+  // Section number varies — match any number prefix
+  const match = text.match(/\d+\.\s*RAVELING[:\s]+([\s\S]*?)(?=\d+\.\s*REMOVE|\d+\.\s*WHAT I CAN'T SEE|\d+\.\s*Level:|$)/i);
   if (match) return match[1].trim();
-  const match2 = text.match(/RAVELING[:\s]+([\s\S]*?)(?=WHAT I CAN'T SEE|Level:|$)/i);
+  const match2 = text.match(/RAVELING[:\s]+([\s\S]*?)(?=REMOVE\s*[&and]+\s*REPLACE|WHAT I CAN'T SEE|Level:|$)/i);
   return match2 ? match2[1].trim() : '';
 }
 
@@ -1288,7 +1295,7 @@ function renderStreetList() {
 
   // Show a "back to all" link when filtered
   const backLink = (svOpen && activeStreetId && streets.length > 1) ?
-    `<div class="street-list-back" onclick="activeStreetId=null;renderStreetList()">← Show all ${streets.length} streets</div>` : '';
+    `<div class="street-list-back" onclick="closeDetailPanel();updateStats()">← Show all ${streets.length} streets</div>` : '';
 
   container.innerHTML = backLink + visibleStreets.map(s => `
     <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''} street-card-${s.rating}" onclick="selectStreet('${s.id}')">
@@ -1434,7 +1441,6 @@ function selectStreet(id) {
     </div>
     ` : ''}
 
-    ${true ? `
     <div class="detail-section" style="border-color:rgba(239,68,68,0.3)">
       <h4 style="color:#ef4444">&#128247; R&amp;R Field Photos (${(street.rrPhotos || []).length})</h4>
       <button class="btn-photo" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#ef4444" onclick="openRRPhotoCapture('${street.id}')">Take R&amp;R Photo</button>
@@ -1458,7 +1464,6 @@ function selectStreet(id) {
         </div>
       ` : '<p class="text-dim" style="margin-top:6px">No R&R photos yet</p>'}
     </div>
-    ` : ''}
 
     ${(street.scanPhotos && street.scanPhotos.length > 0) ? `
     <div class="detail-section">
@@ -1961,15 +1966,16 @@ async function _renderLightbox() {
   }
 
   // Scan photos: use cached base64, or fetch on-demand through the worker proxy
-  const cached = _photoCache.get(p.hdUrl);
+  const cacheKey = p.hdUrl || p.url;
+  const cached = cacheKey ? _photoCache.get(cacheKey) : null;
   if (cached) {
     img.src = cached;
   } else {
     img.src = '';
     img.alt = 'Loading...';
-    const dataUrl = await imageUrlToBase64(p.hdUrl || p.url);
+    const dataUrl = await imageUrlToBase64(cacheKey);
     if (dataUrl) {
-      _photoCache.set(p.hdUrl, dataUrl);
+      if (cacheKey) _photoCache.set(cacheKey, dataUrl);
       img.src = dataUrl;
       img.alt = '';
     } else {
@@ -1996,22 +2002,22 @@ function formatAnalysis(text) {
     const line = raw.trim();
     if (!line) { html += '<div class="analysis-spacer"></div>'; continue; }
 
-    // Numbered section header — e.g. "1. PHOTOS ANALYZED" or "2. WHAT I CAN SEE"
-    const sectionMatch = line.match(/^(\d+)\.\s+([A-Z][A-Z\s\/&']+)(:.*)?$/);
-    if (sectionMatch) {
-      const title = sectionMatch[2].trim();
-      const rest = sectionMatch[3] ? escHtml(sectionMatch[3].slice(1).trim()) : '';
-      html += `<div class="analysis-section-header">${escHtml(title)}${rest ? `<span class="analysis-section-value">${rest}</span>` : ''}</div>`;
-      continue;
-    }
-
-    // Level line — "Level: 3" or "7. Level: [3]"
+    // Level line — check BEFORE section header so "7. Level: [3]" is caught here first
     const levelMatch = line.match(/Level:\s*\[?([1-4])\]?/i);
     if (levelMatch) {
       const lvl = levelMatch[1];
       const colors = { '1': '#22c55e', '2': '#eab308', '3': '#f97316', '4': '#ef4444' };
       const labels = { '1': 'Level 1 — Good', '2': 'Level 2 — Light cracks', '3': 'Level 3 — Heavy cracks', '4': 'Level 4 — Severe' };
       html += `<div class="analysis-level-line" style="color:${colors[lvl]}">${labels[lvl]}</div>`;
+      continue;
+    }
+
+    // Numbered section header — e.g. "1. PHOTOS ANALYZED" or "2. WHAT I CAN SEE"
+    const sectionMatch = line.match(/^(\d+)\.\s+([A-Z][A-Z\s\/&']+)(:.*)?$/);
+    if (sectionMatch) {
+      const title = sectionMatch[2].trim();
+      const rest = sectionMatch[3] ? escHtml(sectionMatch[3].slice(1).trim()) : '';
+      html += `<div class="analysis-section-header">${escHtml(title)}${rest ? `<span class="analysis-section-value">${rest}</span>` : ''}</div>`;
       continue;
     }
 
@@ -2303,9 +2309,13 @@ function deleteScanPhoto(streetId, index) {
   const street = streets.find(s => s.id === streetId);
   if (!street?.scanPhotos) return;
   street.scanPhotos.splice(index, 1);
-  recalcRatingFromPhotos(streetId);
-  saveStreets();
-  selectStreet(streetId);
+  // recalcRatingFromPhotos calls saveStreets + selectStreet internally
+  if (street.scanPhotos.length > 0) {
+    recalcRatingFromPhotos(streetId);
+  } else {
+    saveStreets();
+    selectStreet(streetId);
+  }
   showToast('Scan photo removed');
 }
 
@@ -2338,8 +2348,8 @@ function placePhotoMarkers() {
 
   streets.forEach(street => {
     // Purple pins — on-site photos (per street)
-    if (!street.photos) return;
-    street.photos.forEach(photo => {
+    (street.photos || []).forEach(photo => {
+      if (!photo.lat || !photo.lng) return;
       const dotEl = makeDotContent('#a855f7', 14, '#fff');
       const marker = makeMarker({
         position: { lat: photo.lat, lng: photo.lng },
@@ -2424,7 +2434,8 @@ function openStreetViewAt(lat, lng) {
   panel.classList.remove('hidden');
 
   if (streetViewPano) {
-    // Reuse existing panorama — just move position, preserve heading
+    // Reuse existing panorama — clean up old position listener first, then move
+    if (svPositionListener) { google.maps.event.removeListener(svPositionListener); svPositionListener = null; }
     streetViewPano.setPosition({ lat, lng });
   } else {
     // First open — create the panorama
@@ -2553,6 +2564,7 @@ function closeSnapModal(e) {
   if (e && e.target !== document.getElementById('snap-overlay')) return;
   document.getElementById('snap-overlay').classList.add('hidden');
   _snapData = null;
+  _snapIsRR = false;
 }
 
 function saveSnap() {
@@ -2600,11 +2612,14 @@ function saveSnap() {
   selectStreet(activeStreetId);
   document.getElementById('snap-overlay').classList.add('hidden');
   _snapData = null;
+  const _wasRR = _snapIsRR;
   _snapIsRR = false;
-  showToast(_snapIsRR ? 'R&R photo saved' : 'Photo saved to street');
+  showToast(_wasRR ? 'R&R photo saved' : 'Photo saved to street');
 }
 
 function closeStreetViewPanel() {
+  if (_miniMapTimer) { clearTimeout(_miniMapTimer); _miniMapTimer = null; }
+  if (_animInterval) { clearInterval(_animInterval); _animInterval = null; }
   document.getElementById('streetview-panel').classList.add('hidden');
   document.getElementById('detail-panel').classList.add('hidden');
   if (svPositionListener) { google.maps.event.removeListener(svPositionListener); svPositionListener = null; }
@@ -2713,6 +2728,7 @@ function startFreePhoto() {
         rrNotes: '',
         svImage: getStreetViewUrl(lat, lng),
         photos: [],
+        rrPhotos: [],
         scanPhotos: [],
         scannedAt: null,
         createdAt: new Date().toISOString()
@@ -2878,7 +2894,16 @@ async function saveHighlightedStreet(startPt, endPt) {
     endCounty: endGeo.county,
     crossesBoundary: (startGeo.city && endGeo.city && startGeo.city !== endGeo.city) || (startGeo.county && endGeo.county && startGeo.county !== endGeo.county),
     boundaryNote: '',
+    adminNotes: '',
+    weedAlert: false,
+    weedNotes: '',
+    ravelingAlert: false,
+    ravelingNotes: '',
+    rrAlert: false,
+    rrNotes: '',
     photos: [],
+    rrPhotos: [],
+    scanPhotos: [],
     scannedAt: null,
     createdAt: new Date().toISOString()
   };
@@ -2925,22 +2950,25 @@ async function saveHighlightedStreet(startPt, endPt) {
     setTimeout(() => showToast(`⚠ ${street.boundaryNote}`, 5000), 1500);
   }
 
-  // Auto-scan in background
-  analyzeStreetView(street).then(analysis => {
-    street.analysis = analysis.text;
-    street.rating = analysis.rating;
-    street.weedAlert = analysis.weedAlert || false;
-    street.weedNotes = analysis.weedNotes || '';
-    street.ravelingAlert = analysis.ravelingAlert || false;
-    street.ravelingNotes = analysis.ravelingNotes || '';
-    street.rrAlert = analysis.rrAlert || false;
-    street.rrNotes = analysis.rrNotes || '';
-    street.scannedAt = new Date().toISOString();
-    saveStreets();
-    drawAllHighlights();
-    renderStreetList();
-    updateStats();
-  }).catch(() => {});
+  // Auto-scan in background (only when AI is enabled)
+  if (activeProject.aiEnabled !== false) {
+    analyzeStreetView(street).then(analysis => {
+      street.analysis = analysis.text;
+      street.rating = analysis.rating;
+      street.weedAlert = analysis.weedAlert || false;
+      street.weedNotes = analysis.weedNotes || '';
+      street.ravelingAlert = analysis.ravelingAlert || false;
+      street.ravelingNotes = analysis.ravelingNotes || '';
+      street.rrAlert = analysis.rrAlert || false;
+      street.rrNotes = analysis.rrNotes || '';
+      street.scannedAt = new Date().toISOString();
+      saveStreets();
+      drawAllHighlights();
+      renderStreetList();
+      updateStats();
+      if (activeStreetId === street.id) selectStreet(street.id);
+    }).catch(() => {});
+  }
 }
 
 function addTempMarker(latLng, label, color) {
@@ -3182,11 +3210,14 @@ function calcDistanceFt(p1, p2) {
 }
 
 // ─── PROJECT REPORT ────────────────────────────────────────
+let _reportGenerating = false;
 async function generateProjectReport() {
+  if (_reportGenerating) return;
   if (streets.length === 0) {
     showToast('Add some streets first');
     return;
   }
+  _reportGenerating = true;
 
   // Show modal with loading
   document.getElementById('report-overlay').classList.remove('hidden');
@@ -3215,9 +3246,9 @@ async function generateProjectReport() {
   const rrStreets = streets.filter(s => s.rrAlert);
   const projectTypeLabel = activeProject.type === 'slurry' ? 'Slurry Seal' : activeProject.type === 'both' ? 'Crack Seal + Slurry Seal' : 'Crack Seal';
 
-  // Treatment breakdown
+  // Treatment breakdown — only rated streets (skip pending)
   const treatmentCounts = {};
-  streets.forEach(s => {
+  streets.filter(s => s.rating && s.rating !== 'pending').forEach(s => {
     const t = getTreatment(s.rating, activeProject.type).label;
     treatmentCounts[t] = (treatmentCounts[t] || 0) + 1;
   });
@@ -3349,6 +3380,7 @@ async function generateProjectReport() {
       <div class="report-ai">${escHtml(aiSummary)}</div>
     </div>
   `;
+  _reportGenerating = false;
 }
 
 function closeReport(e) {
@@ -3365,19 +3397,3 @@ function getMapKey() {
   return match ? match[1] : '';
 }
 
-// ─── DARK MAP STYLE ────────────────────────────────────────
-const _darkMapStyleCache = [
-    { elementType: 'geometry', stylers: [{ color: '#1a1a2e' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#8892b0' }] },
-    { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#2d2d44' }] },
-    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2d2d44' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1a1a2e' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3b3b5c' }] },
-    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8892b0' }] },
-    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#1f1f35' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1525' }] },
-    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4a5568' }] }
-];
-function darkMapStyle() { return _darkMapStyleCache; }
