@@ -94,6 +94,15 @@ function initMap() {
     }
   });
 
+  // Hide POI icons and labels — styles array works alongside mapId for POI suppression
+  map.setOptions({
+    styles: [
+      { featureType: 'poi', elementType: 'all', stylers: [{ visibility: 'off' }] },
+      { featureType: 'poi.park', elementType: 'geometry', stylers: [{ visibility: 'off' }] },
+      { featureType: 'transit', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] }
+    ]
+  });
+
   // Map click listener
   map.addListener('click', (e) => handleMapClick(e.latLng));
 
