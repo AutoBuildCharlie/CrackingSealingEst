@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PaveScan</title>
-  <link rel="stylesheet" href="style.css?v=110">
+  <link rel="stylesheet" href="style.css?v=111">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -158,6 +158,9 @@
           <option value="level-4">LVL 4 — Alligator</option>
         </select>
       </div>
+      <div id="lightbox-note-row" class="lightbox-note-row hidden">
+        <textarea id="lightbox-note-input" class="lightbox-note-input" rows="2" placeholder="Add a note..." oninput="lightboxSetNote(this.value)"></textarea>
+      </div>
       <div class="lightbox-nav">
         <button onclick="lightboxNav(-1)">&#8592;</button>
         <span id="lightbox-count"></span>
@@ -216,7 +219,7 @@
   </div>
 
   <!-- ─── SCRIPTS ─────────────────────────────────────────── -->
-  <script src="app.js?v=110"></script>
+  <script src="app.js?v=111"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async&libraries=marker">
   </script>

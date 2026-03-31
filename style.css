@@ -1019,6 +1019,23 @@ body {
 }
 .lightbox-nav button:hover { background: rgba(255,255,255,0.2); }
 .lightbox-nav span { color: var(--text-dim); font-size: 12px; }
+.lightbox-note-row {
+  width: 100%;
+}
+.lightbox-note-input {
+  width: 100%;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 8px;
+  resize: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.lightbox-note-input::placeholder { color: var(--text-dim); }
+.lightbox-note-input:focus { outline: none; border-color: var(--accent); }
 .lightbox-delete {
   margin-top: 12px;
   background: none;

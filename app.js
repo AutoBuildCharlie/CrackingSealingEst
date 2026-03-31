@@ -1794,26 +1794,59 @@ function updateStats() {
 }
 
 // ─── PHOTO LIGHTBOX ────────────────────────────────────────
-let _lbPhotos = [], _lbIdx = 0, _lbStreetId = null;
+// _lbPhotoArray: 'photos' | 'rrPhotos' | 'scanPhotos'
+let _lbPhotos = [], _lbIdx = 0, _lbStreetId = null, _lbPhotoArray = 'photos';
 
-function openLightbox(photos, idx, streetId) {
+function openLightbox(photos, idx, streetId, arrayName) {
   _lbPhotos = photos;
   _lbIdx = idx;
   _lbStreetId = streetId || null;
+  // Auto-detect array type if not passed
+  if (arrayName) {
+    _lbPhotoArray = arrayName;
+  } else if (photos.length > 0 && photos[0].hdUrl) {
+    _lbPhotoArray = 'scanPhotos';
+  } else {
+    // Determine by checking which array on the street matches
+    const street = streets.find(s => s.id === streetId);
+    if (street && street.rrPhotos === photos) {
+      _lbPhotoArray = 'rrPhotos';
+    } else {
+      _lbPhotoArray = 'photos';
+    }
+  }
   _renderLightbox();
   document.getElementById('photo-lightbox').classList.remove('hidden');
 }
 
 function lightboxSetRating(value) {
   if (!_lbStreetId) return;
-  setPhotoRating(_lbStreetId, _lbIdx, value);
-  _lbPhotos[_lbIdx].rating = value || null;
+  const p = _lbPhotos[_lbIdx];
+  if (!p) return;
+  p.rating = value || null;
+  if (_lbPhotoArray === 'scanPhotos') {
+    setPhotoRating(_lbStreetId, _lbIdx, value);
+  } else {
+    saveStreets();
+  }
+}
+
+function lightboxSetNote(value) {
+  if (!_lbStreetId) return;
+  const p = _lbPhotos[_lbIdx];
+  if (!p) return;
+  p.note = value;
+  saveStreets();
 }
 
 function lightboxDeletePhoto() {
   const p = _lbPhotos[_lbIdx];
   if (!p?.id || !_lbStreetId) return;
-  deletePhoto(_lbStreetId, p.id);
+  if (_lbPhotoArray === 'rrPhotos') {
+    deleteRRPhoto(_lbStreetId, p.id);
+  } else {
+    deletePhoto(_lbStreetId, p.id);
+  }
   closeLightbox();
 }
 
@@ -1834,14 +1867,22 @@ async function _renderLightbox() {
   const count = document.getElementById('lightbox-count');
   const sel = document.getElementById('lightbox-rating-select');
   const delBtn = document.getElementById('lightbox-delete');
+  const noteRow = document.getElementById('lightbox-note-row');
+  const noteInput = document.getElementById('lightbox-note-input');
 
-  // Label: scan photos use p.label, on-site photos use address or note
-  label.textContent = p.label || (p.address ? p.address.split(',')[0] : 'On-site photo');
-  if (p.note) label.textContent += ` — ${p.note}`;
+  // Label: scan photos use p.label, on-site photos use address
+  const isOnsite = _lbPhotoArray === 'photos' || _lbPhotoArray === 'rrPhotos';
+  label.textContent = p.label || (p.address ? p.address.split(',')[0] : _lbPhotoArray === 'rrPhotos' ? 'R&R photo' : 'On-site photo');
   count.textContent = `${_lbIdx + 1} / ${_lbPhotos.length}`;
   if (sel) sel.value = p.rating || '';
 
-  // Show delete button only for on-site photos (they have dataUrl + id)
+  // Show note editor for on-site and R&R photos (not scan photos)
+  if (noteRow && noteInput) {
+    noteRow.classList.toggle('hidden', !isOnsite);
+    if (isOnsite) noteInput.value = p.note || '';
+  }
+
+  // Show delete button for on-site and R&R photos (they have id)
   if (delBtn) delBtn.classList.toggle('hidden', !p.id);
 
   // On-site photos have dataUrl stored directly — no proxy needed
