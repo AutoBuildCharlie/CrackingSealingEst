@@ -911,6 +911,16 @@ function fitMapToMarkers() {
   map.fitBounds(bounds, 60);
 }
 
+function getStreetDirection(street) {
+  const path = street.path;
+  if (!path || path.length < 2) return null;
+  const heading = calcHeading(path[0], path[path.length - 1]);
+  if (heading >= 315 || heading < 45)  return 'NB';
+  if (heading >= 45  && heading < 135) return 'EB';
+  if (heading >= 135 && heading < 225) return 'SB';
+  return 'WB';
+}
+
 function ratingColor(rating) {
   switch (rating) {
     case 'level-1': case 'good': return '#22c55e';
@@ -990,6 +1000,7 @@ function selectStreet(id) {
   document.getElementById('detail-content').innerHTML = `
     <div class="detail-header">
       <h3>${escHtml(street.name)} <button class="btn-edit-analysis" onclick="promptStreetName(streets.find(s=>s.id==='${street.id}'), '${escHtml(street.name)}')" style="font-size:11px;padding:2px 8px">Rename</button></h3>
+      ${(() => { const dir = getStreetDirection(street); return dir ? `<span style="display:inline-block;background:var(--accent);color:#000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px">${dir}</span>` : ''; })()}
       ${street.city ? `<div class="detail-jurisdiction">${escHtml(street.city)}${street.county ? ' — ' + escHtml(street.county) : ''}${street.state ? ', ' + escHtml(street.state) : ''}</div>` : ''}
       ${street.crossesBoundary ? `<div class="detail-boundary-warn">⚠ ${escHtml(street.boundaryNote)}</div>` : ''}
       ${street.weedAlert ? `<div class="detail-weed-warn">🌿 Weed/grass control may be needed on this street</div>` : ''}
