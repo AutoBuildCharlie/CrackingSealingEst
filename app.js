@@ -653,6 +653,8 @@ async function saveStreet() {
     street.rating = analysis.rating;
     street.weedAlert = analysis.weedAlert || false;
     street.weedNotes = analysis.weedNotes || '';
+    street.ravelingAlert = analysis.ravelingAlert || false;
+    street.ravelingNotes = analysis.ravelingNotes || '';
     street.scannedAt = new Date().toISOString();
   }
 
@@ -866,14 +868,17 @@ Use this rating scale:
 
 IMPORTANT: If you see any cracks that appear wider than 1.25 inches, flag them with "⚠ WIDE CRACKS DETECTED (1.25"+)" — these are typically outside standard scope.
 
+IMPORTANT: Look for raveling — this is aggregate (small stones/gravel) coming loose from the surface, leaving a rough, pitted, or frayed texture. It often appears as a sandy or granular surface, darkened pitting, or a worn-away look with exposed aggregate. Flag with "⚠ RAVELING DETECTED" if present.
+
 Your response must include:
 1. PHOTOS ANALYZED: ${validPairs.length} images covering ${formatNumber(street.length || 0)} ft
 2. WHAT I CAN SEE: 2-4 bullet points. Every single bullet MUST end with the photo reference in parentheses — e.g. "(Photo 2: Mid-point 1)". Do not write any bullet without a photo citation. Note if condition varies along the street.
 3. WIDE CRACKS: If any cracks appear wider than 1.25 inches, flag with "⚠ WIDE CRACKS DETECTED (1.25"+)" and reference which photo(s). If none, write "None detected."
 4. WEED/GRASS CONTROL: If you see vegetation growing from cracks, flag with "🌿 WEED CONTROL NEEDED", describe extent (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
-5. WHAT I CAN'T SEE: 1-2 bullet points about limitations
-6. Level: [1/2/3/4]
-7. PHOTO RATINGS: Rate each photo individually on the same scale. One line, exactly this format: "Photo 1: [1/2/3/4], Photo 2: [1/2/3/4], ..."
+5. RAVELING: If you see aggregate loss, rough/pitted/frayed surface texture, or exposed aggregate, flag with "⚠ RAVELING DETECTED", describe severity (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
+6. WHAT I CAN'T SEE: 1-2 bullet points about limitations
+7. Level: [1/2/3/4]
+8. PHOTO RATINGS: Rate each photo individually on the same scale. One line, exactly this format: "Photo 1: [1/2/3/4], Photo 2: [1/2/3/4], ..."
 
 Be honest. Weight toward the worst section. Do not guess — only rate what you can actually see.`
           },
@@ -911,10 +916,12 @@ Be honest. Weight toward the worst section. Do not guess — only rate what you 
     const rating = extractRating(text);
     const weedAlert = extractWeedAlert(text);
     const weedNotes = extractWeedNotes(text);
+    const ravelingAlert = extractRavelingAlert(text);
+    const ravelingNotes = extractRavelingNotes(text);
     // Store per-photo ratings from AI response
     const photoRatings = extractPhotoRatings(text, samplePoints.length);
     photoRatings.forEach((r, i) => { if (street.scanPhotos[i] && r) street.scanPhotos[i].rating = r; });
-    return { text, rating, weedAlert, weedNotes };
+    return { text, rating, weedAlert, weedNotes, ravelingAlert, ravelingNotes };
   } catch (e) {
     console.error('AI analysis error:', e);
     return analyzeWithPlaceholder(street);
@@ -997,9 +1004,23 @@ function extractWeedAlert(text) {
 }
 
 function extractWeedNotes(text) {
-  const match = text.match(/4\.\s*WEED\/GRASS CONTROL[:\s]+([\s\S]*?)(?=5\.\s*WHAT I CAN'T SEE|6\.\s*Level:|$)/i);
+  const match = text.match(/4\.\s*WEED\/GRASS CONTROL[:\s]+([\s\S]*?)(?=5\.\s*RAVELING|6\.\s*WHAT I CAN'T SEE|7\.\s*Level:|$)/i);
   if (match) return match[1].trim();
-  const match2 = text.match(/WEED\/GRASS CONTROL[:\s]+([\s\S]*?)(?=WHAT I CAN'T SEE|Level:|$)/i);
+  const match2 = text.match(/WEED\/GRASS CONTROL[:\s]+([\s\S]*?)(?=RAVELING|WHAT I CAN'T SEE|Level:|$)/i);
+  return match2 ? match2[1].trim() : '';
+}
+
+function extractRavelingAlert(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes('raveling detected')) return true;
+  if (lower.includes('raveling present') || lower.includes('aggregate loss') || lower.includes('aggregate coming loose')) return true;
+  return false;
+}
+
+function extractRavelingNotes(text) {
+  const match = text.match(/5\.\s*RAVELING[:\s]+([\s\S]*?)(?=6\.\s*WHAT I CAN'T SEE|7\.\s*Level:|$)/i);
+  if (match) return match[1].trim();
+  const match2 = text.match(/RAVELING[:\s]+([\s\S]*?)(?=WHAT I CAN'T SEE|Level:|$)/i);
   return match2 ? match2[1].trim() : '';
 }
 
@@ -1153,6 +1174,7 @@ function renderStreetList() {
       ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}${s.roadType ? ' · ' + escHtml(s.roadType) : ''}</div>` : (s.roadType ? `<div class="street-card-city">${escHtml(s.roadType)}</div>` : '')}
       ${s.crossesBoundary ? `<div class="street-card-boundary">⚠ ${escHtml(s.boundaryNote)}</div>` : ''}
       ${s.weedAlert ? `<div class="street-card-weed">🌿 Weed control needed</div>` : ''}
+      ${s.ravelingAlert ? `<div class="street-card-weed" style="color:#f59e0b">⚠ Raveling detected</div>` : ''}
       <div class="street-card-meta">
         <span class="street-card-sqft">${s.sqft ? formatNumber(s.sqft) + ' sq ft' : 'No dimensions'}</span>
         <span class="rating-badge rating-${s.rating}" title="${ratingDescription(s.rating)}">${ratingLabel(s.rating)}</span>
@@ -1210,6 +1232,10 @@ function selectStreet(id) {
             `<button class="weed-jump-btn" onclick="map.panTo({lat:${p.lat},lng:${p.lng}});map.setZoom(19)" title="Jump to ${escHtml(p.label)}">📍 ${escHtml(p.label)}</button>`
           ).join('')}</div>`;
         })() : ''}
+      </div>` : ''}
+      ${street.ravelingAlert ? `<div class="detail-weed-warn" style="border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.08)">
+        ⚠ Raveling detected on this street — surface aggregate loss noted
+        ${street.ravelingNotes ? `<div class="weed-notes">${escHtml(street.ravelingNotes)}</div>` : ''}
       </div>` : ''}
       <div class="detail-address">Added ${formatDate(street.createdAt)}</div>
     </div>
@@ -1493,6 +1519,8 @@ function saveAnalysis(id) {
   street.rating = extractRating(text);
   street.weedAlert = extractWeedAlert(text);
   street.weedNotes = extractWeedNotes(text);
+  street.ravelingAlert = extractRavelingAlert(text);
+  street.ravelingNotes = extractRavelingNotes(text);
   saveStreets();
   renderStreetList();
   updateStats();
@@ -1550,6 +1578,8 @@ async function rescanStreet(id) {
     street.rating = analysis.rating;
     street.weedAlert = analysis.weedAlert || false;
     street.weedNotes = analysis.weedNotes || '';
+    street.ravelingAlert = analysis.ravelingAlert || false;
+    street.ravelingNotes = analysis.ravelingNotes || '';
     street.scannedAt = new Date().toISOString();
 
     saveStreets();
@@ -2190,6 +2220,8 @@ function startFreePhoto() {
         adminNotes: '',
         weedAlert: false,
         weedNotes: '',
+        ravelingAlert: false,
+        ravelingNotes: '',
         svImage: getStreetViewUrl(lat, lng),
         photos: [],
         scanPhotos: [],
@@ -2410,6 +2442,8 @@ async function saveHighlightedStreet(startPt, endPt) {
     street.rating = analysis.rating;
     street.weedAlert = analysis.weedAlert || false;
     street.weedNotes = analysis.weedNotes || '';
+    street.ravelingAlert = analysis.ravelingAlert || false;
+    street.ravelingNotes = analysis.ravelingNotes || '';
     street.scannedAt = new Date().toISOString();
     saveStreets();
     drawAllHighlights();
@@ -2686,6 +2720,7 @@ async function generateProjectReport() {
   const cities = [...new Set(streets.map(s => s.city).filter(Boolean))];
   const boundaryStreets = streets.filter(s => s.crossesBoundary);
   const weedStreets = streets.filter(s => s.weedAlert);
+  const ravelingStreets = streets.filter(s => s.ravelingAlert);
   const projectTypeLabel = activeProject.type === 'slurry' ? 'Slurry Seal' : activeProject.type === 'both' ? 'Crack Seal + Slurry Seal' : 'Crack Seal';
 
   // Treatment breakdown
@@ -2697,7 +2732,7 @@ async function generateProjectReport() {
 
   // Build street summary for AI
   const streetSummary = streets.map(s =>
-    `- ${s.name}: ${formatNumber(s.length || 0)} ft, ${formatNumber(s.sqft || 0)} sq ft, Rating: ${s.rating}, City: ${s.city || 'Unknown'}${s.weedAlert ? ', ⚠ WEED CONTROL NEEDED' : ''}${s.adminNotes ? ', Admin notes: ' + s.adminNotes : ''}`
+    `- ${s.name}: ${formatNumber(s.length || 0)} ft, ${formatNumber(s.sqft || 0)} sq ft, Rating: ${s.rating}, City: ${s.city || 'Unknown'}${s.weedAlert ? ', ⚠ WEED CONTROL NEEDED' : ''}${s.ravelingAlert ? ', ⚠ RAVELING DETECTED' : ''}${s.adminNotes ? ', Admin notes: ' + s.adminNotes : ''}`
   ).join('\n');
 
   // Get AI project summary
@@ -2799,11 +2834,13 @@ async function generateProjectReport() {
 
     ${weedStreets.length > 0 ? `<div class="report-section" style="border-color:rgba(34,197,94,0.3)"><div class="report-label" style="color:#22c55e">🌿 Weed/Grass Control (${weedStreets.length} street${weedStreets.length > 1 ? 's' : ''})</div><div style="font-size:12px">${weedStreets.map(s => escHtml(s.name?.split(',')[0] || 'Unknown')).join('<br>')}</div></div>` : ''}
 
+    ${ravelingStreets.length > 0 ? `<div class="report-section" style="border-color:rgba(245,158,11,0.3)"><div class="report-label" style="color:#f59e0b">⚠ Raveling Detected (${ravelingStreets.length} street${ravelingStreets.length > 1 ? 's' : ''})</div><div style="font-size:12px">${ravelingStreets.map(s => escHtml(s.name?.split(',')[0] || 'Unknown')).join('<br>')}</div></div>` : ''}
+
     <div class="report-section">
       <div class="report-label">Street Breakdown</div>
       ${streets.map(s => `
         <div class="report-street-row">
-          <span>${escHtml(s.name?.split(',')[0] || 'Unknown')}${s.weedAlert ? ' 🌿' : ''}</span>
+          <span>${escHtml(s.name?.split(',')[0] || 'Unknown')}${s.weedAlert ? ' 🌿' : ''}${s.ravelingAlert ? ' ⚠' : ''}</span>
           <span>${formatNumber(s.sqft || 0)} sq ft · ${formatNumber(Math.round((s.sqft || 0) / 9))} SY</span>
           <span class="rating-badge rating-${s.rating}" title="${ratingDescription(s.rating)}">${ratingLabel(s.rating)}</span>
         </div>
