@@ -1390,7 +1390,7 @@ function selectStreet(id) {
     </div>
     ` : ''}
 
-    ${(activeProject.detectRR || (street.rrPhotos && street.rrPhotos.length > 0)) ? `
+    ${true ? `
     <div class="detail-section" style="border-color:rgba(239,68,68,0.3)">
       <h4 style="color:#ef4444">&#128247; R&amp;R Field Photos (${(street.rrPhotos || []).length})</h4>
       <button class="btn-photo" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#ef4444" onclick="openRRPhotoCapture('${street.id}')">Take R&amp;R Photo</button>
