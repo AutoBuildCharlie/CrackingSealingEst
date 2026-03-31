@@ -876,8 +876,8 @@ body {
   white-space: nowrap;
 }
 .lightbox-rating select {
-  background: var(--card);
-  color: var(--text);
+  background: #fff;
+  color: #111;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 8px;
