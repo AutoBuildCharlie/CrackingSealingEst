@@ -860,16 +860,16 @@ async function analyzeStreetView(street) {
   const crackInstructions = isSlurry
     ? `IMPORTANT — CRACK WIDTH THRESHOLDS (Slurry Seal project):
 - Any cracks 0.25 inches (1/4") or wider must be crack sealed before slurry can be applied. Flag these with "⚠ PREP CRACKS DETECTED (0.25"+)".
-- Any cracks 1.25 inches or wider are severe and require different treatment. Flag these additionally with "⚠ SEVERE WIDE CRACKS (1.25"+)".`
+- Any cracks 1.25 inches or wider require hot-applied mastic treatment (not standard crack sealant) before any other work. Flag these additionally with "⚠ MASTIC REQUIRED (1.25"+)". Mastic is a hot-applied asphalt binder loaded with aggregate, used to fill wide cracks 1.25"–4". Cracks over 4" require saw-cut removal and patching.`
     : `IMPORTANT — CRACK WIDTH (Crack Seal project):
-- Any cracks 1.25 inches or wider are outside standard crack seal scope and require different treatment. Flag with "⚠ WIDE CRACKS DETECTED (1.25"+)".`;
+- Any cracks 1.25 inches or wider require hot-applied mastic treatment — not standard crack sealant. Mastic is a hot-applied asphalt binder loaded with aggregate, used to fill wide cracks 1.25"–4". Cracks over 4" require saw-cut removal and patching. Flag with "⚠ MASTIC REQUIRED (1.25"+)".`;
 
   const wideCrackSection = isSlurry
     ? `3. WIDE CRACKS: Check two thresholds:
-   - 0.25"+ (prep required before slurry): flag with "⚠ PREP CRACKS DETECTED (0.25"+)" and reference photo(s).
-   - 1.25"+ (severe, different treatment needed): flag with "⚠ SEVERE WIDE CRACKS (1.25"+)" and reference photo(s).
+   - 0.25"+ (crack seal prep required before slurry): flag with "⚠ PREP CRACKS DETECTED (0.25"+)" and reference photo(s).
+   - 1.25"+ (mastic required, not standard crack sealant): flag with "⚠ MASTIC REQUIRED (1.25"+)" and reference photo(s).
    If neither visible, write "None detected."`
-    : `3. WIDE CRACKS: If any cracks appear 1.25 inches or wider, flag with "⚠ WIDE CRACKS DETECTED (1.25"+)" and reference which photo(s). If none, write "None detected."`;
+    : `3. WIDE CRACKS: If any cracks appear 1.25 inches or wider, flag with "⚠ MASTIC REQUIRED (1.25"+)" — these need hot-applied mastic, not standard crack sealant — and reference which photo(s). If none, write "None detected."`;
 
   return `You are a pavement condition assessor for a pavement contractor. You are receiving ${validPairs.length} Street View image(s) of a single street. Project type: ${projType === 'slurry' ? 'Slurry Seal' : projType === 'both' ? 'Crack Seal + Slurry Seal' : 'Crack Seal'}.
 
