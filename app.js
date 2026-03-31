@@ -883,17 +883,65 @@ function calcHeading(from, to) {
   return ((Math.atan2(x, y) * 180 / Math.PI) + 360) % 360;
 }
 
+// ─── STREET VIEW METADATA ──────────────────────────────────
+// Free JSON call — tells us panorama location, ID, and availability
+// before we spend quota fetching the actual image.
+async function fetchSVMetadata(lat, lng) {
+  try {
+    const url = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${lat},${lng}&key=${API_KEY}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    return await res.json(); // { status, pano_id, location: {lat,lng}, date }
+  } catch { return null; }
+}
+
+// Distance in metres between two lat/lng points
+function metersApart(a, b) {
+  const R = 6371000;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
 async function analyzeStreetView(street) {
   if (!AI_PROXY) {
     return analyzeWithPlaceholder(street);
   }
 
   try {
-    // Get sample points along the street
+    // Get candidate sample points along the street
     const samplePoints = getSamplePoints(street);
-    const photoCount = samplePoints.length;
-    // Fetch all Street View images as base64 — use HD for better AI analysis
-    const imagePromises = samplePoints.map(pt => {
+
+    // ── SMART PHOTO SELECTION ───────────────────────────────
+    // 1. Fetch metadata for all points in parallel (free, fast)
+    // 2. Skip points with no Street View coverage
+    // 3. Deduplicate by panorama ID (same pano = same photo)
+    // 4. Skip if panorama drifted >20m from requested point
+    //    (means it snapped to a different street — e.g. the cross street)
+    const MAX_DRIFT_M = 20;
+    const metadataResults = await Promise.all(
+      samplePoints.map(pt => fetchSVMetadata(pt.lat, pt.lng))
+    );
+
+    const seenPanoIds = new Set();
+    const filteredPoints = [];
+    samplePoints.forEach((pt, i) => {
+      const meta = metadataResults[i];
+      if (!meta || meta.status !== 'OK') return; // no coverage
+      if (seenPanoIds.has(meta.pano_id)) return;  // duplicate panorama
+      const drift = metersApart({ lat: pt.lat, lng: pt.lng }, meta.location);
+      if (drift > MAX_DRIFT_M) return;             // snapped to wrong street
+      seenPanoIds.add(meta.pano_id);
+      filteredPoints.push(pt);
+    });
+
+    // Fall back to all points if metadata filtering removed everything
+    const pointsToUse = filteredPoints.length > 0 ? filteredPoints : samplePoints;
+
+    // Fetch Street View images for the selected points
+    const imagePromises = pointsToUse.map(pt => {
       const url = getStreetViewUrlHD(pt.lat, pt.lng, pt.heading || 0);
       return imageUrlToBase64(url);
     });
@@ -902,7 +950,7 @@ async function analyzeStreetView(street) {
     // Pair valid images with their labels
     const validPairs = [];
     images.forEach((img, i) => {
-      if (img) validPairs.push({ base64: img, label: samplePoints[i].label || `Photo ${i + 1}` });
+      if (img) validPairs.push({ base64: img, label: pointsToUse[i].label || `Photo ${i + 1}` });
     });
 
     if (validPairs.length === 0) {
