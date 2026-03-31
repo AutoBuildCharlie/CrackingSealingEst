@@ -3087,13 +3087,13 @@ function drawAllHighlights() {
     glow.addListener('click', () => selectStreet(street.id));
     polylines.push(glow);
 
-    // Main line — semi-transparent so road name labels show through
+    // Main line — transparent tint so road name labels show through
     const line = new google.maps.Polyline({
       path: points,
       geodesic: true,
       strokeColor: color,
-      strokeOpacity: isActive ? 0.75 : 0.55,
-      strokeWeight: isActive ? 6 : 4,
+      strokeOpacity: isActive ? 0.45 : 0.28,
+      strokeWeight: isActive ? 8 : 6,
       map: map
     });
     line.addListener('click', () => selectStreet(street.id));
