@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crack Sealin EST.</title>
-  <link rel="stylesheet" href="style.css?v=82">
+  <link rel="stylesheet" href="style.css?v=83">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -133,7 +133,7 @@
   </div>
 
   <!-- ─── NAME STREET PROMPT ────────────────────────────────── -->
-  <div id="name-prompt-overlay" class="modal-overlay hidden" >
+  <div id="name-prompt-overlay" class="modal-overlay hidden" onclick="closeNamePrompt(event)">
     <div class="modal" onclick="event.stopPropagation()" style="max-width:340px">
       <h3>Name This Street</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">What street did you just highlight?</p>
@@ -141,6 +141,7 @@
         <input type="text" id="name-prompt-input" placeholder="e.g. Katella Avenue" onkeydown="if(event.key==='Enter')confirmStreetName()">
       </div>
       <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeNamePrompt()">Cancel</button>
         <button class="btn-primary" onclick="confirmStreetName()">Save Name</button>
       </div>
     </div>
@@ -156,7 +157,7 @@
   </div>
 
   <!-- ─── SCRIPTS ─────────────────────────────────────────── -->
-  <script src="app.js?v=82"></script>
+  <script src="app.js?v=83"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap">
   </script>

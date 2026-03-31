@@ -111,7 +111,12 @@ function loadProjects() {
 }
 
 function saveProjects() {
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+  try {
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+  } catch (e) {
+    showToast('Storage full — delete old photos or projects to free space');
+    console.error('localStorage save failed:', e);
+  }
 }
 
 function saveStreets() {
@@ -313,6 +318,8 @@ async function migrateRoadTypes() {
 
 // Interpolate a lat/lng at fraction t (0–1) along a path
 function getPathPointAt(path, t) {
+  if (!path || path.length === 0) return { lat: 0, lng: 0 };
+  if (path.length === 1) return path[0];
   let total = 0;
   const segs = [];
   for (let i = 1; i < path.length; i++) {
@@ -320,9 +327,11 @@ function getPathPointAt(path, t) {
     segs.push(d);
     total += d;
   }
+  if (total === 0) return path[0];
   const target = total * t;
   let cum = 0;
   for (let i = 0; i < segs.length; i++) {
+    if (segs[i] === 0) { cum += segs[i]; continue; }
     if (cum + segs[i] >= target) {
       const lt = (target - cum) / segs[i];
       return {
@@ -387,6 +396,11 @@ function promptStreetName(street, suggestedName) {
   document.getElementById('name-prompt-overlay').classList.remove('hidden');
   document.getElementById('name-prompt-input').focus();
   window._namingStreetId = street.id;
+}
+
+function closeNamePrompt(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('name-prompt-overlay').classList.add('hidden');
 }
 
 function confirmStreetName() {
@@ -470,8 +484,10 @@ const ROAD_TYPES = {
 async function detectRoadType(lat, lng) {
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=17`, {
-      headers: { 'User-Agent': 'CrackingSealingEst/1.0' }
+      headers: { 'User-Agent': 'CrackingSealingEst/1.0' },
+      signal: AbortSignal.timeout(10000)
     });
+    if (!res.ok) throw new Error(`Nominatim ${res.status}`);
     const data = await res.json();
     const osmType = data.type || data.class || '';
     const roadName = data.address?.road || data.name || '';
@@ -710,8 +726,6 @@ async function analyzeStreetView(street) {
     // Get sample points along the street
     const samplePoints = getSamplePoints(street);
     const photoCount = samplePoints.length;
-    const photoLabels = ['start', 'middle-start', 'middle', 'middle-end', 'end'];
-
     // Fetch all Street View images as base64 — use HD for better AI analysis
     const imagePromises = samplePoints.map(pt => {
       const url = getStreetViewUrlHD(pt.lat, pt.lng, pt.heading || 0);
@@ -746,6 +760,7 @@ async function analyzeStreetView(street) {
     const res = await fetch(AI_PROXY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(60000),
       body: JSON.stringify({
         model: scanModel,
         provider: getProviderForModel(scanModel),
@@ -782,7 +797,9 @@ Be honest. Weight toward the worst section. Do not guess — only rate what you 
       })
     });
 
+    if (!res.ok) throw new Error(`AI proxy ${res.status}`);
     const data = await res.json();
+    if (data.error) throw new Error(data.error.message || 'AI returned error');
     const text = data.choices?.[0]?.message?.content || '';
     if (!text) return analyzeWithPlaceholder(street);
     const rating = extractRating(text);
@@ -878,7 +895,7 @@ function ratingLabel(rating) {
     case 'level-2': case 'fair': return 'LVL 2';
     case 'level-3': case 'poor': return 'LVL 3';
     case 'level-4': case 'critical': return 'LVL 4';
-    default: return rating.toUpperCase();
+    default: return (rating || 'PENDING').toUpperCase();
   }
 }
 
@@ -1043,7 +1060,7 @@ function selectStreet(id) {
 
   document.getElementById('detail-content').innerHTML = `
     <div class="detail-header">
-      <h3>${escHtml(street.name)} <button class="btn-edit-analysis" onclick="promptStreetName(streets.find(s=>s.id==='${street.id}'), '${escHtml(street.name)}')" style="font-size:11px;padding:2px 8px">Rename</button></h3>
+      <h3>${escHtml(street.name)} <button class="btn-edit-analysis" onclick="promptStreetName(streets.find(s=>s.id==='${street.id}'), decodeURIComponent('${encodeURIComponent(street.name)}'))" style="font-size:11px;padding:2px 8px">Rename</button></h3>
       ${(() => { const dir = getStreetDirection(street); return dir ? `<span style="display:inline-block;background:var(--accent);color:#000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px">${dir}</span>` : ''; })()}
       ${street.city ? `<div class="detail-jurisdiction">${escHtml(street.city)}${street.county ? ' — ' + escHtml(street.county) : ''}${street.state ? ', ' + escHtml(street.state) : ''}</div>` : ''}
       ${street.crossesBoundary ? `<div class="detail-boundary-warn">⚠ ${escHtml(street.boundaryNote)}</div>` : ''}
@@ -1187,8 +1204,12 @@ function selectStreet(id) {
     const detailContent = document.getElementById('detail-content');
     detailContent.insertBefore(miniMapDiv, detailContent.children[1]);
 
-    // Build mini map
+    // Build mini map — clean up old one first
     setTimeout(() => {
+      if (svPositionListener) { google.maps.event.removeListener(svPositionListener); svPositionListener = null; }
+      if (miniMapMarker) { miniMapMarker.setMap(null); miniMapMarker = null; }
+      miniMapLines.forEach(l => l.setMap(null));
+      miniMapLines = [];
       miniMap = new google.maps.Map(document.getElementById('mini-map'), {
         center: { lat: street.lat, lng: street.lng },
         zoom: 17,
@@ -1219,7 +1240,7 @@ function selectStreet(id) {
       let svSwitchCount = 0;
 
       if (streetViewPano) {
-        streetViewPano.addListener('position_changed', () => {
+        svPositionListener = streetViewPano.addListener('position_changed', () => {
           const pos = streetViewPano.getPosition();
           if (miniMapMarker) { miniMapMarker.setPosition(pos); miniMap.setCenter(pos); }
 
@@ -1352,7 +1373,9 @@ function saveAdminNotes(id) {
 }
 
 // ─── RESCAN STREET ─────────────────────────────────────────
+let _rescanning = false;
 async function rescanStreet(id) {
+  if (_rescanning) return;
   if (activeProject.aiEnabled === false) {
     showToast('AI is off — turn it on to re-scan');
     return;
@@ -1360,22 +1383,26 @@ async function rescanStreet(id) {
   const street = streets.find(s => s.id === id);
   if (!street) return;
 
+  _rescanning = true;
   showScanModal('Re-scanning pavement condition...');
-  const analysis = await analyzeStreetView(street);
-  street.analysis = analysis.text;
-  street.rating = analysis.rating;
-  street.weedAlert = analysis.weedAlert || false;
-  street.weedNotes = analysis.weedNotes || '';
-  street.scannedAt = new Date().toISOString();
+  try {
+    const analysis = await analyzeStreetView(street);
+    street.analysis = analysis.text;
+    street.rating = analysis.rating;
+    street.weedAlert = analysis.weedAlert || false;
+    street.weedNotes = analysis.weedNotes || '';
+    street.scannedAt = new Date().toISOString();
 
-  saveStreets();
-  hideScanModal();
-
-  drawAllHighlights();
-  placeAllMarkers();
-  updateStats();
-  selectStreet(id);
-  showToast('Street re-scanned');
+    saveStreets();
+    drawAllHighlights();
+    placeAllMarkers();
+    updateStats();
+    selectStreet(id);
+    showToast('Street re-scanned');
+  } finally {
+    _rescanning = false;
+    hideScanModal();
+  }
 }
 
 // ─── DELETE STREET ─────────────────────────────────────────
@@ -1476,6 +1503,7 @@ function closeLightbox() {
 }
 
 function lightboxNav(dir) {
+  if (_lbPhotos.length === 0) return;
   _lbIdx = (_lbIdx + dir + _lbPhotos.length) % _lbPhotos.length;
   _renderLightbox();
 }
@@ -1495,6 +1523,7 @@ function escHtml(str) {
 }
 
 function formatNumber(n) {
+  if (n == null || isNaN(n)) return '0';
   return n.toLocaleString('en-US');
 }
 
@@ -1735,6 +1764,7 @@ function toggleStreetView() {
 let miniMap = null;
 let miniMapMarker = null;
 let miniMapLines = [];
+let svPositionListener = null;
 
 function openStreetViewAt(lat, lng) {
   const panel = document.getElementById('streetview-panel');
@@ -1761,9 +1791,10 @@ function openStreetViewAt(lat, lng) {
 function closeStreetViewPanel() {
   document.getElementById('streetview-panel').classList.add('hidden');
   document.getElementById('detail-panel').classList.add('hidden');
+  if (svPositionListener) { google.maps.event.removeListener(svPositionListener); svPositionListener = null; }
   streetViewPano = null;
+  if (miniMapMarker) { miniMapMarker.setMap(null); miniMapMarker = null; }
   miniMap = null;
-  miniMapMarker = null;
   miniMapLines.forEach(l => l.setMap(null));
   miniMapLines = [];
   streetViewMode = false;
@@ -1852,11 +1883,16 @@ function startFreePhoto() {
         length: 0,
         width: 24,
         sqft: 0,
+        roadType: 'Residential',
         rating: 'pending',
         notes: 'Auto-created from photo',
         analysis: '',
+        adminNotes: '',
+        weedAlert: false,
+        weedNotes: '',
         svImage: getStreetViewUrl(lat, lng),
         photos: [],
+        scanPhotos: [],
         scannedAt: null,
         createdAt: new Date().toISOString()
       };
@@ -1994,7 +2030,7 @@ async function saveHighlightedStreet(startPt, endPt) {
     state: startGeo.state,
     endCity: endGeo.city,
     endCounty: endGeo.county,
-    crossesBoundary: (startGeo.city !== endGeo.city) || (startGeo.county !== endGeo.county),
+    crossesBoundary: (startGeo.city && endGeo.city && startGeo.city !== endGeo.city) || (startGeo.county && endGeo.county && startGeo.county !== endGeo.county),
     boundaryNote: '',
     photos: [],
     scannedAt: null,
@@ -2047,6 +2083,8 @@ async function saveHighlightedStreet(startPt, endPt) {
   analyzeStreetView(street).then(analysis => {
     street.analysis = analysis.text;
     street.rating = analysis.rating;
+    street.weedAlert = analysis.weedAlert || false;
+    street.weedNotes = analysis.weedNotes || '';
     street.scannedAt = new Date().toISOString();
     saveStreets();
     drawAllHighlights();
@@ -2208,7 +2246,9 @@ function drawAllHighlights() {
   });
 }
 
+let _snapping = false;
 async function snapToRoad(id) {
+  if (_snapping) return;
   const street = streets.find(s => s.id === id);
   if (!street) return;
 
@@ -2218,6 +2258,7 @@ async function snapToRoad(id) {
   const startPt = path[0];
   const endPt = path[path.length - 1];
 
+  _snapping = true;
   showToast('Snapping to road...');
 
   try {
@@ -2251,6 +2292,8 @@ async function snapToRoad(id) {
   } catch (e) {
     console.error('Snap to road error:', e);
     showToast('Could not snap — road not found between endpoints');
+  } finally {
+    _snapping = false;
   }
 }
 
@@ -2264,14 +2307,6 @@ function removeHighlight(id) {
   drawAllHighlights();
   selectStreet(id);
   showToast('Highlight removed');
-}
-
-function calcPathLength(path) {
-  let total = 0;
-  for (let i = 1; i < path.length; i++) {
-    total += calcDistanceFt(path[i - 1], path[i]);
-  }
-  return total;
 }
 
 function calcDistanceFt(p1, p2) {
@@ -2302,9 +2337,9 @@ async function generateProjectReport() {
   const totalStreets = streets.length;
   const totalSqft = streets.reduce((s, st) => s + (st.sqft || 0), 0);
   const totalLength = streets.reduce((s, st) => s + (st.length || 0), 0);
-  const ratingCounts = { 'level-1': 0, 'level-2': 0, 'level-3': 0, 'level-4': 0 };
+  const ratingCounts = { 'level-1': 0, 'level-2': 0, 'level-3': 0, 'level-4': 0, 'pending': 0 };
   streets.forEach(s => {
-    let r = s.rating;
+    let r = s.rating || 'pending';
     if (r === 'good') r = 'level-1';
     if (r === 'fair') r = 'level-2';
     if (r === 'poor') r = 'level-3';
@@ -2328,6 +2363,7 @@ async function generateProjectReport() {
       const res = await fetch(AI_PROXY, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(30000),
         body: JSON.stringify({
           model: reportModel,
           provider: getProviderForModel(reportModel),
@@ -2344,6 +2380,7 @@ async function generateProjectReport() {
           max_tokens: 600
         })
       });
+      if (!res.ok) throw new Error(`AI proxy ${res.status}`);
       const data = await res.json();
       aiSummary = data.choices?.[0]?.message?.content || 'AI analysis unavailable';
     } catch (e) {
@@ -2433,8 +2470,7 @@ function getMapKey() {
 }
 
 // ─── DARK MAP STYLE ────────────────────────────────────────
-function darkMapStyle() {
-  return [
+const _darkMapStyleCache = [
     { elementType: 'geometry', stylers: [{ color: '#1a1a2e' }] },
     { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
     { elementType: 'labels.text.fill', stylers: [{ color: '#8892b0' }] },
@@ -2447,5 +2483,5 @@ function darkMapStyle() {
     { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#1f1f35' }] },
     { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1525' }] },
     { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4a5568' }] }
-  ];
-}
+];
+function darkMapStyle() { return _darkMapStyleCache; }
