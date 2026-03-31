@@ -1889,7 +1889,7 @@ function placePhotoMarkers() {
       });
       marker.addEventListener('gmp-click', () => {
         if (_activeInfoWindow) _activeInfoWindow.close();
-        infoWindow.open(map, marker);
+        infoWindow.open({ map, anchor: marker });
         _activeInfoWindow = infoWindow;
       });
       photoMarkers.push(marker);
