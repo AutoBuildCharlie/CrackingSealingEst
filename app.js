@@ -213,7 +213,6 @@ function renderProjectSelector() {
         <select class="model-select" onchange="setScanModel(this.value)" onclick="event.stopPropagation()">
           <option value="gpt-4o" ${(activeProject.scanModel || 'gpt-4o') === 'gpt-4o' ? 'selected' : ''}>GPT-4o</option>
           <option value="gemini-2.0-flash" ${activeProject.scanModel === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini Flash</option>
-          <option value="claude-opus-4-6" ${activeProject.scanModel === 'claude-opus-4-6' ? 'selected' : ''}>Claude Opus</option>
         </select>
       </div>
     </div>
