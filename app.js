@@ -907,43 +907,86 @@ async function analyzeStreetView(street) {
 - Any cracks 1.25 inches or wider require hot-applied mastic treatment — not standard crack sealant. Mastic is a hot-applied asphalt binder loaded with aggregate, used to fill wide cracks 1.25"–4". Cracks over 4" require saw-cut removal and patching. Flag with "⚠ MASTIC REQUIRED (1.25"+)".`;
 
   const wideCrackSection = isSlurry
-    ? `3. WIDE CRACKS: Check two thresholds:
-   - 0.25"+ (crack seal prep required before slurry): flag with "⚠ PREP CRACKS DETECTED (0.25"+)" and reference photo(s).
-   - 1.25"+ (mastic required, not standard crack sealant): flag with "⚠ MASTIC REQUIRED (1.25"+)" and reference photo(s).
-   If neither visible, write "None detected."`
-    : `3. WIDE CRACKS: If any cracks appear 1.25 inches or wider, flag with "⚠ MASTIC REQUIRED (1.25"+)" — these need hot-applied mastic, not standard crack sealant — and reference which photo(s). If none, write "None detected."`;
+    ? `3. WIDE CRACKS (two thresholds for slurry projects)
+   - 0.25"+ cracks must be crack sealed before slurry can be applied: flag "⚠ PREP CRACKS DETECTED (0.25"+)", reference photo(s)
+   - 1.25"+ cracks require hot-applied mastic (not standard sealant): flag "⚠ MASTIC REQUIRED (1.25"+)", reference photo(s)
+   - If neither: write "None detected."`
+    : `3. WIDE CRACKS
+   - 1.25"+ cracks require hot-applied mastic — not standard crack sealant: flag "⚠ MASTIC REQUIRED (1.25"+)", reference photo(s)
+   - If none: write "None detected."`;
 
-  return `You are a pavement condition assessor for a pavement contractor. You are receiving ${validPairs.length} Street View image(s) of a single street. Project type: ${projType === 'slurry' ? 'Slurry Seal' : projType === 'both' ? 'Crack Seal + Slurry Seal' : 'Crack Seal'}.
+  const projectLabel = projType === 'slurry' ? 'Slurry Seal' : projType === 'both' ? 'Crack Seal + Slurry Seal' : 'Crack Seal';
+  const rrSection = detectRR ? `6. REMOVE & REPLACE
+   - Look for: broken-apart pavement, open gaps 4"+, collapsed edges, severe potholes, structural failure
+   - Only flag areas that appear to be at least ${rrMinSize} ft in size
+   - These areas must be saw-cut, excavated, and patched with HMA before any other treatment
+   - If found: flag "⚠ REMOVE & REPLACE NEEDED", describe location + estimated size + photo reference(s)
+   - Any street with R&R conditions must be rated Level 4
+   - If none visible: write "None detected."` : '';
+  const sectionOffset = detectRR ? 1 : 0;
 
-Photos include corner/intersection views and mid-street views. Corners and cul-de-sacs typically show the worst cracking due to turning traffic — pay extra attention to these.
+  return `You are a pavement condition assessor working for a pavement contractor.
+You are reviewing ${validPairs.length} Street View image(s) of a single street.
+Project type: ${projectLabel}
 
-Analyze ALL images together. Look for: cracks (alligator, longitudinal, transverse), potholes, fading, patches, wear, surface texture, color of asphalt, corner damage. Also look for any weeds, grass, or vegetation growing out of cracks or joints in the pavement.
+━━━ WHAT TO LOOK FOR ━━━
+- Cracks: alligator, longitudinal, transverse
+- Potholes, fading, worn patches, surface texture, asphalt color
+- Corner and cul-de-sac damage (turning traffic causes the worst wear — pay extra attention)
+- Weeds or vegetation growing out of cracks or joints
+- Raveling: small stones/aggregate coming loose, leaving a rough, pitted, or frayed surface
+- Wide cracks and structural failure (see thresholds below)
 
-Use this rating scale:
-- Level 1: Zero to little cracks — pavement in good condition
-- Level 2: Moderate light amount of cracks — some visible cracking
-- Level 3: Moderate heavy amount, deep cracks and alligator cracking
-- Level 4: Alligator cracking everywhere, deep cracks and heavy cracking every 3-5 feet
+━━━ RATING SCALE ━━━
+Level 1 — Good: little to no cracking
+Level 2 — Light: moderate light cracking, some visible cracks
+Level 3 — Heavy: heavy cracking, deep cracks, alligator cracking present
+Level 4 — Severe: alligator cracking everywhere, deep cracks every 3–5 ft
+Note: Any street with Remove & Replace conditions must be rated Level 4.
 
+━━━ CRACK WIDTH THRESHOLDS ━━━
 ${crackInstructions}
 
-IMPORTANT: Look for raveling — aggregate (small stones/gravel) coming loose from the surface, leaving a rough, pitted, or frayed texture. Flag with "⚠ RAVELING DETECTED" if present.
-${detectRR ? `IMPORTANT: Look for Remove & Replace conditions — pavement that is broken apart, has large open gaps (4"+), collapsed edges, severe potholes, or structural failure beyond normal cracking. Only flag areas that appear to be at least ${rrMinSize} ft in size. These areas require saw-cut excavation and HMA patching. Flag with "⚠ REMOVE & REPLACE NEEDED" if present.` : ''}
+━━━ RAVELING ━━━
+${isSlurry
+  ? `Raveling is a primary indicator for slurry seal suitability — flag even light raveling.
+Flag with "⚠ RAVELING DETECTED" and describe severity (light / moderate / heavy).`
+  : `Flag any raveling with "⚠ RAVELING DETECTED" and describe severity (light / moderate / heavy).`}
 
-Your response must include:
+━━━ REQUIRED RESPONSE FORMAT ━━━
 1. PHOTOS ANALYZED: ${validPairs.length} images covering ${formatNumber(street.length || 0)} ft
-2. WHAT I CAN SEE: 2-4 bullet points. Every bullet MUST end with the photo reference in parentheses — e.g. "(Photo 2: Mid-point 1)". Note if condition varies along the street.
-${wideCrackSection}
-4. WEED/GRASS CONTROL: If you see vegetation growing from cracks, flag with "🌿 WEED CONTROL NEEDED", describe extent (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
-5. RAVELING: If you see aggregate loss, rough/pitted/frayed surface texture, or exposed aggregate, flag with "⚠ RAVELING DETECTED", describe severity (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
-${detectRR ? `6. REMOVE & REPLACE: If you see broken-apart pavement, large open gaps (4"+), collapsed edges, severe potholes, or structural failure that appears ${rrMinSize} ft or larger, flag with "⚠ REMOVE & REPLACE NEEDED", describe location, estimated size, and reference which photo(s). If none visible, write "None detected."
-7. WHAT I CAN'T SEE: 1-2 bullet points about limitations
-8. Level: [1/2/3/4]
-9. PHOTO RATINGS: Rate each photo individually. One line, exactly: "Photo 1: [1/2/3/4], Photo 2: [1/2/3/4], ..."` : `6. WHAT I CAN'T SEE: 1-2 bullet points about limitations
-7. Level: [1/2/3/4]
-8. PHOTO RATINGS: Rate each photo individually. One line, exactly: "Photo 1: [1/2/3/4], Photo 2: [1/2/3/4], ..."`}
 
-Be honest. Weight toward the worst section. Do not guess — only rate what you can actually see.`;
+2. WHAT I CAN SEE
+   - 2–4 bullet points describing pavement condition
+   - Every bullet MUST end with the photo reference — e.g. "(Photo 2: Mid-point 1)"
+   - Note if condition varies along the street
+
+${wideCrackSection}
+
+4. WEED/GRASS CONTROL
+   - If vegetation is growing from cracks or joints: flag "🌿 WEED CONTROL NEEDED", describe extent (light/moderate/heavy), reference photo(s)
+   - If none: write "None detected."
+
+5. RAVELING
+   - If aggregate loss or rough/pitted surface is visible: flag "⚠ RAVELING DETECTED", describe severity, reference photo(s)
+   - If none: write "None detected."
+
+${rrSection}
+
+${6 + sectionOffset}. WHAT I CAN'T SEE
+   - 1–2 bullet points about what this assessment cannot confirm from Street View alone
+
+${7 + sectionOffset}. Level: [1/2/3/4]
+
+${8 + sectionOffset}. PHOTO RATINGS
+   Rate each photo on one line exactly like this:
+   "Photo 1: [1/2/3/4], Photo 2: [1/2/3/4], ..."
+
+━━━ RULES ━━━
+- Be honest. Only rate what you can actually see.
+- When in doubt, weight toward the worst section of the street.
+- Do not guess — if you cannot see something clearly, say so in "What I Can't See."
+${detectRR && isSlurry ? '- R&R areas must be patched before slurry seal can be applied to those sections.' : ''}`;
 })()
           },
           { role: 'user', content: content }
