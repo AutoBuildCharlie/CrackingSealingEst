@@ -818,7 +818,7 @@ function isMainStreet(street) {
 // Calculate sample points — always looking INTO the street from each endpoint
 // Start/end points are offset 40ft inward so the camera sits on the street,
 // not at the intersection corner where it would capture the cross street instead.
-const ENDPOINT_OFFSET_FT = 40;
+const ENDPOINT_OFFSET_FT = 80;
 function getSamplePoints(street) {
   const path = street.path;
   if (!path || path.length < 2) return [{ lat: street.lat, lng: street.lng, heading: 0, label: 'Start' }];
