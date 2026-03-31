@@ -1206,15 +1206,15 @@ function selectStreet(id) {
       <button class="btn-photo" onclick="openPhotoCapture('${street.id}')">Take Photo</button>
       ${(street.photos || []).length > 0 ? `
         <div class="photo-grid">
-          ${street.photos.map(p => `
-            <div class="photo-card">
+          ${street.photos.map((p, i) => `
+            <div class="photo-card" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').photos, ${i}, '${street.id}')" style="cursor:pointer" title="Click to view">
               <img src="${p.dataUrl}" alt="Crack photo" class="photo-thumb">
               <div class="photo-info">
                 <small>${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</small>
                 <small>${new Date(p.takenAt).toLocaleDateString()}</small>
                 ${p.note ? `<small class="photo-note">${escHtml(p.note)}</small>` : ''}
               </div>
-              <button class="photo-delete" onclick="deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
+              <button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
             </div>
           `).join('')}
         </div>
@@ -1624,11 +1624,20 @@ async function _renderLightbox() {
   const count = document.getElementById('lightbox-count');
   const sel = document.getElementById('lightbox-rating-select');
 
-  label.textContent = p.label;
+  // Label: scan photos use p.label, on-site photos use address or note
+  label.textContent = p.label || (p.address ? p.address.split(',')[0] : 'On-site photo');
+  if (p.note) label.textContent += ` — ${p.note}`;
   count.textContent = `${_lbIdx + 1} / ${_lbPhotos.length}`;
   if (sel) sel.value = p.rating || '';
 
-  // Use cached base64, or fetch on-demand through the worker proxy
+  // On-site photos have dataUrl stored directly — no proxy needed
+  if (p.dataUrl) {
+    img.src = p.dataUrl;
+    img.alt = '';
+    return;
+  }
+
+  // Scan photos: use cached base64, or fetch on-demand through the worker proxy
   const cached = _photoCache.get(p.hdUrl);
   if (cached) {
     img.src = cached;
