@@ -883,6 +883,34 @@ function calcHeading(from, to) {
   return ((Math.atan2(x, y) * 180 / Math.PI) + 360) % 360;
 }
 
+// ─── PHOTO ROAD CHECK ──────────────────────────────────────
+// Quick YES/NO check: is road surface clearly visible in this photo?
+// Uses gpt-4o-mini (fast + cheap). Falls back to true (assume OK) on error.
+async function checkPhotoHasRoad(base64) {
+  try {
+    const res = await fetch(AI_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        provider: 'openai',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Is road surface (asphalt or concrete pavement) clearly visible and assessable in this image? Answer YES or NO only.' },
+            { type: 'image_url', image_url: { url: base64 } }
+          ]
+        }],
+        max_tokens: 5
+      })
+    });
+    if (!res.ok) return true;
+    const data = await res.json();
+    return (data.choices?.[0]?.message?.content || 'YES').trim().toUpperCase().startsWith('YES');
+  } catch { return true; }
+}
+
 // ─── STREET VIEW METADATA ──────────────────────────────────
 // Free JSON call — tells us panorama location, ID, and availability
 // before we spend quota fetching the actual image.
@@ -934,7 +962,8 @@ async function analyzeStreetView(street) {
       const drift = metersApart({ lat: pt.lat, lng: pt.lng }, meta.location);
       if (drift > MAX_DRIFT_M) return;             // snapped to wrong street
       seenPanoIds.add(meta.pano_id);
-      filteredPoints.push(pt);
+      // Carry the imagery date forward — format "YYYY-MM"
+      filteredPoints.push({ ...pt, svDate: meta.date || null });
     });
 
     // Fall back to all points if metadata filtering removed everything
@@ -947,11 +976,28 @@ async function analyzeStreetView(street) {
     });
     const images = await Promise.all(imagePromises);
 
-    // Pair valid images with their labels
-    const validPairs = [];
-    images.forEach((img, i) => {
-      if (img) validPairs.push({ base64: img, label: pointsToUse[i].label || `Photo ${i + 1}` });
-    });
+    // ── ROAD SURFACE PRE-CHECK ────────────────────────────────
+    // For each image, verify road surface is visible before sending to AI.
+    // If not visible, try +20° heading as a fallback before dropping entirely.
+    const checkedPairs = await Promise.all(
+      pointsToUse.map(async (pt, i) => {
+        const img = images[i];
+        if (!img) return null;
+        const hdUrl = getStreetViewUrlHD(pt.lat, pt.lng, pt.heading || 0);
+        if (await checkPhotoHasRoad(img)) {
+          return { base64: img, hdUrl, label: pt.label, svDate: pt.svDate, lat: pt.lat, lng: pt.lng };
+        }
+        // Road not visible — try +20° heading once
+        const altHeading = ((pt.heading || 0) + 20) % 360;
+        const altUrl = getStreetViewUrlHD(pt.lat, pt.lng, altHeading);
+        const altImg = await imageUrlToBase64(altUrl);
+        if (altImg && await checkPhotoHasRoad(altImg)) {
+          return { base64: altImg, hdUrl: altUrl, label: pt.label, svDate: pt.svDate, lat: pt.lat, lng: pt.lng };
+        }
+        return null; // drop — road not assessable
+      })
+    );
+    const validPairs = checkedPairs.filter(Boolean);
 
     if (validPairs.length === 0) {
       console.warn('Could not load any Street View images, using placeholder');
@@ -962,7 +1008,7 @@ async function analyzeStreetView(street) {
     const content = [
       {
         type: 'text',
-        text: `Assess the pavement condition of: ${street.name}\nStreet length: ${formatNumber(street.length || 0)} ft\n${validPairs.length} photos follow, each labeled. Reference the photo label when describing observations.`
+        text: `Assess the pavement condition of: ${street.name}\nStreet length: ${formatNumber(street.length || 0)} ft\n${validPairs.length} photos follow, each labeled. Reference the photo label when describing observations.${validPairs.some(p => p.svDate) ? '\nImagery dates: ' + validPairs.map((p, i) => `Photo ${i + 1}: ${p.svDate || 'unknown'}`).join(', ') + (validPairs.some(p => p.svDate && parseInt(p.svDate) < new Date().getFullYear() - 4) ? ' ⚠ Some imagery may be outdated — note this in your assessment.' : '') : ''}`
       },
       ...validPairs.flatMap((p, i) => ([
         { type: 'text', text: `Photo ${i + 1}: ${p.label}` },
@@ -1085,16 +1131,9 @@ ${detectRR && isSlurry ? '- R&R areas must be patched before slurry seal can be 
     // Store scan photos before AI call so they're preserved even if AI fails
     // Cache base64 images in memory (not localStorage) so lightbox can display them
     street.photosScanned = validPairs.length;
-    street.scanPhotos = samplePoints.map((pt, i) => {
-      const hdUrl = getStreetViewUrlHD(pt.lat, pt.lng, pt.heading || 0);
-      if (images[i]) _photoCache.set(hdUrl, images[i]);
-      return {
-        url: getStreetViewUrl(pt.lat, pt.lng, pt.heading || 0),
-        hdUrl,
-        label: pt.label,
-        lat: pt.lat,
-        lng: pt.lng
-      };
+    street.scanPhotos = validPairs.map(p => {
+      _photoCache.set(p.hdUrl, p.base64);
+      return { url: p.hdUrl, hdUrl: p.hdUrl, label: p.label, lat: p.lat, lng: p.lng, svDate: p.svDate || null };
     });
 
     if (!res.ok) throw new Error(`AI proxy ${res.status}`);
@@ -1115,7 +1154,7 @@ ${detectRR && isSlurry ? '- R&R areas must be patched before slurry seal can be 
     const rrAlert = extractRRAlert(text);
     const rrNotes = extractRRNotes(text);
     // Store per-photo ratings from AI response
-    const photoRatings = extractPhotoRatings(text, samplePoints.length);
+    const photoRatings = extractPhotoRatings(text, validPairs.length);
     photoRatings.forEach((r, i) => { if (street.scanPhotos[i] && r) street.scanPhotos[i].rating = r; });
     return { text, rating, weedAlert, weedNotes, ravelingAlert, ravelingNotes, rrAlert, rrNotes };
   } catch (e) {
@@ -1575,6 +1614,7 @@ function selectStreet(id) {
             <button class="scan-photo-delete" onclick="event.stopPropagation();deleteScanPhoto('${street.id}', ${i})" title="Delete">&times;</button>
             <span class="scan-photo-icon">&#128247;</span>
             <span class="scan-photo-label">${escHtml(p.label)}</span>
+            ${p.svDate ? `<span class="scan-photo-date${parseInt(p.svDate) < new Date().getFullYear() - 4 ? ' scan-photo-date-old' : ''}">${p.svDate.slice(0,4)}</span>` : ''}
             <select class="photo-rating-select photo-rating-${p.rating || ''}" onclick="event.stopPropagation()" onchange="setPhotoRating('${street.id}', ${i}, this.value)">
               <option value="">—</option>
               <option value="level-1" ${p.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
