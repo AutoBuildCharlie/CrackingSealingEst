@@ -2205,10 +2205,13 @@ async function saveHighlightedStreet(startPt, endPt) {
       step.path.forEach(p => roadPath.push({ lat: p.lat(), lng: p.lng() }));
       if (step.distance.value > (dominantStep?.distance?.value || 0)) dominantStep = step;
     });
-    // Extract street name from the dominant step's HTML instructions e.g. "Head north on <b>W Judith Ln</b>"
+    // Extract street name from the dominant step's HTML instructions e.g. "Head <b>north</b> on <b>W Judith Ln</b>"
+    // Skip pure direction words — grab the last bold segment that isn't a cardinal direction
     if (dominantStep?.instructions) {
-      const match = dominantStep.instructions.match(/<b>([^<]+)<\/b>/i);
-      if (match) window._directionsStreetName = match[1].trim();
+      const DIRECTIONS = new Set(['north','south','east','west','northeast','northwest','southeast','southwest']);
+      const matches = [...dominantStep.instructions.matchAll(/<b>([^<]+)<\/b>/gi)];
+      const name = matches.map(m => m[1].trim()).filter(t => !DIRECTIONS.has(t.toLowerCase())).pop();
+      if (name) window._directionsStreetName = name;
     }
   } catch (e) {
     console.warn('Directions API fallback to straight line:', e);
