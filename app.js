@@ -854,7 +854,24 @@ async function analyzeStreetView(street) {
         messages: [
           {
             role: 'system',
-            content: `You are a pavement condition assessor for a road sealing company (GRSI). You are receiving ${validPairs.length} Street View image(s) of a single street.
+            content: (() => {
+  const projType = activeProject?.type || 'crack-seal';
+  const isSlurry = projType === 'slurry' || projType === 'both';
+  const crackInstructions = isSlurry
+    ? `IMPORTANT — CRACK WIDTH THRESHOLDS (Slurry Seal project):
+- Any cracks 0.25 inches (1/4") or wider must be crack sealed before slurry can be applied. Flag these with "⚠ PREP CRACKS DETECTED (0.25"+)".
+- Any cracks 1.25 inches or wider are severe and require different treatment. Flag these additionally with "⚠ SEVERE WIDE CRACKS (1.25"+)".`
+    : `IMPORTANT — CRACK WIDTH (Crack Seal project):
+- Any cracks 1.25 inches or wider are outside standard crack seal scope and require different treatment. Flag with "⚠ WIDE CRACKS DETECTED (1.25"+)".`;
+
+  const wideCrackSection = isSlurry
+    ? `3. WIDE CRACKS: Check two thresholds:
+   - 0.25"+ (prep required before slurry): flag with "⚠ PREP CRACKS DETECTED (0.25"+)" and reference photo(s).
+   - 1.25"+ (severe, different treatment needed): flag with "⚠ SEVERE WIDE CRACKS (1.25"+)" and reference photo(s).
+   If neither visible, write "None detected."`
+    : `3. WIDE CRACKS: If any cracks appear 1.25 inches or wider, flag with "⚠ WIDE CRACKS DETECTED (1.25"+)" and reference which photo(s). If none, write "None detected."`;
+
+  return `You are a pavement condition assessor for a pavement contractor. You are receiving ${validPairs.length} Street View image(s) of a single street. Project type: ${projType === 'slurry' ? 'Slurry Seal' : projType === 'both' ? 'Crack Seal + Slurry Seal' : 'Crack Seal'}.
 
 Photos include corner/intersection views and mid-street views. Corners and cul-de-sacs typically show the worst cracking due to turning traffic — pay extra attention to these.
 
@@ -866,21 +883,22 @@ Use this rating scale:
 - Level 3: Moderate heavy amount, deep cracks and alligator cracking
 - Level 4: Alligator cracking everywhere, deep cracks and heavy cracking every 3-5 feet
 
-IMPORTANT: If you see any cracks that appear wider than 1.25 inches, flag them with "⚠ WIDE CRACKS DETECTED (1.25"+)" — these are typically outside standard scope.
+${crackInstructions}
 
-IMPORTANT: Look for raveling — this is aggregate (small stones/gravel) coming loose from the surface, leaving a rough, pitted, or frayed texture. It often appears as a sandy or granular surface, darkened pitting, or a worn-away look with exposed aggregate. Flag with "⚠ RAVELING DETECTED" if present.
+IMPORTANT: Look for raveling — aggregate (small stones/gravel) coming loose from the surface, leaving a rough, pitted, or frayed texture. Flag with "⚠ RAVELING DETECTED" if present.
 
 Your response must include:
 1. PHOTOS ANALYZED: ${validPairs.length} images covering ${formatNumber(street.length || 0)} ft
-2. WHAT I CAN SEE: 2-4 bullet points. Every single bullet MUST end with the photo reference in parentheses — e.g. "(Photo 2: Mid-point 1)". Do not write any bullet without a photo citation. Note if condition varies along the street.
-3. WIDE CRACKS: If any cracks appear wider than 1.25 inches, flag with "⚠ WIDE CRACKS DETECTED (1.25"+)" and reference which photo(s). If none, write "None detected."
+2. WHAT I CAN SEE: 2-4 bullet points. Every bullet MUST end with the photo reference in parentheses — e.g. "(Photo 2: Mid-point 1)". Note if condition varies along the street.
+${wideCrackSection}
 4. WEED/GRASS CONTROL: If you see vegetation growing from cracks, flag with "🌿 WEED CONTROL NEEDED", describe extent (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
 5. RAVELING: If you see aggregate loss, rough/pitted/frayed surface texture, or exposed aggregate, flag with "⚠ RAVELING DETECTED", describe severity (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
 6. WHAT I CAN'T SEE: 1-2 bullet points about limitations
 7. Level: [1/2/3/4]
-8. PHOTO RATINGS: Rate each photo individually on the same scale. One line, exactly this format: "Photo 1: [1/2/3/4], Photo 2: [1/2/3/4], ..."
+8. PHOTO RATINGS: Rate each photo individually. One line, exactly: "Photo 1: [1/2/3/4], Photo 2: [1/2/3/4], ..."
 
-Be honest. Weight toward the worst section. Do not guess — only rate what you can actually see.`
+Be honest. Weight toward the worst section. Do not guess — only rate what you can actually see.`;
+})()
           },
           { role: 'user', content: content }
         ],
