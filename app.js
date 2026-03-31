@@ -62,6 +62,7 @@ function doLogin() {
   if (user === 'Cal.Zentara' && pass === '0911') {
     sessionStorage.setItem('cse_auth', '1');
     document.getElementById('login-screen').style.display = 'none';
+    initMap(); // finish loading the app
   } else {
     document.getElementById('login-error').classList.remove('hidden');
   }
@@ -69,11 +70,9 @@ function doLogin() {
 
 // ─── INIT ──────────────────────────────────────────────────
 function initMap() {
-  // Check login before loading the app
+  // Check login before loading the app — overlay covers everything so no need to hide header/main
   if (sessionStorage.getItem('cse_auth') !== '1') {
     document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('app-header').style.display = 'none';
-    document.getElementById('app-main').style.display = 'none';
     return;
   }
   document.getElementById('login-screen').style.display = 'none';
