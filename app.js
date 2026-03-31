@@ -525,6 +525,35 @@ function confirmStreetName() {
   document.getElementById('name-prompt-overlay').classList.add('hidden');
 }
 
+// ─── INLINE RENAME (detail panel) ──────────────────────────
+function startInlineRename(id) {
+  document.getElementById('detail-name-display-' + id)?.classList.add('hidden');
+  const editRow = document.getElementById('detail-name-edit-' + id);
+  if (editRow) {
+    editRow.classList.remove('hidden');
+    const input = document.getElementById('detail-name-input-' + id);
+    if (input) { input.focus(); input.select(); }
+  }
+}
+
+function saveInlineRename(id) {
+  const input = document.getElementById('detail-name-input-' + id);
+  const val = input?.value.trim();
+  if (!val) return;
+  const street = streets.find(s => s.id === id);
+  if (!street) return;
+  street.name = val;
+  saveStreets();
+  renderStreetList();
+  selectStreet(id);
+  showToast('Street renamed');
+}
+
+function cancelInlineRename(id) {
+  document.getElementById('detail-name-edit-' + id)?.classList.add('hidden');
+  document.getElementById('detail-name-display-' + id)?.classList.remove('hidden');
+}
+
 // ─── MIGRATE SCAN PHOTOS (one-time, runs on load) ──────────
 function migrateScanPhotos() {
   let changed = false;
@@ -1348,7 +1377,15 @@ function selectStreet(id) {
 
   document.getElementById('detail-content').innerHTML = `
     <div class="detail-header">
-      <h3>${escHtml(street.name)} <button class="btn-edit-analysis" onclick="promptStreetName(streets.find(s=>s.id==='${street.id}'), decodeURIComponent('${encodeURIComponent(street.name)}'))" style="font-size:11px;padding:2px 8px">Rename</button></h3>
+      <div class="detail-name-row" id="detail-name-display-${street.id}">
+        <h3 class="detail-name-text" onclick="startInlineRename('${street.id}')" title="Click to rename">${escHtml(street.name)}</h3>
+        <button class="btn-edit-analysis" onclick="startInlineRename('${street.id}')" style="font-size:11px;padding:2px 8px">Rename</button>
+      </div>
+      <div class="detail-name-row hidden" id="detail-name-edit-${street.id}">
+        <input class="detail-name-input" id="detail-name-input-${street.id}" value="${escHtml(street.name)}" onkeydown="if(event.key==='Enter')saveInlineRename('${street.id}');if(event.key==='Escape')cancelInlineRename('${street.id}')">
+        <button class="btn-primary" style="font-size:11px;padding:2px 10px;white-space:nowrap" onclick="saveInlineRename('${street.id}')">Save</button>
+        <button class="btn-secondary" style="font-size:11px;padding:2px 8px" onclick="cancelInlineRename('${street.id}')">✕</button>
+      </div>
       ${(() => { const dir = getStreetDirection(street); return dir ? `<span style="display:inline-block;background:var(--accent);color:#000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px">${dir}</span>` : ''; })()}
       ${street.city ? `<div class="detail-jurisdiction">${escHtml(street.city)}${street.county ? ' — ' + escHtml(street.county) : ''}${street.state ? ', ' + escHtml(street.state) : ''}</div>` : ''}
       ${street.crossesBoundary ? `<div class="detail-boundary-warn">⚠ ${escHtml(street.boundaryNote)}</div>` : ''}
