@@ -1344,15 +1344,30 @@ body {
   margin-top: 2px;
 }
 .btn-photo-jump {
-  background: none;
-  border: none;
+  background: rgba(99,102,241,0.15);
+  border: 1px solid rgba(99,102,241,0.4);
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 11px;
-  padding: 0 2px;
+  font-size: 14px;
+  padding: 3px 7px;
   vertical-align: middle;
-  opacity: 0.7;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-weight: 600;
+  margin-top: 4px;
+  transition: background 0.15s, border-color 0.15s;
 }
-.btn-photo-jump:hover { opacity: 1; }
+.btn-photo-jump::after {
+  content: 'View on map';
+  font-size: 10px;
+  color: var(--accent);
+}
+.btn-photo-jump:hover {
+  background: rgba(99,102,241,0.28);
+  border-color: var(--accent);
+}
 .photo-delete {
   background: none;
   border: none;
