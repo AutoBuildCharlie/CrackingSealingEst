@@ -2483,47 +2483,70 @@ function clearScanPhotos(streetId) {
 }
 
 // ─── RETAKE SCAN PHOTO ─────────────────────────────────────
-// Tries road-parallel headings first so the camera looks down the road
-// (not toward a house). Falls back through angled headings if needed.
-async function retakeScanPhoto(streetId, photoIndex) {
+// Opens Street View at the photo's location — user looks around,
+// picks the angle they want, then taps "Replace Photo" to save it.
+let _retakeMode = null; // { streetId, photoIndex, label } when active
+
+function retakeScanPhoto(streetId, photoIndex) {
   const street = streets.find(s => s.id === streetId);
   if (!street?.scanPhotos?.[photoIndex]) return;
   const photo = street.scanPhotos[photoIndex];
   if (!photo.lat || !photo.lng) { showToast('No location data for this photo'); return; }
 
-  showToast('Finding best angle...');
+  _retakeMode = { streetId, photoIndex, label: photo.label };
 
-  // Road-parallel headings — prefer looking straight down the road
-  const path = street.path || [];
-  const roadHeading = path.length >= 2 ? calcHeading(path[0], path[path.length - 1]) : (photo.heading || 0);
-  const headingsToTry = [
-    roadHeading,                       // forward along road
-    (roadHeading + 180) % 360,         // backward along road
-    (roadHeading + 20) % 360,          // slight forward adjustment
-    (roadHeading + 200) % 360,         // slight backward adjustment
-    (roadHeading + 45) % 360,          // diagonal
-    (roadHeading + 225) % 360,         // diagonal opposite
-  ];
-
-  try {
-    for (const heading of headingsToTry) {
-      const url = getStreetViewUrlHD(photo.lat, photo.lng, heading);
-      const img = await imageUrlToBase64(url);
-      if (!img) continue;
-      if (await checkPhotoHasRoad(img)) {
-        _photoCache.set(url, img);
-        street.scanPhotos[photoIndex] = { ...photo, url, hdUrl: url };
-        saveStreets();
-        selectStreet(streetId);
-        showToast('Photo retaken');
-        return;
-      }
-    }
-    showToast('No better angle found at this location');
-  } catch (e) {
-    console.error('Retake error:', e);
-    showToast('Retake failed');
+  // Switch toolbar to retake mode
+  const snapBtns = document.getElementById('sv-snap-btns');
+  const replaceBtn = document.getElementById('btn-sv-replace');
+  if (snapBtns) snapBtns.classList.add('hidden');
+  if (replaceBtn) {
+    replaceBtn.classList.remove('hidden');
+    replaceBtn.textContent = `\u8617 Replace "${photo.label}"`;
   }
+
+  // Open Street View at this photo's location
+  // Face down the road using the street's heading as a starting point
+  const path = street.path || [];
+  const roadHeading = path.length >= 2 ? calcHeading(path[0], path[path.length - 1]) : 0;
+  openStreetViewAt(photo.lat, photo.lng, roadHeading);
+  showToast(`Look around — tap Replace when ready`);
+}
+
+async function snapRetake() {
+  if (!_retakeMode || !streetViewPano) return;
+  const { streetId, photoIndex } = _retakeMode;
+
+  const pos = streetViewPano.getPosition();
+  const pov = streetViewPano.getPov();
+  const lat = pos.lat(), lng = pos.lng();
+  const heading = Math.round(pov.heading || 0);
+  const pitch = Math.round(pov.pitch || -25);
+
+  showToast('Saving...');
+
+  const hdUrl = getStreetViewUrlHD(lat, lng, heading);
+  const img = await imageUrlToBase64(hdUrl);
+  if (!img) { showToast('Could not fetch image — try again'); return; }
+
+  const street = streets.find(s => s.id === streetId);
+  if (!street?.scanPhotos?.[photoIndex]) { showToast('Photo slot no longer exists'); return; }
+
+  _photoCache.set(hdUrl, img);
+  street.scanPhotos[photoIndex] = { ...street.scanPhotos[photoIndex], url: hdUrl, hdUrl, lat, lng };
+  saveStreets();
+
+  clearRetakeMode();
+  closeStreetViewPanel();
+  selectStreet(streetId);
+  showToast('Photo replaced');
+}
+
+function clearRetakeMode() {
+  _retakeMode = null;
+  const snapBtns = document.getElementById('sv-snap-btns');
+  const replaceBtn = document.getElementById('btn-sv-replace');
+  if (snapBtns) snapBtns.classList.remove('hidden');
+  if (replaceBtn) replaceBtn.classList.add('hidden');
 }
 
 // ─── PHOTO MARKERS ON MAP ──────────────────────────────────
@@ -2627,7 +2650,7 @@ let miniMapLines = [];
 let svPositionListener = null;
 let _miniMapTimer = null;
 
-function openStreetViewAt(lat, lng) {
+function openStreetViewAt(lat, lng, startHeading = 0) {
   const panel = document.getElementById('streetview-panel');
   panel.classList.remove('hidden');
 
@@ -2635,13 +2658,14 @@ function openStreetViewAt(lat, lng) {
     // Reuse existing panorama — clean up old position listener first, then move
     if (svPositionListener) { google.maps.event.removeListener(svPositionListener); svPositionListener = null; }
     streetViewPano.setPosition({ lat, lng });
+    streetViewPano.setPov({ heading: startHeading, pitch: -5 });
   } else {
     // First open — create the panorama
     if (svPositionListener) { google.maps.event.removeListener(svPositionListener); svPositionListener = null; }
     streetViewPano = new google.maps.StreetViewPanorama(
       document.getElementById('streetview-pano'), {
         position: { lat, lng },
-        pov: { heading: 0, pitch: -5 },
+        pov: { heading: startHeading, pitch: -5 },
         zoom: 0,
         motionTracking: false,
         motionTrackingControl: false,
@@ -2816,6 +2840,7 @@ function saveSnap() {
 }
 
 function closeStreetViewPanel() {
+  clearRetakeMode();
   if (_miniMapTimer) { clearTimeout(_miniMapTimer); _miniMapTimer = null; }
   if (_animInterval) { clearInterval(_animInterval); _animInterval = null; }
   document.getElementById('streetview-panel').classList.add('hidden');

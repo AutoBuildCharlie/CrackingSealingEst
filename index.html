@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PaveScan</title>
-  <link rel="stylesheet" href="style.css?v=136">
+  <link rel="stylesheet" href="style.css?v=137">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -102,8 +102,11 @@
         <div id="streetview-pano"></div>
         <div class="sv-toolbar">
           <button id="btn-close-sv" class="btn-close-sv" onclick="closeStreetViewPanel()">&#8592; Back to Map</button>
-          <button class="btn-sv-snap" onclick="snapStreetView(false)" title="Snap this view as a photo">&#128247; Snap Photo</button>
-          <button class="btn-sv-snap btn-sv-snap-rr" onclick="snapStreetView(true)" title="Snap this view as an R&R photo">&#128247; Snap R&amp;R</button>
+          <div id="sv-snap-btns">
+            <button class="btn-sv-snap" onclick="snapStreetView(false)" title="Snap this view as a photo">&#128247; Snap Photo</button>
+            <button class="btn-sv-snap btn-sv-snap-rr" onclick="snapStreetView(true)" title="Snap this view as an R&R photo">&#128247; Snap R&amp;R</button>
+          </div>
+          <button id="btn-sv-replace" class="btn-sv-snap btn-sv-replace hidden" onclick="snapRetake()" title="Replace the scan photo with this view">&#8617; Replace Photo</button>
         </div>
       </div>
 
@@ -221,7 +224,7 @@
   </div>
 
   <!-- ─── SCRIPTS ─────────────────────────────────────────── -->
-  <script src="app.js?v=136"></script>
+  <script src="app.js?v=137"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async&libraries=marker">
   </script>
