@@ -2149,7 +2149,7 @@ async function searchLocation() {
   }
 
   // Zoom based on precision: rooftop/interpolated = street level, otherwise back out a bit
-  const zoom = (geo.locationType === 'ROOFTOP' || geo.locationType === 'RANGE_INTERPOLATED') ? 19 : 17;
+  const zoom = (geo.locationType === 'ROOFTOP' || geo.locationType === 'RANGE_INTERPOLATED') ? 21 : 17;
   map.setCenter({ lat: geo.lat, lng: geo.lng });
   map.setZoom(zoom);
   input.value = '';
