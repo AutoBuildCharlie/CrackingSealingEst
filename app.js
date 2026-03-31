@@ -45,6 +45,7 @@ let tempPolyline = null; // live polyline while drawing
 let tempPath = []; // points being drawn
 const PROJECTS_KEY = 'cse_projects';
 const ACTIVE_KEY = 'cse_active_project';
+const GLOBAL_SETTINGS_KEY = 'cse_global_settings';
 const GEOCODE_BASE = 'https://maps.googleapis.com/maps/api/geocode/json';
 const SV_BASE = 'https://maps.googleapis.com/maps/api/streetview';
 let API_KEY = '';
@@ -348,6 +349,31 @@ function saveAiNotes(value) {
   activeProject.aiNotes = value.trim();
   saveProjects();
   if (activeProject.aiNotes) showToast('AI instructions saved');
+}
+
+// ─── GLOBAL SETTINGS ───────────────────────────────────────
+function getGlobalSettings() {
+  try { return JSON.parse(localStorage.getItem(GLOBAL_SETTINGS_KEY) || '{}'); } catch { return {}; }
+}
+
+function openGlobalSettings() {
+  const settings = getGlobalSettings();
+  const input = document.getElementById('global-ai-notes-input');
+  if (input) input.value = settings.aiNotes || '';
+  document.getElementById('global-settings-overlay').classList.remove('hidden');
+}
+
+function closeGlobalSettings(e) {
+  if (e && e.target !== document.getElementById('global-settings-overlay')) return;
+  document.getElementById('global-settings-overlay').classList.add('hidden');
+}
+
+function saveGlobalSettings() {
+  const input = document.getElementById('global-ai-notes-input');
+  const aiNotes = input ? input.value.trim() : '';
+  try { localStorage.setItem(GLOBAL_SETTINGS_KEY, JSON.stringify({ aiNotes })); } catch(e) { /* quota */ }
+  document.getElementById('global-settings-overlay').classList.add('hidden');
+  showToast('Global settings saved');
 }
 
 function toggleWideCracks() {
@@ -1149,7 +1175,7 @@ ${8 + sectionOffset}. PHOTO RATINGS
 - Be honest. Only rate what you can actually see.
 - When in doubt, weight toward the worst section of the street.
 - Do not guess — if you cannot see something clearly, say so in "What I Can't See."
-${detectRR && isSlurry ? '- R&R areas must be patched before slurry seal can be applied to those sections.' : ''}${activeProject?.aiNotes?.trim() ? '\n\n━━━ CUSTOM INSTRUCTIONS ━━━\n' + activeProject.aiNotes.trim() : ''}${activeProject?.calibrationRules?.length > 0 ? '\n\n━━━ CALIBRATION RULES (learned from past corrections) ━━━\n' + activeProject.calibrationRules.map((r, i) => `${i + 1}. ${r}`).join('\n') : ''}`;
+${detectRR && isSlurry ? '- R&R areas must be patched before slurry seal can be applied to those sections.' : ''}${(() => { const g = getGlobalSettings(); return g.aiNotes ? '\n\n━━━ GLOBAL STANDARDS ━━━\n' + g.aiNotes : ''; })()}${activeProject?.aiNotes?.trim() ? '\n\n━━━ PROJECT INSTRUCTIONS ━━━\n' + activeProject.aiNotes.trim() : ''}${activeProject?.calibrationRules?.length > 0 ? '\n\n━━━ CALIBRATION RULES (learned from past corrections) ━━━\n' + activeProject.calibrationRules.map((r, i) => `${i + 1}. ${r}`).join('\n') : ''}`;
 })()
           },
           { role: 'user', content: content }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PaveScan</title>
-  <link rel="stylesheet" href="style.css?v=138">
+  <link rel="stylesheet" href="style.css?v=139">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -48,6 +48,7 @@
         <span class="stat-value" id="avg-rating">—</span>
       </div>
       <button class="btn-report" onclick="generateProjectReport()" title="Generate project report">Report</button>
+      <button class="btn-global-settings" onclick="openGlobalSettings()" title="Global AI settings">&#9881; Global Settings</button>
     </div>
   </header>
 
@@ -57,6 +58,24 @@
       <button class="btn-close" onclick="closeReport()" style="position:absolute;top:10px;right:14px;">&times;</button>
       <h3 id="report-title">Project Report</h3>
       <div id="report-content" class="report-content">Generating report...</div>
+    </div>
+  </div>
+
+  <!-- ─── GLOBAL SETTINGS MODAL ───────────────────────────── -->
+  <div id="global-settings-overlay" class="modal-overlay hidden" onclick="closeGlobalSettings(event)">
+    <div class="modal global-settings-modal" onclick="event.stopPropagation()">
+      <button class="btn-close" onclick="closeGlobalSettings()" style="position:absolute;top:10px;right:14px;">&times;</button>
+      <h3>&#9881; Global Settings</h3>
+      <p class="global-settings-sub">These apply to every project and every scan.</p>
+      <div class="form-group" style="margin-top:16px">
+        <label>Global AI Instructions</label>
+        <p style="font-size:11px;color:var(--text-muted);margin:4px 0 8px">Your personal grading standards — injected into every scan across all projects.</p>
+        <textarea id="global-ai-notes-input" class="ai-notes-input" rows="5" placeholder="e.g. Always rate alligator cracking as LVL 4 even if it's a small patch. Faded striping alone is not enough to bump a rating."></textarea>
+      </div>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn-secondary" onclick="closeGlobalSettings()">Cancel</button>
+        <button class="btn-primary" onclick="saveGlobalSettings()">Save</button>
+      </div>
     </div>
   </div>
 
@@ -237,7 +256,7 @@
   </div>
 
   <!-- ─── SCRIPTS ─────────────────────────────────────────── -->
-  <script src="app.js?v=138"></script>
+  <script src="app.js?v=139"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async&libraries=marker">
   </script>
