@@ -201,7 +201,7 @@ function renderProjectSelector() {
     </div>
     <div class="project-toggles">
       <div class="toggle-pill" onclick="toggleWideCracks()" title="${activeProject.includeWideCracks ? 'Wide cracks (1.25&quot;+) INCLUDED in scope' : 'Wide cracks (1.25&quot;+) NOT in scope — click to change'}">
-        <span class="toggle-label">Wide Cracks (1.25"+)</span>
+        <span class="toggle-label">Wide Cracks 1.25"+</span>
         <span class="toggle-value ${activeProject.includeWideCracks ? 'toggle-on' : 'toggle-off'}">${activeProject.includeWideCracks ? 'IN SCOPE' : 'OUT'}</span>
       </div>
       <div class="toggle-pill" onclick="toggleAI()" title="${activeProject.aiEnabled !== false ? 'AI analysis & photo capture ON — click to turn off' : 'AI analysis & photo capture OFF — click to turn on'}">

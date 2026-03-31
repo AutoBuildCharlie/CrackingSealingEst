@@ -145,6 +145,7 @@ body {
 
 .project-toggles {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
 }
@@ -159,8 +160,11 @@ body {
   border: 1px solid var(--border);
   cursor: pointer;
   background: var(--bg-card);
+  white-space: nowrap;
+  min-width: 0;
 }
 .toggle-pill:hover { border-color: var(--accent); }
+.model-pill { flex: 1 1 100%; }
 .toggle-label {
   color: var(--text-dim);
   font-size: 10px;
