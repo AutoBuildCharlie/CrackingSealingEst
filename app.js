@@ -55,8 +55,28 @@ const AI_PROXY = 'https://cse-worker.aestheticcal22.workers.dev';
 // Not persisted to localStorage (avoids quota issues)
 const _photoCache = new Map();
 
+// ─── LOGIN ─────────────────────────────────────────────────
+function doLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value.trim();
+  if (user === 'Cal.Zentara' && pass === '0911') {
+    sessionStorage.setItem('cse_auth', '1');
+    document.getElementById('login-screen').style.display = 'none';
+  } else {
+    document.getElementById('login-error').classList.remove('hidden');
+  }
+}
+
 // ─── INIT ──────────────────────────────────────────────────
 function initMap() {
+  // Check login before loading the app
+  if (sessionStorage.getItem('cse_auth') !== '1') {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-header').style.display = 'none';
+    document.getElementById('app-main').style.display = 'none';
+    return;
+  }
+  document.getElementById('login-screen').style.display = 'none';
   API_KEY = getMapKey();
   loadProjects();
   migrateOldData();

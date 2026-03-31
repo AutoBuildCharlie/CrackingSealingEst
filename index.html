@@ -10,6 +10,20 @@
 </head>
 <body>
 
+  <!-- ─── LOGIN SCREEN ─────────────────────────────────────── -->
+  <div id="login-screen">
+    <div class="login-box">
+      <h2>Crack Sealin <em>EST.</em></h2>
+      <p class="login-sub">Street Assessment Tool</p>
+      <div class="login-form">
+        <input type="text" id="login-user" placeholder="Username" autocomplete="username">
+        <input type="password" id="login-pass" placeholder="Passcode" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        <div id="login-error" class="login-error hidden">Incorrect username or passcode.</div>
+        <button onclick="doLogin()">Enter</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── HEADER ──────────────────────────────────────────── -->
   <header id="app-header">
     <div class="header-left">
