@@ -1,6 +1,6 @@
 /* ================================================================
-   CRACKING & SEALING EST. — App Logic
-   Street assessment tool for GRSI
+   PAVESCAN — App Logic
+   Pavement assessment tool for crack seal & slurry seal companies
    ================================================================ */
 
 /* ─── DATA SHAPE REFERENCE ──────────────────────────────────
@@ -9,6 +9,7 @@
      {
        id:        "uuid",
        name:      "Anaheim Q2 2026",
+       type:      "crack-seal" | "slurry" | "both",  // project type
        streets:   [ ...street objects... ],
        createdAt: "2026-03-30T07:40:00Z"
      }
@@ -171,10 +172,11 @@ function saveStreets() {
   saveProjects();
 }
 
-function createProject(name) {
+function createProject(name, type = 'crack-seal') {
   const project = {
     id: crypto.randomUUID?.() || Date.now().toString(36),
     name: name,
+    type: type, // 'crack-seal' | 'slurry' | 'both'
     includeWideCracks: false, // default: skip 1.25"+ cracks
     aiEnabled: true, // AI analysis + photo capture on by default
     scanModel: 'gpt-4o', // AI model used for scanning
@@ -269,8 +271,24 @@ function renderProjectSelector() {
           <option value="gemini-2.0-flash" ${activeProject.scanModel === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini Flash</option>
         </select>
       </div>
+      <div class="toggle-pill" onclick="cycleProjectType()" title="Project type — click to change">
+        <span class="toggle-label">Project Type</span>
+        <span class="toggle-value toggle-on">${activeProject.type === 'slurry' ? 'Slurry Seal' : activeProject.type === 'both' ? 'Both' : 'Crack Seal'}</span>
+      </div>
     </div>
   `;
+}
+
+function cycleProjectType() {
+  const types = ['crack-seal', 'slurry', 'both'];
+  const current = activeProject.type || 'crack-seal';
+  activeProject.type = types[(types.indexOf(current) + 1) % types.length];
+  saveProjects();
+  renderProjectSelector();
+  renderStreetList();
+  if (activeStreetId) selectStreet(activeStreetId);
+  const labels = { 'crack-seal': 'Crack Seal', 'slurry': 'Slurry Seal', 'both': 'Both' };
+  showToast(`Project type: ${labels[activeProject.type]}`);
 }
 
 function toggleWideCracks() {
@@ -329,6 +347,8 @@ function migrateOldData() {
         changed = true;
       }
     });
+    // Migrate projects missing type field — default to crack-seal
+    if (!p.type) { p.type = 'crack-seal'; changed = true; }
   });
   if (changed) {
     streets = activeProject.streets;
@@ -1014,6 +1034,29 @@ function ratingDescription(rating) {
   }
 }
 
+// ─── TREATMENT RECOMMENDATION ──────────────────────────────
+// Returns treatment label + color based on rating + project type
+function getTreatment(rating, projectType) {
+  const type = projectType || 'crack-seal';
+  if (type === 'crack-seal') {
+    switch (rating) {
+      case 'level-1': return { label: 'Low priority',       color: '#22c55e' };
+      case 'level-2': return { label: 'CS candidate',       color: '#eab308' };
+      case 'level-3': return { label: 'Priority crack seal', color: '#f97316' };
+      case 'level-4': return { label: 'Severe damage',      color: '#ef4444' };
+      default:        return { label: '—',                  color: '#94a3b8' };
+    }
+  }
+  // slurry or both
+  switch (rating) {
+    case 'level-1': return { label: 'Slurry Seal',               color: '#22c55e' };
+    case 'level-2': return { label: 'Slurry Seal (CS may be needed)', color: '#eab308' };
+    case 'level-3': return { label: 'Slurry + CS needed',        color: '#f97316' };
+    case 'level-4': return { label: 'Severe damage',             color: '#ef4444' };
+    default:        return { label: '—',                         color: '#94a3b8' };
+  }
+}
+
 // Placeholder analysis when AI proxy isn't connected yet
 function analyzeWithPlaceholder(street) {
   const levels = ['level-1', 'level-2', 'level-3', 'level-4'];
@@ -1114,6 +1157,7 @@ function renderStreetList() {
         <span class="street-card-sqft">${s.sqft ? formatNumber(s.sqft) + ' sq ft' : 'No dimensions'}</span>
         <span class="rating-badge rating-${s.rating}" title="${ratingDescription(s.rating)}">${ratingLabel(s.rating)}</span>
       </div>
+      ${s.rating && s.rating !== 'pending' ? `<div class="street-card-treatment" style="color:${getTreatment(s.rating, activeProject.type).color}">${getTreatment(s.rating, activeProject.type).label}</div>` : ''}
     </div>
   `).join('');
 }
@@ -1175,6 +1219,10 @@ function selectStreet(id) {
         <div class="detail-stat-label">Sq Ft</div>
         <div class="detail-stat-value">${street.sqft ? formatNumber(street.sqft) : '—'}</div>
       </div>
+      <div class="detail-stat">
+        <div class="detail-stat-label">Sq Yards</div>
+        <div class="detail-stat-value">${street.sqft ? formatNumber(Math.round(street.sqft / 9)) : '—'}</div>
+      </div>
       <div class="detail-stat rating-card-${street.rating}">
         <div class="detail-stat-label">Rating</div>
         <div class="detail-stat-value"><span class="rating-badge rating-${street.rating}">${ratingLabel(street.rating)}</span></div>
@@ -1185,6 +1233,11 @@ function selectStreet(id) {
           <option value="level-4" ${street.rating === 'level-4' ? 'selected' : ''}>LVL 4</option>
         </select>
       </div>
+      ${street.rating && street.rating !== 'pending' ? `
+      <div class="detail-stat">
+        <div class="detail-stat-label">Treatment</div>
+        <div class="detail-stat-value" style="font-size:11px;color:${getTreatment(street.rating, activeProject.type).color};font-weight:600">${getTreatment(street.rating, activeProject.type).label}</div>
+      </div>` : ''}
       <div class="detail-stat">
         <div class="detail-stat-label">Length</div>
         <div class="detail-stat-value">${street.length ? street.length + ' ft' : '—'}</div>
@@ -1570,6 +1623,7 @@ function updateStats() {
     document.getElementById('total-streets').textContent = '1 / ' + streets.length;
     document.getElementById('stat-sqft').querySelector('.stat-label').textContent = 'Sq Ft';
     document.getElementById('total-sqft').textContent = formatNumber(activeStreet.sqft || 0);
+    document.getElementById('total-sy').textContent = formatNumber(Math.round((activeStreet.sqft || 0) / 9));
     document.getElementById('stat-rating').querySelector('.stat-label').textContent = 'Rating';
     document.getElementById('avg-rating').textContent = ratingLabel(activeStreet.rating);
     return;
@@ -1581,6 +1635,7 @@ function updateStats() {
   document.getElementById('stat-sqft').querySelector('.stat-label').textContent = 'Total Sq Ft';
   const totalSqft = streets.reduce((sum, s) => sum + (s.sqft || 0), 0);
   document.getElementById('total-sqft').textContent = formatNumber(totalSqft);
+  document.getElementById('total-sy').textContent = formatNumber(Math.round(totalSqft / 9));
 
   // Average rating (Level 1-4)
   document.getElementById('stat-rating').querySelector('.stat-label').textContent = 'Avg Rating';
@@ -2627,9 +2682,18 @@ async function generateProjectReport() {
     if (r === 'critical') r = 'level-4';
     ratingCounts[r] = (ratingCounts[r] || 0) + 1;
   });
+  const totalSY = Math.round(totalSqft / 9);
   const cities = [...new Set(streets.map(s => s.city).filter(Boolean))];
   const boundaryStreets = streets.filter(s => s.crossesBoundary);
   const weedStreets = streets.filter(s => s.weedAlert);
+  const projectTypeLabel = activeProject.type === 'slurry' ? 'Slurry Seal' : activeProject.type === 'both' ? 'Crack Seal + Slurry Seal' : 'Crack Seal';
+
+  // Treatment breakdown
+  const treatmentCounts = {};
+  streets.forEach(s => {
+    const t = getTreatment(s.rating, activeProject.type).label;
+    treatmentCounts[t] = (treatmentCounts[t] || 0) + 1;
+  });
 
   // Build street summary for AI
   const streetSummary = streets.map(s =>
@@ -2651,11 +2715,11 @@ async function generateProjectReport() {
           messages: [
             {
               role: 'system',
-              content: `You are a pavement assessment expert writing a project summary for a road sealing company called GRSI. Be concise and professional. Include: overall project condition, priority streets that need immediate attention, recommendations for the work scope, any concerns about boundary crossings, and if any streets have weed/grass control alerts, include a section noting which streets may need vegetation removal before sealing work can begin. Format with bullet points.`
+              content: `You are a pavement assessment expert writing a project summary for a pavement contractor. Be concise and professional. The project type is: ${projectTypeLabel}. Include: overall project condition, priority streets that need immediate attention, treatment recommendations based on the project type, any concerns about boundary crossings, and if any streets have weed/grass control alerts, note which streets may need vegetation removal before work begins. Format with bullet points.`
             },
             {
               role: 'user',
-              content: `Project: ${activeProject.name}\nTotal streets: ${totalStreets}\nTotal sq ft: ${formatNumber(totalSqft)}\nTotal linear ft: ${formatNumber(totalLength)}\nCities: ${cities.join(', ') || 'Unknown'}\nBoundary crossings: ${boundaryStreets.length}\nStreets needing weed control: ${weedStreets.length}\n\nStreet breakdown:\n${streetSummary}\n\nProvide a project summary with overall condition assessment, priority recommendations, scope notes, and weed control recommendations if applicable.`
+              content: `Project: ${activeProject.name}\nProject type: ${projectTypeLabel}\nTotal streets: ${totalStreets}\nTotal sq ft: ${formatNumber(totalSqft)}\nTotal sq yards: ${formatNumber(totalSY)}\nTotal linear ft: ${formatNumber(totalLength)}\nCities: ${cities.join(', ') || 'Unknown'}\nBoundary crossings: ${boundaryStreets.length}\nStreets needing weed control: ${weedStreets.length}\n\nStreet breakdown:\n${streetSummary}\n\nProvide a project summary with overall condition assessment, priority recommendations, treatment scope notes, and weed control recommendations if applicable.`
             }
           ],
           max_tokens: 600
@@ -2673,6 +2737,8 @@ async function generateProjectReport() {
 
   // Build report HTML
   document.getElementById('report-content').innerHTML = `
+    <div style="margin-bottom:10px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em">Project Type: <span style="color:var(--accent);font-weight:700">${projectTypeLabel}</span></div>
+
     <div class="report-stats-grid">
       <div class="report-section">
         <div class="report-label">Streets</div>
@@ -2681,6 +2747,10 @@ async function generateProjectReport() {
       <div class="report-section">
         <div class="report-label">Total Sq Ft</div>
         <div class="report-value">${formatNumber(totalSqft)}</div>
+      </div>
+      <div class="report-section">
+        <div class="report-label">Total Sq Yards</div>
+        <div class="report-value">${formatNumber(totalSY)}</div>
       </div>
       <div class="report-section">
         <div class="report-label">Linear Ft</div>
@@ -2711,6 +2781,18 @@ async function generateProjectReport() {
       </div>
     </div>
 
+    <div class="report-section">
+      <div class="report-label">Treatment Breakdown</div>
+      <div class="report-treatment-grid">
+        ${Object.entries(treatmentCounts).map(([label, count]) => {
+          const color = streets.find(s => getTreatment(s.rating, activeProject.type).label === label)
+            ? getTreatment(streets.find(s => getTreatment(s.rating, activeProject.type).label === label).rating, activeProject.type).color
+            : '#94a3b8';
+          return `<div class="report-treatment-row"><span style="color:${color};font-weight:600">${label}</span><span class="report-treatment-count">${count} street${count !== 1 ? 's' : ''}</span></div>`;
+        }).join('')}
+      </div>
+    </div>
+
     ${cities.length > 0 ? `<div class="report-section"><div class="report-label">Jurisdictions</div><div>${cities.join(', ')}</div></div>` : ''}
 
     ${boundaryStreets.length > 0 ? `<div class="report-section" style="border-color:rgba(249,115,22,0.3)"><div class="report-label" style="color:var(--orange)">⚠ Boundary Crossings (${boundaryStreets.length})</div><div style="font-size:12px">${boundaryStreets.map(s => escHtml(s.boundaryNote)).join('<br>')}</div></div>` : ''}
@@ -2722,9 +2804,10 @@ async function generateProjectReport() {
       ${streets.map(s => `
         <div class="report-street-row">
           <span>${escHtml(s.name?.split(',')[0] || 'Unknown')}${s.weedAlert ? ' 🌿' : ''}</span>
-          <span>${formatNumber(s.sqft || 0)} sq ft</span>
+          <span>${formatNumber(s.sqft || 0)} sq ft · ${formatNumber(Math.round((s.sqft || 0) / 9))} SY</span>
           <span class="rating-badge rating-${s.rating}" title="${ratingDescription(s.rating)}">${ratingLabel(s.rating)}</span>
         </div>
+        ${s.rating && s.rating !== 'pending' ? `<div style="font-size:11px;color:${getTreatment(s.rating, activeProject.type).color};padding:0 0 4px 4px">${getTreatment(s.rating, activeProject.type).label}</div>` : ''}
         ${s.adminNotes ? `<div class="report-admin-note">📝 ${escHtml(s.adminNotes)}</div>` : ''}
       `).join('')}
     </div>

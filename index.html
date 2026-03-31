@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Crack Sealin EST.</title>
-  <link rel="stylesheet" href="style.css?v=103">
+  <title>PaveScan</title>
+  <link rel="stylesheet" href="style.css?v=104">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -13,8 +13,8 @@
   <!-- ─── LOGIN SCREEN ─────────────────────────────────────── -->
   <div id="login-screen">
     <div class="login-box">
-      <h2>Crack Sealin <em>EST.</em></h2>
-      <p class="login-sub">Street Assessment Tool</p>
+      <h2>Pave<em>Scan</em></h2>
+      <p class="login-sub">Pavement Assessment Tool</p>
       <div class="login-form">
         <input type="text" id="login-user" placeholder="Username" autocomplete="username">
         <input type="password" id="login-pass" placeholder="Passcode" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
@@ -27,8 +27,8 @@
   <!-- ─── HEADER ──────────────────────────────────────────── -->
   <header id="app-header">
     <div class="header-left">
-      <h1>Crack Sealin <em>EST.</em></h1>
-      <span class="header-sub">Street Assessment Tool</span>
+      <h1>Pave<em>Scan</em></h1>
+      <span class="header-sub">Pavement Assessment Tool</span>
     </div>
     <div class="header-right">
       <div class="stat-pill" id="stat-streets">
@@ -38,6 +38,10 @@
       <div class="stat-pill" id="stat-sqft">
         <span class="stat-label">Total Sq Ft</span>
         <span class="stat-value" id="total-sqft">0</span>
+      </div>
+      <div class="stat-pill" id="stat-sy">
+        <span class="stat-label">Total SY</span>
+        <span class="stat-value" id="total-sy">0</span>
       </div>
       <div class="stat-pill" id="stat-rating">
         <span class="stat-label">Avg Rating</span>
@@ -212,7 +216,7 @@
   </div>
 
   <!-- ─── SCRIPTS ─────────────────────────────────────────── -->
-  <script src="app.js?v=103"></script>
+  <script src="app.js?v=104"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async&libraries=marker">
   </script>

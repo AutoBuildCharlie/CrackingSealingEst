@@ -1,6 +1,6 @@
 /* ================================================================
-   CRACKING & SEALING EST. — Styles
-   Street assessment tool for GRSI
+   PAVESCAN — Styles
+   Pavement assessment tool for crack seal & slurry seal companies
    ================================================================ */
 
 /* ─── VARIABLES ───────────────────────────────────────────── */
@@ -550,6 +550,12 @@ body {
 .street-card-sqft {
   font-weight: 600;
   color: var(--text);
+}
+.street-card-treatment {
+  font-size: 10px;
+  font-weight: 600;
+  margin-top: 4px;
+  letter-spacing: 0.02em;
 }
 .rating-badge {
   padding: 2px 8px;
@@ -1333,6 +1339,24 @@ body {
   font-size: 12px;
 }
 .report-street-row:last-child { border-bottom: none; }
+.report-treatment-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.report-treatment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.report-treatment-count {
+  color: var(--text-dim);
+  font-size: 11px;
+}
 .report-admin-note {
   font-size: 11px;
   color: var(--text-dim);
