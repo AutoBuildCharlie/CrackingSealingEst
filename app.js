@@ -951,7 +951,7 @@ function renderStreetList() {
     `<div class="street-list-back" onclick="activeStreetId=null;renderStreetList()">← Show all ${streets.length} streets</div>` : '';
 
   container.innerHTML = backLink + visibleStreets.map(s => `
-    <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''}" onclick="selectStreet('${s.id}')">
+    <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''} street-card-${s.rating}" onclick="selectStreet('${s.id}')">
       <button class="street-card-delete" onclick="event.stopPropagation(); deleteStreet('${s.id}')" title="Delete">&times;</button>
       <div class="street-card-name" title="${escHtml(s.name)}">${escHtml(s.name)}</div>
       ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}${s.roadType ? ' · ' + escHtml(s.roadType) : ''}</div>` : (s.roadType ? `<div class="street-card-city">${escHtml(s.roadType)}</div>` : '')}
