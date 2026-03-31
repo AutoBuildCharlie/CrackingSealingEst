@@ -713,17 +713,16 @@ async function analyzeStreetView(street) {
       return analyzeWithPlaceholder(street);
     }
 
-    // Build message content with labeled images
-    const photoDescriptions = validPairs.map(p => p.label).join(', ');
+    // Build message content — interleave label + image so AI can reference each by name
     const content = [
       {
         type: 'text',
-        text: `Assess the pavement condition of: ${street.name}\nStreet length: ${formatNumber(street.length || 0)} ft\nI'm sending ${validPairs.length} photo(s): ${photoDescriptions}.\nCorner photos show intersections and cross streets where cracking is usually worst.`
+        text: `Assess the pavement condition of: ${street.name}\nStreet length: ${formatNumber(street.length || 0)} ft\n${validPairs.length} photos follow, each labeled. Reference the photo label when describing observations.`
       },
-      ...validPairs.map(p => ({
-        type: 'image_url',
-        image_url: { url: p.base64 }
-      }))
+      ...validPairs.flatMap((p, i) => ([
+        { type: 'text', text: `Photo ${i + 1}: ${p.label}` },
+        { type: 'image_url', image_url: { url: p.base64 } }
+      ]))
     ];
 
     const res = await fetch(AI_PROXY, {
@@ -750,12 +749,11 @@ IMPORTANT: If you see any cracks that appear wider than 1.25 inches, flag them w
 
 Your response must include:
 1. PHOTOS ANALYZED: ${validPairs.length} images covering ${formatNumber(street.length || 0)} ft
-2. WHAT I CAN SEE: 2-4 bullet points. Note corner vs mid-street differences. Note if condition varies along the street.
-3. CORNERS: Specifically note condition at intersections/corners if visible.
-4. WIDE CRACKS: If any cracks appear wider than 1.25 inches, note their location. If none visible, write "None detected from this view."
-5. WEED/GRASS CONTROL: If you see any weeds, grass, or vegetation growing out of cracks or pavement joints, flag it with "🌿 WEED CONTROL NEEDED" and briefly describe the extent (light, moderate, heavy). If none visible, write "None detected."
-6. WHAT I CAN'T SEE: 1-2 bullet points about limitations
-7. Level: [1/2/3/4]
+2. WHAT I CAN SEE: 2-4 bullet points. For each observation, reference which photo(s) you saw it in — e.g. "(Photo 2: Mid-point 1)". Note if condition varies along the street.
+3. WIDE CRACKS: If any cracks appear wider than 1.25 inches, flag with "⚠ WIDE CRACKS DETECTED (1.25"+)" and reference which photo(s). If none, write "None detected."
+4. WEED/GRASS CONTROL: If you see vegetation growing from cracks, flag with "🌿 WEED CONTROL NEEDED", describe extent (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
+5. WHAT I CAN'T SEE: 1-2 bullet points about limitations
+6. Level: [1/2/3/4]
 
 Be honest. Weight toward the worst section. Do not guess — only rate what you can actually see.`
           },
