@@ -790,6 +790,7 @@ Your response must include:
 4. WEED/GRASS CONTROL: If you see vegetation growing from cracks, flag with "🌿 WEED CONTROL NEEDED", describe extent (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
 5. WHAT I CAN'T SEE: 1-2 bullet points about limitations
 6. Level: [1/2/3/4]
+7. PHOTO RATINGS: Rate each photo individually on the same scale. One line, exactly this format: "Photo 1: [1/2/3/4], Photo 2: [1/2/3/4], ..."
 
 Be honest. Weight toward the worst section. Do not guess — only rate what you can actually see.`
           },
@@ -817,6 +818,9 @@ Be honest. Weight toward the worst section. Do not guess — only rate what you 
     const rating = extractRating(text);
     const weedAlert = extractWeedAlert(text);
     const weedNotes = extractWeedNotes(text);
+    // Store per-photo ratings from AI response
+    const photoRatings = extractPhotoRatings(text, samplePoints.length);
+    photoRatings.forEach((r, i) => { if (street.scanPhotos[i] && r) street.scanPhotos[i].rating = r; });
     return { text, rating, weedAlert, weedNotes };
   } catch (e) {
     console.error('AI analysis error:', e);
@@ -859,6 +863,41 @@ function extractRating(text) {
   if (lower.includes('fair')) return 'level-2';
   if (lower.includes('good')) return 'level-1';
   return 'level-2';
+}
+
+function extractPhotoRatings(text, photoCount) {
+  const match = text.match(/PHOTO RATINGS[:\s]+(.*)/i);
+  if (!match) return [];
+  const line = match[1];
+  const ratings = [];
+  for (let i = 1; i <= photoCount; i++) {
+    const m = line.match(new RegExp(`Photo\\s*${i}\\s*:\\s*(\\d)`, 'i'));
+    const lvl = m ? parseInt(m[1]) : null;
+    ratings.push((lvl >= 1 && lvl <= 4) ? `level-${lvl}` : null);
+  }
+  return ratings;
+}
+
+function recalcRatingFromPhotos(streetId) {
+  const street = streets.find(s => s.id === streetId);
+  if (!street?.scanPhotos?.length) return;
+  const rated = street.scanPhotos.filter(p => p.rating);
+  if (!rated.length) return;
+  const lvlNum = { 'level-1': 1, 'level-2': 2, 'level-3': 3, 'level-4': 4 };
+  const avg = rated.reduce((sum, p) => sum + (lvlNum[p.rating] || 0), 0) / rated.length;
+  street.rating = `level-${Math.max(1, Math.min(4, Math.round(avg)))}`;
+  saveStreets();
+  renderStreetList();
+  updateStats();
+  placeAllMarkers();
+  selectStreet(streetId);
+}
+
+function setPhotoRating(streetId, photoIndex, rating) {
+  const street = streets.find(s => s.id === streetId);
+  if (!street?.scanPhotos?.[photoIndex]) return;
+  street.scanPhotos[photoIndex].rating = rating || null;
+  recalcRatingFromPhotos(streetId);
 }
 
 function getProviderForModel(model) {
@@ -1118,9 +1157,16 @@ function selectStreet(id) {
       <h4>Photos AI Analyzed (${street.scanPhotos.length})</h4>
       <div class="scan-photo-grid">
         ${street.scanPhotos.map((p, i) => `
-          <div class="scan-photo-card" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').scanPhotos, ${i})" title="Click to view photo">
+          <div class="scan-photo-card scan-photo-rated-${p.rating || 'none'}" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').scanPhotos, ${i})" title="Click to view photo">
             <span class="scan-photo-icon">&#128247;</span>
-            <span>${escHtml(p.label)}</span>
+            <span class="scan-photo-label">${escHtml(p.label)}</span>
+            <select class="photo-rating-select photo-rating-${p.rating || ''}" onclick="event.stopPropagation()" onchange="setPhotoRating('${street.id}', ${i}, this.value)">
+              <option value="">—</option>
+              <option value="level-1" ${p.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
+              <option value="level-2" ${p.rating === 'level-2' ? 'selected' : ''}>LVL 2</option>
+              <option value="level-3" ${p.rating === 'level-3' ? 'selected' : ''}>LVL 3</option>
+              <option value="level-4" ${p.rating === 'level-4' ? 'selected' : ''}>LVL 4</option>
+            </select>
           </div>
         `).join('')}
       </div>
