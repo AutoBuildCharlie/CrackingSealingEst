@@ -182,6 +182,7 @@ function createProject(name, type = 'crack-seal') {
     rrMinSize: '2x2', // Minimum R&R area in feet (width x length)
     aiEnabled: true, // AI analysis + photo capture on by default
     scanModel: 'gpt-4o', // AI model used for scanning
+    aiNotes: '', // custom instructions injected into every AI scan prompt
     streets: [],
     createdAt: new Date().toISOString()
   };
@@ -294,6 +295,10 @@ function renderProjectSelector() {
         <span class="toggle-value toggle-on">${activeProject.type === 'slurry' ? 'Slurry Seal' : activeProject.type === 'both' ? 'Both' : 'Crack Seal'}</span>
       </div>
     </div>
+    <div class="ai-notes-row">
+      <span class="ai-notes-label">AI Instructions</span>
+      <textarea class="ai-notes-input" placeholder="e.g. Older neighborhood — focus on longitudinal cracking near gutters" onchange="saveAiNotes(this.value)">${escHtml(activeProject.aiNotes || '')}</textarea>
+    </div>
   `;
 }
 
@@ -322,6 +327,12 @@ function cycleProjectType() {
   if (activeStreetId) selectStreet(activeStreetId);
   const labels = { 'crack-seal': 'Crack Seal', 'slurry': 'Slurry Seal', 'both': 'Both' };
   showToast(`Project type: ${labels[activeProject.type]}`);
+}
+
+function saveAiNotes(value) {
+  activeProject.aiNotes = value.trim();
+  saveProjects();
+  if (activeProject.aiNotes) showToast('AI instructions saved');
 }
 
 function toggleWideCracks() {
@@ -389,6 +400,7 @@ function migrateOldData() {
     if (!p.rrMinSize) { p.rrMinSize = '2x2'; changed = true; }
     if (p.aiEnabled === undefined) { p.aiEnabled = true; changed = true; }
     if (!p.scanModel) { p.scanModel = 'gpt-4o'; changed = true; }
+    if (p.aiNotes === undefined) { p.aiNotes = ''; changed = true; }
   });
   if (changed) {
     streets = activeProject.streets;
@@ -1119,7 +1131,7 @@ ${8 + sectionOffset}. PHOTO RATINGS
 - Be honest. Only rate what you can actually see.
 - When in doubt, weight toward the worst section of the street.
 - Do not guess — if you cannot see something clearly, say so in "What I Can't See."
-${detectRR && isSlurry ? '- R&R areas must be patched before slurry seal can be applied to those sections.' : ''}`;
+${detectRR && isSlurry ? '- R&R areas must be patched before slurry seal can be applied to those sections.' : ''}${activeProject?.aiNotes?.trim() ? '\n\n━━━ CUSTOM INSTRUCTIONS ━━━\n' + activeProject.aiNotes.trim() : ''}`;
 })()
           },
           { role: 'user', content: content }
@@ -1615,6 +1627,7 @@ function selectStreet(id) {
             <span class="scan-photo-icon">&#128247;</span>
             <span class="scan-photo-label">${escHtml(p.label)}</span>
             ${p.svDate ? `<span class="scan-photo-date${parseInt(p.svDate) < new Date().getFullYear() - 4 ? ' scan-photo-date-old' : ''}">${p.svDate.slice(0,4)}</span>` : ''}
+            <button class="scan-photo-retake" onclick="event.stopPropagation();retakeScanPhoto('${street.id}', ${i})" title="Retake at a better angle">&#8635;</button>
             <select class="photo-rating-select photo-rating-${p.rating || ''}" onclick="event.stopPropagation()" onchange="setPhotoRating('${street.id}', ${i}, this.value)">
               <option value="">—</option>
               <option value="level-1" ${p.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
@@ -2467,6 +2480,50 @@ function clearScanPhotos(streetId) {
   saveStreets();
   selectStreet(streetId);
   showToast('All scan photos cleared');
+}
+
+// ─── RETAKE SCAN PHOTO ─────────────────────────────────────
+// Tries road-parallel headings first so the camera looks down the road
+// (not toward a house). Falls back through angled headings if needed.
+async function retakeScanPhoto(streetId, photoIndex) {
+  const street = streets.find(s => s.id === streetId);
+  if (!street?.scanPhotos?.[photoIndex]) return;
+  const photo = street.scanPhotos[photoIndex];
+  if (!photo.lat || !photo.lng) { showToast('No location data for this photo'); return; }
+
+  showToast('Finding best angle...');
+
+  // Road-parallel headings — prefer looking straight down the road
+  const path = street.path || [];
+  const roadHeading = path.length >= 2 ? calcHeading(path[0], path[path.length - 1]) : (photo.heading || 0);
+  const headingsToTry = [
+    roadHeading,                       // forward along road
+    (roadHeading + 180) % 360,         // backward along road
+    (roadHeading + 20) % 360,          // slight forward adjustment
+    (roadHeading + 200) % 360,         // slight backward adjustment
+    (roadHeading + 45) % 360,          // diagonal
+    (roadHeading + 225) % 360,         // diagonal opposite
+  ];
+
+  try {
+    for (const heading of headingsToTry) {
+      const url = getStreetViewUrlHD(photo.lat, photo.lng, heading);
+      const img = await imageUrlToBase64(url);
+      if (!img) continue;
+      if (await checkPhotoHasRoad(img)) {
+        _photoCache.set(url, img);
+        street.scanPhotos[photoIndex] = { ...photo, url, hdUrl: url };
+        saveStreets();
+        selectStreet(streetId);
+        showToast('Photo retaken');
+        return;
+      }
+    }
+    showToast('No better angle found at this location');
+  } catch (e) {
+    console.error('Retake error:', e);
+    showToast('Retake failed');
+  }
 }
 
 // ─── PHOTO MARKERS ON MAP ──────────────────────────────────

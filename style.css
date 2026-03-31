@@ -216,6 +216,32 @@ body {
   gap: 6px;
   margin-top: 6px;
 }
+.ai-notes-row {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ai-notes-label {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 500;
+}
+.ai-notes-input {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 6px 8px;
+  resize: vertical;
+  min-height: 44px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ai-notes-input:focus { border-color: var(--accent); }
+.ai-notes-input::placeholder { color: var(--text-dim); }
 .toggle-pill {
   flex: 1;
   display: flex;
@@ -1027,6 +1053,20 @@ body {
 .scan-photo-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scan-photo-date { font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.06); border-radius: 3px; padding: 1px 4px; flex-shrink: 0; }
 .scan-photo-date-old { color: #f59e0b; background: rgba(245,158,11,0.12); }
+.scan-photo-retake {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.scan-photo-card:hover .scan-photo-retake { opacity: 1; }
+.scan-photo-retake:hover { color: var(--accent); }
 .photo-rating-select {
   background: var(--bg-card);
   border: 1px solid var(--border);
