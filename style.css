@@ -160,8 +160,8 @@ body {
   border: 1px solid var(--border);
   cursor: pointer;
   background: var(--bg-card);
-  white-space: nowrap;
   min-width: 0;
+  overflow: hidden;
 }
 .toggle-pill:hover { border-color: var(--accent); }
 .model-pill { flex: 1 1 100%; }
@@ -169,6 +169,11 @@ body {
   color: var(--text-dim);
   font-size: 10px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
 }
 .toggle-value {
   font-weight: 700;
