@@ -1397,7 +1397,7 @@ function selectStreet(id) {
       ${(street.rrPhotos || []).length > 0 ? `
         <div class="photo-grid" style="margin-top:8px">
           ${(street.rrPhotos || []).map((p, i) => `
-            <div class="photo-card" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').rrPhotos, ${i}, '${street.id}')" style="cursor:pointer;border-color:rgba(239,68,68,0.3)" title="Click to view">
+            <div class="photo-card" onclick="openAllRRLightbox('${p.id}')" style="cursor:pointer;border-color:rgba(239,68,68,0.3)" title="Click to view">
               <img src="${p.dataUrl}" alt="R&R photo" class="photo-thumb">
               <div class="photo-info">
                 <small style="color:#ef4444;font-weight:600">R&amp;R</small>
@@ -1795,19 +1795,19 @@ function updateStats() {
 
 // ─── PHOTO LIGHTBOX ────────────────────────────────────────
 // _lbPhotoArray: 'photos' | 'rrPhotos' | 'scanPhotos'
-let _lbPhotos = [], _lbIdx = 0, _lbStreetId = null, _lbPhotoArray = 'photos';
+// _lbRRMap: photoId → streetId (used when R&R photos span multiple streets)
+let _lbPhotos = [], _lbIdx = 0, _lbStreetId = null, _lbPhotoArray = 'photos', _lbRRMap = {};
 
-function openLightbox(photos, idx, streetId, arrayName) {
+function openLightbox(photos, idx, streetId, arrayName, rrMap) {
   _lbPhotos = photos;
   _lbIdx = idx;
   _lbStreetId = streetId || null;
-  // Auto-detect array type if not passed
+  _lbRRMap = rrMap || {};
   if (arrayName) {
     _lbPhotoArray = arrayName;
   } else if (photos.length > 0 && photos[0].hdUrl) {
     _lbPhotoArray = 'scanPhotos';
   } else {
-    // Determine by checking which array on the street matches
     const street = streets.find(s => s.id === streetId);
     if (street && street.rrPhotos === photos) {
       _lbPhotoArray = 'rrPhotos';
@@ -1819,20 +1819,29 @@ function openLightbox(photos, idx, streetId, arrayName) {
   document.getElementById('photo-lightbox').classList.remove('hidden');
 }
 
+function _lbGetStreetId() {
+  // For combined R&R view, resolve the street from the current photo's id
+  if (_lbPhotoArray === 'rrPhotos' && Object.keys(_lbRRMap).length > 0) {
+    const p = _lbPhotos[_lbIdx];
+    return p ? (_lbRRMap[p.id] || _lbStreetId) : _lbStreetId;
+  }
+  return _lbStreetId;
+}
+
 function lightboxSetRating(value) {
-  if (!_lbStreetId) return;
+  const streetId = _lbGetStreetId();
+  if (!streetId) return;
   const p = _lbPhotos[_lbIdx];
   if (!p) return;
   p.rating = value || null;
   if (_lbPhotoArray === 'scanPhotos') {
-    setPhotoRating(_lbStreetId, _lbIdx, value);
+    setPhotoRating(streetId, _lbIdx, value);
   } else {
     saveStreets();
   }
 }
 
 function lightboxSetNote(value) {
-  if (!_lbStreetId) return;
   const p = _lbPhotos[_lbIdx];
   if (!p) return;
   p.note = value;
@@ -1841,11 +1850,13 @@ function lightboxSetNote(value) {
 
 function lightboxDeletePhoto() {
   const p = _lbPhotos[_lbIdx];
-  if (!p?.id || !_lbStreetId) return;
+  if (!p?.id) return;
+  const streetId = _lbGetStreetId();
+  if (!streetId) return;
   if (_lbPhotoArray === 'rrPhotos') {
-    deleteRRPhoto(_lbStreetId, p.id);
+    deleteRRPhoto(streetId, p.id);
   } else {
-    deletePhoto(_lbStreetId, p.id);
+    deletePhoto(streetId, p.id);
   }
   closeLightbox();
 }
@@ -1872,7 +1883,13 @@ async function _renderLightbox() {
 
   // Label: scan photos use p.label, on-site photos use address
   const isOnsite = _lbPhotoArray === 'photos' || _lbPhotoArray === 'rrPhotos';
-  label.textContent = p.label || (p.address ? p.address.split(',')[0] : _lbPhotoArray === 'rrPhotos' ? 'R&R photo' : 'On-site photo');
+  let labelText = p.label || (p.address ? p.address.split(',')[0] : 'On-site photo');
+  if (_lbPhotoArray === 'rrPhotos') {
+    const streetId = _lbRRMap[p.id] || _lbStreetId;
+    const streetName = streets.find(s => s.id === streetId)?.name?.split(',')[0] || '';
+    labelText = `R&R — ${streetName || (p.address ? p.address.split(',')[0] : 'On-site')}`;
+  }
+  label.textContent = labelText;
   count.textContent = `${_lbIdx + 1} / ${_lbPhotos.length}`;
   if (sel) sel.value = p.rating || '';
 
@@ -2187,7 +2204,18 @@ function placePhotoMarkers() {
   photoMarkers.forEach(m => removeFromMap(m));
   photoMarkers = [];
 
+  // Build combined R&R array + streetId map across all streets
+  const allRRPhotos = [];
+  const rrMap = {};
   streets.forEach(street => {
+    (street.rrPhotos || []).forEach(photo => {
+      allRRPhotos.push(photo); // reference — mutations persist to original
+      rrMap[photo.id] = street.id;
+    });
+  });
+
+  streets.forEach(street => {
+    // Purple pins — on-site photos (per street)
     if (!street.photos) return;
     street.photos.forEach(photo => {
       const dotEl = makeDotContent('#a855f7', 14, '#fff');
@@ -2208,9 +2236,8 @@ function placePhotoMarkers() {
       photoMarkers.push(marker);
     });
 
-    // R&R photos — red pins
-    if (!street.rrPhotos) return;
-    street.rrPhotos.forEach(photo => {
+    // Red pins — R&R photos (open combined view across ALL streets)
+    (street.rrPhotos || []).forEach(photo => {
       if (!photo.lat || !photo.lng) return;
       const dotEl = makeDotContent('#ef4444', 14, '#fff');
       const marker = makeMarker({
@@ -2221,15 +2248,29 @@ function placePhotoMarkers() {
         gmpClickable: true
       });
 
-      const photoIndex = street.rrPhotos.indexOf(photo);
+      const globalIdx = allRRPhotos.indexOf(photo);
       const openInfo = () => {
-        openLightbox(street.rrPhotos, photoIndex, street.id);
+        openLightbox(allRRPhotos, globalIdx, null, 'rrPhotos', rrMap);
       };
       marker.addEventListener('gmp-click', openInfo);
       dotEl.addEventListener('click', openInfo);
       photoMarkers.push(marker);
     });
   });
+}
+
+// Opens combined R&R lightbox starting at a specific photo id
+function openAllRRLightbox(photoId) {
+  const allRRPhotos = [];
+  const rrMap = {};
+  streets.forEach(street => {
+    (street.rrPhotos || []).forEach(photo => {
+      allRRPhotos.push(photo);
+      rrMap[photo.id] = street.id;
+    });
+  });
+  const idx = allRRPhotos.findIndex(p => p.id === photoId);
+  openLightbox(allRRPhotos, idx >= 0 ? idx : 0, null, 'rrPhotos', rrMap);
 }
 
 // ─── STREET VIEW MODE ──────────────────────────────────────
