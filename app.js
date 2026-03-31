@@ -1184,6 +1184,28 @@ function selectStreet(id) {
       <img class="streetview-img" src="${street.svImage}" alt="Street View of ${escHtml(street.name)}" onclick="openStreetViewAt(${street.lat}, ${street.lng})" style="cursor:pointer" title="Click to open interactive Street View" onerror="this.src=''; this.alt='Street View not available'">
     </div>
 
+    ${activeProject.aiEnabled !== false ? `
+    <div class="detail-section">
+      <h4>On-Site Photos (${(street.photos || []).length})</h4>
+      <button class="btn-photo" onclick="openPhotoCapture('${street.id}')">Take Photo</button>
+      ${(street.photos || []).length > 0 ? `
+        <div class="photo-grid">
+          ${street.photos.map(p => `
+            <div class="photo-card">
+              <img src="${p.dataUrl}" alt="Crack photo" class="photo-thumb">
+              <div class="photo-info">
+                <small>${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</small>
+                <small>${new Date(p.takenAt).toLocaleDateString()}</small>
+                ${p.note ? `<small class="photo-note">${escHtml(p.note)}</small>` : ''}
+              </div>
+              <button class="photo-delete" onclick="deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<p class="text-dim">No photos yet — take one on-site</p>'}
+    </div>
+    ` : ''}
+
     ${(street.scanPhotos && street.scanPhotos.length > 0) ? `
     <div class="detail-section">
       <h4>Photos AI Analyzed (${street.scanPhotos.length})
@@ -1242,27 +1264,6 @@ function selectStreet(id) {
         </div>
       </div>
     </div>
-
-    ${activeProject.aiEnabled !== false ? `
-    <div class="detail-section">
-      <h4>On-Site Photos (${(street.photos || []).length})</h4>
-      <button class="btn-photo" onclick="openPhotoCapture('${street.id}')">Take Photo</button>
-      ${(street.photos || []).length > 0 ? `
-        <div class="photo-grid">
-          ${street.photos.map(p => `
-            <div class="photo-card">
-              <img src="${p.dataUrl}" alt="Crack photo" class="photo-thumb">
-              <div class="photo-info">
-                <small>${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</small>
-                <small>${new Date(p.takenAt).toLocaleDateString()}</small>
-              </div>
-              <button class="photo-delete" onclick="deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
-            </div>
-          `).join('')}
-        </div>
-      ` : '<p class="text-dim">No photos yet — take one on-site</p>'}
-    </div>
-    ` : ''}
 
     <div class="detail-actions">
       ${(street.path || street.highlightStart) ?

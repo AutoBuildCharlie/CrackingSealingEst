@@ -1233,6 +1233,12 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.photo-note {
+  color: var(--text) !important;
+  white-space: normal !important;
+  font-style: italic;
+  margin-top: 2px;
+}
 .photo-delete {
   background: none;
   border: none;
