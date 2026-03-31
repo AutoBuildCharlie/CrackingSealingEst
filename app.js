@@ -84,7 +84,7 @@ function initMap() {
     center: { lat: 33.83, lng: -117.91 }, // Anaheim default
     zoom: 12,
     mapTypeId: 'roadmap',
-    mapId: 'f2e86140855a96ec510d9c73',
+    mapId: 'f2e86140855a96ecc6c0576f',
     colorScheme: 'DARK',
     disableDefaultUI: true,
     zoomControl: true,
@@ -1320,7 +1320,7 @@ function selectStreet(id) {
         center: { lat: street.lat, lng: street.lng },
         zoom: 17,
         mapTypeId: 'roadmap',
-        mapId: 'f2e86140855a96ec510d9c73',
+        mapId: 'f2e86140855a96ecc6c0576f',
         colorScheme: 'DARK',
         disableDefaultUI: true,
         zoomControl: true
