@@ -103,6 +103,7 @@ function initMap() {
   placePhotoMarkers();
   drawAllHighlights();
   updateStats();
+  if (streets.length > 0) fitMapToMarkers();
 
   // Auto-fix streets missing road type (runs once per device)
   migrateRoadTypes();
