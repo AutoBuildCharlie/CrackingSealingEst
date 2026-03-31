@@ -2015,10 +2015,19 @@ function formatAnalysis(text) {
       continue;
     }
 
-    // Photo ratings line
-    if (/^Photo\s+\d+:\s+\d/.test(line)) {
-      html += `<div class="analysis-photo-ratings">${escHtml(line)}</div>`;
-      continue;
+    // Photo ratings line — render as colored badges
+    if (/^Photo\s+\d+:\s+\[?\d/.test(line)) {
+      const badges = [];
+      const matches = [...line.matchAll(/Photo\s+(\d+):\s*\[?([1-4])\]?/g)];
+      matches.forEach(m => {
+        const num = m[1], lvl = m[2];
+        const colors = { '1':'#22c55e','2':'#eab308','3':'#f97316','4':'#ef4444' };
+        badges.push(`<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.05);border:1px solid ${colors[lvl]}33;border-radius:4px;padding:2px 6px;font-size:10px"><span style="color:var(--text-dim)">Photo ${num}</span><span style="color:${colors[lvl]};font-weight:700">LVL ${lvl}</span></span>`);
+      });
+      if (badges.length) {
+        html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${badges.join('')}</div>`;
+        continue;
+      }
     }
 
     // Flag lines — ⚠, 🌿, 🔴
