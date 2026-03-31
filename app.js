@@ -179,6 +179,7 @@ function createProject(name, type = 'crack-seal') {
     type: type, // 'crack-seal' | 'slurry' | 'both'
     includeWideCracks: false, // default: skip 1.25"+ cracks
     detectRR: false, // Remove & Replace detection off by default
+    rrMinSize: '2x2', // Minimum R&R area in feet (width x length)
     aiEnabled: true, // AI analysis + photo capture on by default
     scanModel: 'gpt-4o', // AI model used for scanning
     streets: [],
@@ -276,6 +277,18 @@ function renderProjectSelector() {
         <span class="toggle-label">R&amp;R Detection</span>
         <span class="toggle-value ${activeProject.detectRR ? 'toggle-on' : 'toggle-off'}">${activeProject.detectRR ? 'ON' : 'OFF'}</span>
       </div>
+      ${activeProject.detectRR ? `
+      <div class="toggle-pill" title="Minimum R&R area — only flag areas this size or larger" onclick="event.stopPropagation()">
+        <span class="toggle-label">Min R&amp;R Size</span>
+        <div style="display:flex;align-items:center;gap:3px;margin-top:2px">
+          <input type="text" id="rr-min-size" value="${activeProject.rrMinSize || '2x2'}"
+            style="width:44px;background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;color:var(--accent);font-size:11px;font-weight:700;padding:2px 4px;text-align:center"
+            placeholder="2x2"
+            onchange="setRRMinSize(this.value)"
+            onclick="event.stopPropagation()">
+          <span style="font-size:9px;color:var(--text-dim)">ft</span>
+        </div>
+      </div>` : ''}
       <div class="toggle-pill" onclick="cycleProjectType()" title="Project type — click to change">
         <span class="toggle-label">Project Type</span>
         <span class="toggle-value toggle-on">${activeProject.type === 'slurry' ? 'Slurry Seal' : activeProject.type === 'both' ? 'Both' : 'Crack Seal'}</span>
@@ -289,6 +302,14 @@ function toggleRR() {
   saveProjects();
   renderProjectSelector();
   showToast(activeProject.detectRR ? 'R&R Detection ON' : 'R&R Detection OFF');
+}
+
+function setRRMinSize(value) {
+  const clean = value.trim();
+  if (!clean) return;
+  activeProject.rrMinSize = clean;
+  saveProjects();
+  showToast(`R&R min size: ${clean} ft`);
 }
 
 function cycleProjectType() {
@@ -363,6 +384,7 @@ function migrateOldData() {
     if (!p.type) { p.type = 'crack-seal'; changed = true; }
     // Migrate projects missing detectRR field — default to off
     if (p.detectRR === undefined) { p.detectRR = false; changed = true; }
+    if (!p.rrMinSize) { p.rrMinSize = '2x2'; changed = true; }
   });
   if (changed) {
     streets = activeProject.streets;
@@ -874,6 +896,7 @@ async function analyzeStreetView(street) {
   const projType = activeProject?.type || 'crack-seal';
   const isSlurry = projType === 'slurry' || projType === 'both';
   const detectRR = activeProject?.detectRR === true;
+  const rrMinSize = activeProject?.rrMinSize || '2x2';
   const crackInstructions = isSlurry
     ? `IMPORTANT — CRACK WIDTH THRESHOLDS (Slurry Seal project):
 - Any cracks 0.25 inches (1/4") or wider must be crack sealed before slurry can be applied. Flag these with "⚠ PREP CRACKS DETECTED (0.25"+)".
@@ -903,7 +926,7 @@ Use this rating scale:
 ${crackInstructions}
 
 IMPORTANT: Look for raveling — aggregate (small stones/gravel) coming loose from the surface, leaving a rough, pitted, or frayed texture. Flag with "⚠ RAVELING DETECTED" if present.
-${detectRR ? `IMPORTANT: Look for Remove & Replace conditions — pavement that is broken apart, has large open gaps (4"+), collapsed edges, severe potholes, or structural failure beyond normal cracking. These areas cannot be crack sealed or slurry sealed and require saw-cut excavation and HMA patching first. Flag with "⚠ REMOVE & REPLACE NEEDED" if present.` : ''}
+${detectRR ? `IMPORTANT: Look for Remove & Replace conditions — pavement that is broken apart, has large open gaps (4"+), collapsed edges, severe potholes, or structural failure beyond normal cracking. Only flag areas that appear to be at least ${rrMinSize} ft in size. These areas require saw-cut excavation and HMA patching. Flag with "⚠ REMOVE & REPLACE NEEDED" if present.` : ''}
 
 Your response must include:
 1. PHOTOS ANALYZED: ${validPairs.length} images covering ${formatNumber(street.length || 0)} ft
@@ -911,7 +934,7 @@ Your response must include:
 ${wideCrackSection}
 4. WEED/GRASS CONTROL: If you see vegetation growing from cracks, flag with "🌿 WEED CONTROL NEEDED", describe extent (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
 5. RAVELING: If you see aggregate loss, rough/pitted/frayed surface texture, or exposed aggregate, flag with "⚠ RAVELING DETECTED", describe severity (light/moderate/heavy), and reference which photo(s). If none, write "None detected."
-${detectRR ? `6. REMOVE & REPLACE: If you see broken-apart pavement, large open gaps (4"+), collapsed edges, severe potholes, or structural failure, flag with "⚠ REMOVE & REPLACE NEEDED", describe location and extent, and reference which photo(s). If none, write "None detected."
+${detectRR ? `6. REMOVE & REPLACE: If you see broken-apart pavement, large open gaps (4"+), collapsed edges, severe potholes, or structural failure that appears ${rrMinSize} ft or larger, flag with "⚠ REMOVE & REPLACE NEEDED", describe location, estimated size, and reference which photo(s). If none visible, write "None detected."
 7. WHAT I CAN'T SEE: 1-2 bullet points about limitations
 8. Level: [1/2/3/4]
 9. PHOTO RATINGS: Rate each photo individually. One line, exactly: "Photo 1: [1/2/3/4], Photo 2: [1/2/3/4], ..."` : `6. WHAT I CAN'T SEE: 1-2 bullet points about limitations
