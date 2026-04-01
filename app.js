@@ -3123,6 +3123,7 @@ function startFreeHighlight() {
   document.getElementById('highlight-bar-text').textContent = 'Click the START of a street';
   document.getElementById('detail-panel').classList.add('hidden');
   document.querySelector('.qa-highlight').classList.add('qa-active');
+  document.getElementById('map').classList.add('cursor-pin-start');
 }
 
 function cancelHighlight() {
@@ -3142,6 +3143,8 @@ function stopDrawingMode() {
   drawCount = 0;
   const pinLabel = document.getElementById('btn-pin-label');
   if (pinLabel) pinLabel.textContent = 'Pin.Start';
+  const mapEl = document.getElementById('map');
+  if (mapEl) { mapEl.classList.remove('cursor-pin-start'); mapEl.classList.remove('cursor-pin-end'); }
 }
 
 function clearTempPolyline() {
@@ -3262,6 +3265,8 @@ function handleMapClick(latLng) {
     document.getElementById('highlight-bar-text').textContent = 'Now click the END of this street';
     const pinLabel = document.getElementById('btn-pin-label');
     if (pinLabel) pinLabel.textContent = 'Pin.End';
+    document.getElementById('map').classList.remove('cursor-pin-start');
+    document.getElementById('map').classList.add('cursor-pin-end');
   } else {
     // Click 2 = END of street → auto-save
     const startPt = window._drawStart;
@@ -3419,6 +3424,8 @@ async function saveHighlightedStreet(startPt, endPt) {
   document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} saved (${formatNumber(roadLengthFt)} ft) — click next street or Done`;
   const pinLabel = document.getElementById('btn-pin-label');
   if (pinLabel) pinLabel.textContent = 'Pin.Start';
+  const mapEl2 = document.getElementById('map');
+  if (mapEl2) { mapEl2.classList.remove('cursor-pin-end'); mapEl2.classList.add('cursor-pin-start'); }
   showToast(`${formatNumber(roadLengthFt)} ft — ${formatNumber(street.sqft)} sq ft`);
 
   // Name already set from vote across start/mid/end geocodes — saved above
