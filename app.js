@@ -641,11 +641,47 @@ function promptStreetName(street, suggestedName) {
 function closeNamePrompt(e) {
   if (e && e.target !== e.currentTarget) return;
   document.getElementById('name-prompt-overlay').classList.add('hidden');
+  window._pendingStreet = null;
 }
 
 function confirmStreetName() {
   const val = document.getElementById('name-prompt-input').value.trim();
   if (!val) return;
+  document.getElementById('name-prompt-overlay').classList.add('hidden');
+
+  // If confirming a newly drawn street (pending save)
+  if (window._pendingStreet) {
+    const { street, roadLengthFt } = window._pendingStreet;
+    window._pendingStreet = null;
+    street.name = val;
+    streets.push(street);
+    saveStreets();
+    window._drawStart = null;
+    clearTempMarkers();
+    clearTempPolyline();
+    drawAllHighlights();
+    renderStreetList();
+    placeAllMarkers();
+    updateStats();
+    drawCount++;
+    document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} saved (${formatNumber(roadLengthFt)} ft) — click next street or Done`;
+    const pinLabel = document.getElementById('btn-pin-label');
+    if (pinLabel) pinLabel.textContent = 'Pin.Start';
+    setMapCursor('cursor-pin-start');
+    showToast(`${formatNumber(roadLengthFt)} ft — ${formatNumber(street.sqft)} sq ft`);
+    if (activeProject.aiEnabled !== false) analyzeStreetView(street).then(analysis => {
+      street.analysis = analysis.text; street.rating = analysis.rating; street.aiRating = analysis.rating;
+      street.weedAlert = analysis.weedAlert || false; street.weedNotes = analysis.weedNotes || '';
+      street.ravelingAlert = analysis.ravelingAlert || false; street.ravelingNotes = analysis.ravelingNotes || '';
+      street.rrAlert = analysis.rrAlert || false; street.rrNotes = analysis.rrNotes || '';
+      street.scanPhotos = analysis.photos || []; street.scannedAt = new Date().toISOString();
+      saveStreets(); renderStreetList(); selectStreet(street.id); placeAllMarkers(); updateStats();
+    }).catch(e => { street.rating = 'level-1'; street.analysis = 'Scan failed.'; saveStreets(); selectStreet(street.id); });
+    selectStreet(street.id);
+    return;
+  }
+
+  // Renaming an existing street
   const street = streets.find(s => s.id === window._namingStreetId);
   if (street) {
     street.name = val;
@@ -653,7 +689,6 @@ function confirmStreetName() {
     renderStreetList();
     selectStreet(street.id);
   }
-  document.getElementById('name-prompt-overlay').classList.add('hidden');
 }
 
 // ─── INLINE RENAME (detail panel) ──────────────────────────
@@ -3467,51 +3502,18 @@ async function saveHighlightedStreet(startPt, endPt) {
     }).catch(() => {});
   }
 
-  streets.push(street);
-  saveStreets();
   hideScanModal();
 
-  // Reset for next street
-  window._drawStart = null;
-  clearTempMarkers();
-  clearTempPolyline();
-  drawAllHighlights();
-  renderStreetList();
-  placeAllMarkers();
-  updateStats();
-
-  drawCount++;
-  document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} saved (${formatNumber(roadLengthFt)} ft) — click next street or Done`;
-  const pinLabel = document.getElementById('btn-pin-label');
-  if (pinLabel) pinLabel.textContent = 'Pin.Start';
-  setMapCursor('cursor-pin-start');
-  showToast(`${formatNumber(roadLengthFt)} ft — ${formatNumber(street.sqft)} sq ft`);
-
-  // Name already set from vote across start/mid/end geocodes — saved above
+  // Show name confirmation prompt before saving
+  window._pendingStreet = { street, roadLengthFt };
+  const input = document.getElementById('name-prompt-input');
+  const overlay = document.getElementById('name-prompt-overlay');
+  if (input) input.value = street.name;
+  if (overlay) overlay.classList.remove('hidden');
+  setTimeout(() => { if (input) input.select(); }, 50);
 
   if (street.crossesBoundary) {
     setTimeout(() => showToast(`⚠ ${street.boundaryNote}`, 5000), 1500);
-  }
-
-  // Auto-scan in background (only when AI is enabled)
-  if (activeProject.aiEnabled !== false) {
-    analyzeStreetView(street).then(analysis => {
-      street.analysis = analysis.text;
-      street.rating = analysis.rating;
-      street.aiRating = analysis.rating;
-      street.weedAlert = analysis.weedAlert || false;
-      street.weedNotes = analysis.weedNotes || '';
-      street.ravelingAlert = analysis.ravelingAlert || false;
-      street.ravelingNotes = analysis.ravelingNotes || '';
-      street.rrAlert = analysis.rrAlert || false;
-      street.rrNotes = analysis.rrNotes || '';
-      street.scannedAt = new Date().toISOString();
-      saveStreets();
-      drawAllHighlights();
-      renderStreetList();
-      updateStats();
-      if (activeStreetId === street.id) selectStreet(street.id);
-    }).catch(() => {});
   }
 }
 
