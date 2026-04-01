@@ -96,6 +96,9 @@ function initMap() {
     }
   });
 
+  // Track cursor position on map for worker drop
+  map.addListener('mousemove', (e) => { window._workerHoverLatLng = e.latLng; });
+
   // Map click listener
   map.addListener('click', (e) => handleMapClick(e.latLng));
 
@@ -107,6 +110,7 @@ function initMap() {
     if (drawingMode) { e.preventDefault(); stopDrawingMode(); showToast('Pin cancelled'); }
   });
 
+  initWorkerDrag();
   renderProjectSelector();
   renderStreetList();
   placeAllMarkers();
@@ -2968,19 +2972,84 @@ function openAllRRLightbox(photoId) {
 // ─── STREET VIEW MODE ──────────────────────────────────────
 let streetViewMode = false;
 let streetViewPano = null;
+let _workerDragging = false;
+let _workerGhost = null;
 
-function toggleStreetView() {
-  if (streetViewMode) {
-    streetViewMode = false;
-    document.querySelector('.qa-streetview').classList.remove('qa-active');
-    showToast('Street View mode off');
-    return;
+function initWorkerDrag() {
+  const worker = document.getElementById('sv-worker');
+  if (!worker) return;
+
+  worker.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    _workerDragging = true;
+    worker.style.opacity = '0.4';
+
+    // Ghost figure that follows the cursor, feet at cursor tip
+    _workerGhost = document.createElement('div');
+    _workerGhost.id = 'worker-ghost';
+    _workerGhost.innerHTML = `<svg width="44" height="64" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="11" cy="5.5" rx="9.5" ry="3.5" fill="#f97316"/>
+      <rect x="3" y="7.5" width="16" height="2" rx="1" fill="#ea580c"/>
+      <circle cx="11" cy="13" r="4" fill="#fde68a"/>
+      <rect x="7" y="17" width="8" height="7" rx="1.5" fill="#f97316"/>
+      <rect x="7" y="19.5" width="8" height="1.2" fill="#fef08a" opacity="0.8"/>
+      <line x1="7" y1="19" x2="1" y2="23" stroke="#fde68a" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="15" y1="19" x2="21" y2="23" stroke="#fde68a" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="9.5" y1="24" x2="7" y2="31" stroke="#1f2937" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="12.5" y1="24" x2="15" y2="31" stroke="#1f2937" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>`;
+    Object.assign(_workerGhost.style, {
+      position: 'fixed',
+      pointerEvents: 'none',
+      zIndex: '99999',
+      transform: 'translate(-50%, -100%)',
+      left: e.clientX + 'px',
+      top: e.clientY + 'px',
+      filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.6))'
+    });
+    document.body.appendChild(_workerGhost);
+
+    document.addEventListener('mousemove', _onWorkerDrag);
+    document.addEventListener('mouseup', _onWorkerDrop);
+  });
+}
+
+function _onWorkerDrag(e) {
+  if (!_workerDragging || !_workerGhost) return;
+  _workerGhost.style.left = e.clientX + 'px';
+  _workerGhost.style.top = e.clientY + 'px';
+
+  // Orange glow on map edge when hovering over it
+  const mapEl = document.getElementById('map');
+  const r = mapEl.getBoundingClientRect();
+  const overMap = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  mapEl.style.outline = overMap ? '2px solid #f97316' : '';
+}
+
+function _onWorkerDrop(e) {
+  if (!_workerDragging) return;
+  _workerDragging = false;
+
+  document.removeEventListener('mousemove', _onWorkerDrag);
+  document.removeEventListener('mouseup', _onWorkerDrop);
+
+  if (_workerGhost) { _workerGhost.remove(); _workerGhost = null; }
+  const worker = document.getElementById('sv-worker');
+  if (worker) worker.style.opacity = '';
+  document.getElementById('map').style.outline = '';
+
+  // Only open SV if dropped on the map
+  const mapEl = document.getElementById('map');
+  const r = mapEl.getBoundingClientRect();
+  const overMap = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+
+  if (overMap && window._workerHoverLatLng) {
+    if (drawingMode) stopDrawingMode();
+    streetViewMode = true;
+    const workerEl = document.getElementById('sv-worker');
+    if (workerEl) workerEl.classList.add('qa-active');
+    openStreetViewAt(window._workerHoverLatLng.lat(), window._workerHoverLatLng.lng());
   }
-  // Turn off other modes
-  if (drawingMode) stopDrawingMode();
-  streetViewMode = true;
-  document.querySelector('.qa-streetview').classList.add('qa-active');
-  showToast('Click anywhere on the map to open Street View');
 }
 
 let miniMap = null;
@@ -3192,7 +3261,8 @@ function closeStreetViewPanel() {
   miniMapLines.forEach(l => removeFromMap(l));
   miniMapLines = [];
   streetViewMode = false;
-  document.querySelector('.qa-streetview').classList.remove('qa-active');
+  const workerEl = document.getElementById('sv-worker');
+  if (workerEl) workerEl.classList.remove('qa-active');
   renderStreetList(); // show all streets again
   updateStats(); // restore project-wide stats
 }
@@ -3217,7 +3287,7 @@ function setMapCursor(cursorClass) {
 
 function startFreeHighlight() {
   if (drawingMode) { stopDrawingMode(); return; }
-  if (streetViewMode) toggleStreetView(); // turn off street view
+  if (streetViewMode) closeStreetViewPanel(); // turn off street view
   drawingMode = true;
   highlightMode = 'drawing';
   tempPath = [];
@@ -3352,12 +3422,6 @@ function findNearestStreet(lat, lng) {
 
 
 function handleMapClick(latLng) {
-  // Street View mode
-  if (streetViewMode) {
-    openStreetViewAt(latLng.lat(), latLng.lng());
-    return;
-  }
-
   if (highlightMode !== 'drawing') return;
 
   if (!window._drawStart) {

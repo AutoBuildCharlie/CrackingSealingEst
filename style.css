@@ -563,18 +563,24 @@ body {
   border-color: #3b82f6;
   box-shadow: 0 0 12px rgba(59,130,246,0.5);
 }
-.qa-streetview {
-  background: rgba(234,179,8,0.1);
-  color: #eab308;
-  border-color: rgba(234,179,8,0.3);
+.qa-worker {
+  background: rgba(249,115,22,0.1);
+  color: #f97316;
+  border-color: rgba(249,115,22,0.3);
+  cursor: grab;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 4px;
+  user-select: none;
 }
-.qa-streetview:hover { background: rgba(234,179,8,0.2); }
-.qa-streetview.qa-active {
-  background: #eab308;
-  color: #000;
-  border-color: #eab308;
-  box-shadow: 0 0 12px rgba(234,179,8,0.5);
+.qa-worker:hover { background: rgba(249,115,22,0.2); }
+.qa-worker:active { cursor: grabbing; }
+.qa-worker.qa-active {
+  border-color: #f97316;
+  box-shadow: 0 0 12px rgba(249,115,22,0.5);
+  background: rgba(249,115,22,0.15);
 }
+.qa-worker svg { display: block; margin: 0 auto; }
 .qa-photo {
   background: rgba(168,85,247,0.1);
   color: #a855f7;
