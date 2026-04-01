@@ -3757,26 +3757,29 @@ function drawAllHighlights() {
     const color = ratingColor(street.rating);
     const isActive = street.id === activeStreetId;
 
-    // Glow outline
-    const glow = new google.maps.Polyline({
-      path: points,
-      geodesic: true,
-      strokeColor: color,
-      strokeOpacity: 0.12,
-      strokeWeight: 14,
-      map: map
-    });
-    glow.addListener('click', () => selectStreet(street.id));
-    polylines.push(glow);
+    // Glow outline (non-active: subtle; active: handled separately below)
+    if (!isActive) {
+      const glow = new google.maps.Polyline({
+        path: points,
+        geodesic: true,
+        strokeColor: color,
+        strokeOpacity: 0.08,
+        strokeWeight: 12,
+        map: map
+      });
+      glow.addListener('click', () => selectStreet(street.id));
+      polylines.push(glow);
+    }
 
-    // Main line — transparent tint so road name labels show through
+    // Main line
     const line = new google.maps.Polyline({
       path: points,
       geodesic: true,
       strokeColor: color,
-      strokeOpacity: isActive ? 0.45 : 0.28,
-      strokeWeight: isActive ? 8 : 6,
-      map: map
+      strokeOpacity: isActive ? 0.95 : 0.32,
+      strokeWeight: isActive ? 11 : 5,
+      map: map,
+      zIndex: isActive ? 20 : 5
     });
     line.addListener('click', () => selectStreet(street.id));
     polylines.push(line);
@@ -3835,29 +3838,46 @@ function drawAllHighlights() {
     }
   });
 
-  // Animated moving dash overlay on the selected street
+  // Pulsing glow on the selected street
   if (activeStreetId) {
     const active = streets.find(s => s.id === activeStreetId);
     if (active?.path?.length > 1) {
-      const dashSymbol = { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 5 };
-      const animLine = new google.maps.Polyline({
+      const color = ratingColor(active.rating);
+
+      // Outer wide glow — rating color
+      const outerGlow = new google.maps.Polyline({
+        path: active.path,
+        geodesic: true,
+        strokeColor: color,
+        strokeOpacity: 0.1,
+        strokeWeight: 30,
+        map: map,
+        zIndex: 17
+      });
+      outerGlow.addListener('click', () => selectStreet(active.id));
+      polylines.push(outerGlow);
+
+      // Inner glow — white
+      const innerGlow = new google.maps.Polyline({
         path: active.path,
         geodesic: true,
         strokeColor: '#ffffff',
-        strokeOpacity: 0,
-        strokeWeight: 4,
-        icons: [{ icon: dashSymbol, offset: '0%', repeat: '24px' }],
+        strokeOpacity: 0.15,
+        strokeWeight: 18,
         map: map,
-        zIndex: 20
+        zIndex: 18
       });
-      animLine.addListener('click', () => selectStreet(active.id));
-      polylines.push(animLine);
+      innerGlow.addListener('click', () => selectStreet(active.id));
+      polylines.push(innerGlow);
 
-      let offset = 0;
+      // Animate both layers with a sine wave
+      let _pulseT = 0;
       _animInterval = setInterval(() => {
-        offset = (offset + 2) % 200;
-        animLine.set('icons', [{ icon: dashSymbol, offset: (offset / 2) + '%', repeat: '24px' }]);
-      }, 30);
+        _pulseT += 0.045;
+        const pulse = (Math.sin(_pulseT) + 1) / 2; // smooth 0 → 1
+        outerGlow.setOptions({ strokeOpacity: 0.08 + pulse * 0.52 });
+        innerGlow.setOptions({ strokeOpacity: 0.1  + pulse * 0.5  });
+      }, 16);
     }
   }
 }
