@@ -404,18 +404,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
 }
 .panel-header h2 {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
 }
 /* ─── SEARCH BAR ──────────────────────────────────────────── */
 .search-bar {
   display: flex;
   gap: 4px;
-  padding: 8px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border);
 }
 .search-bar input {
@@ -458,8 +458,8 @@ body {
 /* ─── QUICK ACTIONS ────────────────────────────────────────── */
 .quick-actions {
   display: flex;
-  gap: 6px;
-  padding: 8px;
+  gap: 5px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border);
 }
 .qa-btn {
@@ -467,16 +467,16 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 8px 10px;
+  gap: 4px;
+  padding: 6px 6px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid;
   transition: background 0.2s;
 }
-.qa-icon { font-size: 14px; }
+.qa-icon { font-size: 12px; }
 .qa-highlight {
   background: rgba(59,130,246,0.1);
   color: #3b82f6;
