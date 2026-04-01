@@ -340,12 +340,15 @@ function renderProjectSelector() {
       <div class="photo-settings-row">
         <div class="photo-setting">
           <span class="photo-setting-label">Photo every</span>
-          <input type="number" class="photo-setting-input" value="${activeProject.photoInterval || 200}" min="100" max="1000" step="50" onchange="savePhotoInterval(this.value)">
-          <span class="photo-setting-unit">ft</span>
+          <button class="photo-step-btn" onclick="savePhotoInterval(${(activeProject.photoInterval||200)-50})">−</button>
+          <span class="photo-setting-val">${activeProject.photoInterval || 200} ft</span>
+          <button class="photo-step-btn" onclick="savePhotoInterval(${(activeProject.photoInterval||200)+50})">+</button>
         </div>
         <div class="photo-setting">
           <span class="photo-setting-label">Max photos</span>
-          <input type="number" class="photo-setting-input" value="${activeProject.maxPhotos || 6}" min="2" max="12" step="1" onchange="saveMaxPhotos(this.value)">
+          <button class="photo-step-btn" onclick="saveMaxPhotos(${(activeProject.maxPhotos||6)-1})">−</button>
+          <span class="photo-setting-val">${activeProject.maxPhotos || 6}</span>
+          <button class="photo-step-btn" onclick="saveMaxPhotos(${(activeProject.maxPhotos||6)+1})">+</button>
         </div>
       </div>
       <div class="ai-notes-row">
