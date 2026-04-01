@@ -1336,6 +1336,13 @@ function recalcRatingFromPhotos(streetId) {
   selectStreet(streetId);
 }
 
+function setOnSitePhotoRating(streetId, photoId, rating) {
+  const street = streets.find(s => s.id === streetId);
+  if (!street?.photos) return;
+  const photo = street.photos.find(p => p.id === photoId);
+  if (photo) { photo.rating = rating || null; saveStreets(); }
+}
+
 function setPhotoRating(streetId, photoIndex, rating) {
   const street = streets.find(s => s.id === streetId);
   if (!street?.scanPhotos?.[photoIndex]) return;
@@ -1676,20 +1683,19 @@ function selectStreet(id) {
       <h4>On-Site Photos (${(street.photos || []).length})</h4>
       <button class="btn-photo" onclick="openPhotoCapture('${street.id}')">Take Photo</button>
       ${(street.photos || []).length > 0 ? `
-        <div class="photo-grid">
+        <div class="scan-photo-grid" style="margin-top:8px">
           ${street.photos.map((p, i) => `
-            <div class="photo-card" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').photos, ${i}, '${street.id}')" style="cursor:pointer" title="Click to view">
-              <img src="${p.dataUrl}" alt="Crack photo" class="photo-thumb">
-              <div class="photo-info">
-                <div class="photo-info-top">
-                  <span class="photo-info-addr">${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</span>
-                  ${p.lat ? `<button class="btn-photo-jump" onclick="event.stopPropagation();map.panTo({lat:${p.lat},lng:${p.lng}});map.setZoom(19)" title="Jump to location on map">&#128205;</button>` : ''}
-                </div>
-                <span class="photo-info-date">${new Date(p.takenAt).toLocaleDateString()}</span>
-                ${p.rating ? `<span class="rating-badge rating-${p.rating}" style="font-size:9px;padding:1px 5px;align-self:flex-start">${ratingLabel(p.rating)}</span>` : ''}
-                ${p.note ? `<span class="photo-note">${escHtml(p.note)}</span>` : ''}
-              </div>
-              <button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
+            <div class="scan-photo-card scan-photo-rated-${p.rating || 'none'}" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').photos, ${i}, '${street.id}')" title="Click to view photo">
+              <button class="scan-photo-delete" onclick="event.stopPropagation();deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
+              <span class="scan-photo-icon">&#128247;</span>
+              <span class="scan-photo-label">${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</span>
+              <select class="photo-rating-select photo-rating-${p.rating || ''}" onclick="event.stopPropagation()" onchange="setOnSitePhotoRating('${street.id}','${p.id}',this.value)">
+                <option value="">—</option>
+                <option value="level-1" ${p.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
+                <option value="level-2" ${p.rating === 'level-2' ? 'selected' : ''}>LVL 2</option>
+                <option value="level-3" ${p.rating === 'level-3' ? 'selected' : ''}>LVL 3</option>
+                <option value="level-4" ${p.rating === 'level-4' ? 'selected' : ''}>LVL 4</option>
+              </select>
             </div>
           `).join('')}
         </div>
