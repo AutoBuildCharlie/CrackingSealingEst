@@ -2988,14 +2988,12 @@ function initWorkerDrag() {
     _workerGhost = document.createElement('div');
     _workerGhost.id = 'worker-ghost';
     _workerGhost.innerHTML = `<div class="worker-ghost-inner"><svg width="44" height="64" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M6 9 A5 4.5 0 0 1 16 9 Z" fill="#f97316"/>
-      <rect x="4" y="8.5" width="14" height="2" rx="1" fill="#ea580c"/>
-      <circle cx="11" cy="14" r="3.5" fill="#fde68a"/>
-      <rect x="2" y="18.5" width="6" height="2.5" rx="1.25" fill="#f97316" transform="rotate(20,7.5,19.75)"/>
-      <rect x="14" y="18.5" width="6" height="2.5" rx="1.25" fill="#f97316" transform="rotate(-20,14.5,19.75)"/>
-      <rect x="7.5" y="18" width="7" height="7" rx="2" fill="#f97316"/>
-      <rect x="7.5" y="24.5" width="3" height="7.5" rx="1.5" fill="#374151"/>
-      <rect x="11.5" y="24.5" width="3" height="7.5" rx="1.5" fill="#374151"/>
+      <circle cx="11" cy="9" r="3.5" fill="#fde68a"/>
+      <rect x="2" y="13.5" width="6" height="2.5" rx="1.25" fill="#f97316" transform="rotate(20,7.5,14.75)"/>
+      <rect x="14" y="13.5" width="6" height="2.5" rx="1.25" fill="#f97316" transform="rotate(-20,14.5,14.75)"/>
+      <rect x="7.5" y="13" width="7" height="7" rx="2" fill="#f97316"/>
+      <rect x="7.5" y="19.5" width="3" height="7.5" rx="1.5" fill="#374151"/>
+      <rect x="11.5" y="19.5" width="3" height="7.5" rx="1.5" fill="#374151"/>
     </svg></div>`;
     Object.assign(_workerGhost.style, {
       position: 'fixed',
