@@ -673,12 +673,16 @@ function confirmStreetName() {
     if (pinLabel) pinLabel.textContent = 'Pin.Start';
     setMapCursor('cursor-pin-start');
     showToast(`${formatNumber(roadLengthFt)} ft — ${formatNumber(street.sqft)} sq ft`);
-    if (activeProject.aiEnabled !== false) analyzeStreetView(street).then(analysis => {
+    if (activeProject.aiEnabled !== false) analyzeStreetView(street).then(async analysis => {
       street.analysis = analysis.text; street.rating = analysis.rating; street.aiRating = analysis.rating;
       street.weedAlert = analysis.weedAlert || false; street.weedNotes = analysis.weedNotes || '';
       street.ravelingAlert = analysis.ravelingAlert || false; street.ravelingNotes = analysis.ravelingNotes || '';
       street.rrAlert = analysis.rrAlert || false; street.rrNotes = analysis.rrNotes || '';
       street.scanPhotos = analysis.photos || []; street.scannedAt = new Date().toISOString();
+      if (isArterialStreet(street)) {
+        const layout = await analyzeLaneLayout(street);
+        if (layout) street.laneLayout = layout;
+      }
       saveStreets(); renderStreetList(); selectStreet(street.id); placeAllMarkers(); updateStats();
     }).catch(e => { street.rating = 'level-1'; street.analysis = 'Scan failed.'; saveStreets(); selectStreet(street.id); });
     selectStreet(street.id);
@@ -898,6 +902,11 @@ async function saveStreet() {
     street.rrAlert = analysis.rrAlert || false;
     street.rrNotes = analysis.rrNotes || '';
     street.scannedAt = new Date().toISOString();
+    if (isArterialStreet(street)) {
+      showScanModal('Analyzing lane layout...');
+      const layout = await analyzeLaneLayout(street);
+      if (layout) street.laneLayout = layout;
+    }
   }
 
   // Save
@@ -1317,6 +1326,88 @@ ${detectRR && isSlurry ? '- R&R areas must be patched before slurry seal can be 
   }
 }
 
+// ─── LANE LAYOUT DETECTION ─────────────────────────────────
+function isArterialStreet(street) {
+  const t = (street.roadType || '').toLowerCase();
+  return t.includes('arterial') || t.includes('collector') || t.includes('highway');
+}
+
+function getSatelliteImageUrl(street) {
+  const center = `${street.lat},${street.lng}`;
+  let url = `https://maps.googleapis.com/maps/api/staticmap?center=${center}&zoom=19&size=640x400&maptype=satellite&key=${API_KEY}`;
+  if (street.path && street.path.length >= 2) {
+    const pathStr = street.path.map(p => `${p.lat},${p.lng}`).join('|');
+    url += `&path=color:0xff6600ff|weight:5|${pathStr}`;
+  }
+  return url;
+}
+
+async function analyzeLaneLayout(street) {
+  try {
+    const satUrl = getSatelliteImageUrl(street);
+    const base64 = await imageUrlToBase64(satUrl);
+    if (!base64) return null;
+
+    const res = await fetch(AI_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(30000),
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        provider: 'openai',
+        messages: [
+          {
+            role: 'system',
+            content: `You are analyzing an overhead satellite image of ${street.name} to identify its lane layout.
+Return ONLY a valid JSON object — no other text:
+{
+  "throughLanes": <number of through lanes per direction, or null if unclear>,
+  "bikeLane": { "present": <true/false>, "side": "<left/right/both/null>" },
+  "leftTurnPockets": <number, 0 if none>,
+  "rightLaneDrop": <true/false>,
+  "parkingLane": <true/false>,
+  "median": <true/false>,
+  "notes": "<one sentence summary of the lane layout>"
+}
+Only report what you can clearly see. Use null for anything unclear.`
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: `Identify the lane layout of ${street.name} from this satellite image.` },
+              { type: 'image_url', image_url: { url: base64 } }
+            ]
+          }
+        ],
+        max_tokens: 300
+      })
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    const jsonMatch = text.match(/\{[\s\S]*?\}/);
+    if (!jsonMatch) return null;
+    return JSON.parse(jsonMatch[0]);
+  } catch (e) {
+    console.error('Lane layout error:', e);
+    return null;
+  }
+}
+
+async function rescanLaneLayout(id) {
+  const street = streets.find(s => s.id === id);
+  if (!street) return;
+  showScanModal('Analyzing lane layout...');
+  try {
+    const layout = await analyzeLaneLayout(street);
+    if (layout) { street.laneLayout = layout; saveStreets(); selectStreet(id); showToast('Lane layout updated'); }
+    else showToast('Could not detect lane layout');
+  } finally {
+    hideScanModal();
+  }
+}
+
 // Fetch a Street View image via the Cloudflare Worker proxy (avoids browser Referer 403s)
 async function imageUrlToBase64(url) {
   try {
@@ -1680,6 +1771,24 @@ function selectStreet(id) {
       ${street.rrAlert ? `<div class="detail-weed-warn" style="border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.08)">
         🔴 Remove &amp; Replace needed — structural failure detected
         ${street.rrNotes ? `<div class="weed-notes">${escHtml(street.rrNotes)}</div>` : ''}
+      </div>` : ''}
+      ${isArterialStreet(street) ? `<div class="detail-lane-layout">
+        <div class="lane-layout-title">🛣 Lane Layout</div>
+        ${street.laneLayout ? `
+          <div class="lane-layout-grid">
+            ${street.laneLayout.throughLanes != null ? `<div class="lane-item"><span class="lane-label">Through Lanes</span><span class="lane-value">${street.laneLayout.throughLanes} per direction</span></div>` : ''}
+            ${street.laneLayout.bikeLane?.present ? `<div class="lane-item"><span class="lane-label">Bike Lane</span><span class="lane-value">${street.laneLayout.bikeLane.side ? street.laneLayout.bikeLane.side + ' side' : 'Yes'}</span></div>` : ''}
+            ${street.laneLayout.leftTurnPockets ? `<div class="lane-item"><span class="lane-label">Left Turn Pockets</span><span class="lane-value">${street.laneLayout.leftTurnPockets}</span></div>` : ''}
+            ${street.laneLayout.rightLaneDrop ? `<div class="lane-item"><span class="lane-label">Right Lane Drop</span><span class="lane-value">Yes</span></div>` : ''}
+            ${street.laneLayout.parkingLane ? `<div class="lane-item"><span class="lane-label">Parking Lane</span><span class="lane-value">Yes</span></div>` : ''}
+            ${street.laneLayout.median ? `<div class="lane-item"><span class="lane-label">Median</span><span class="lane-value">Yes</span></div>` : ''}
+          </div>
+          ${street.laneLayout.notes ? `<div class="lane-notes">${escHtml(street.laneLayout.notes)}</div>` : ''}
+          <button class="btn-secondary" style="margin-top:8px;font-size:11px;width:100%" onclick="rescanLaneLayout('${street.id}')">Re-analyze Lanes</button>
+        ` : `
+          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">Not yet analyzed for this street.</p>
+          <button class="btn-secondary" style="font-size:11px;width:100%" onclick="rescanLaneLayout('${street.id}')">Analyze Lanes</button>
+        `}
       </div>` : ''}
       <div class="detail-address">Added ${formatDate(street.createdAt)}</div>
     </div>
@@ -2214,6 +2323,11 @@ async function rescanStreet(id) {
     street.rrAlert = analysis.rrAlert || false;
     street.rrNotes = analysis.rrNotes || '';
     street.scannedAt = new Date().toISOString();
+    if (isArterialStreet(street)) {
+      showScanModal('Analyzing lane layout...');
+      const layout = await analyzeLaneLayout(street);
+      if (layout) street.laneLayout = layout;
+    }
 
     saveStreets();
     drawAllHighlights();
