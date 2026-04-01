@@ -957,6 +957,59 @@ body {
   padding: 4px 8px;
   margin-bottom: 4px;
 }
+/* ─── DETAIL PANEL TABS ──────────────────────────────────── */
+.detail-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin: 0 -16px 12px;
+  padding: 0 16px;
+}
+.detail-tab {
+  flex: 1;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-align: center;
+}
+.detail-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.detail-tab:hover:not(.active) { color: var(--text); }
+.tab-count {
+  display: inline-block;
+  background: var(--accent);
+  color: #000;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+.detail-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  flex-wrap: wrap;
+}
+.detail-dir-badge {
+  background: var(--accent);
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
 .detail-lane-layout {
   background: rgba(59,130,246,0.07);
   border: 1px solid rgba(59,130,246,0.2);

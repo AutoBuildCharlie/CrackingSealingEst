@@ -1710,7 +1710,15 @@ function renderStreetList() {
 
 // ─── SELECT STREET (detail panel) ──────────────────────────
 let lastDrawnActiveId = null;
+function switchDetailTab(tab) {
+  window._detailTab = tab;
+  document.querySelectorAll('.detail-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('[data-tab-content]').forEach(el => el.classList.toggle('hidden', el.dataset.tabContent !== tab));
+}
+
 function selectStreet(id) {
+  const isNewStreet = activeStreetId !== id;
+  if (isNewStreet) window._detailTab = 'overview';
   activeStreetId = id;
   const street = streets.find(s => s.id === id);
   if (!street) return;
@@ -1739,7 +1747,11 @@ function selectStreet(id) {
   const panel = document.getElementById('detail-panel');
   panel.classList.remove('hidden');
 
+  const activeTab = window._detailTab || 'overview';
+  const totalPhotos = (street.photos||[]).length + (street.rrPhotos||[]).length + (street.scanPhotos||[]).length;
+
   document.getElementById('detail-content').innerHTML = `
+    <!-- Always-visible header -->
     <div class="detail-header">
       <div class="detail-name-row" id="detail-name-display-${street.id}">
         <h3 class="detail-name-text" onclick="startInlineRename('${street.id}')" title="Click to rename">${escHtml(street.name)}</h3>
@@ -1750,11 +1762,24 @@ function selectStreet(id) {
         <button class="btn-primary" style="font-size:11px;padding:2px 10px;white-space:nowrap" onclick="saveInlineRename('${street.id}')">Save</button>
         <button class="btn-secondary" style="font-size:11px;padding:2px 8px" onclick="cancelInlineRename('${street.id}')">✕</button>
       </div>
-      ${(() => { const dir = getStreetDirection(street); return dir ? `<span style="display:inline-block;background:var(--accent);color:#000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px">${dir}</span>` : ''; })()}
-      ${street.city ? `<div class="detail-jurisdiction">${escHtml(street.city)}${street.county ? ' — ' + escHtml(street.county) : ''}${street.state ? ', ' + escHtml(street.state) : ''}</div>` : ''}
+      <div class="detail-header-meta">
+        ${(() => { const dir = getStreetDirection(street); return dir ? `<span class="detail-dir-badge">${dir}</span>` : ''; })()}
+        ${street.city ? `<span class="detail-jurisdiction">${escHtml(street.city)}${street.county ? ' — ' + escHtml(street.county) : ''}</span>` : ''}
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="detail-tabs">
+      <button class="detail-tab ${activeTab==='overview'?'active':''}" data-tab="overview" onclick="switchDetailTab('overview')">Overview</button>
+      <button class="detail-tab ${activeTab==='photos'?'active':''}" data-tab="photos" onclick="switchDetailTab('photos')">Photos${totalPhotos > 0 ? ` <span class="tab-count">${totalPhotos}</span>` : ''}</button>
+      <button class="detail-tab ${activeTab==='analysis'?'active':''}" data-tab="analysis" onclick="switchDetailTab('analysis')">Analysis</button>
+    </div>
+
+    <!-- ── OVERVIEW TAB ── -->
+    <div data-tab-content="overview" ${activeTab!=='overview'?'class="hidden"':''}>
       ${street.crossesBoundary ? `<div class="detail-boundary-warn">⚠ ${escHtml(street.boundaryNote)}</div>` : ''}
       ${street.weedAlert ? `<div class="detail-weed-warn">
-        🌿 Weed/grass control may be needed on this street
+        🌿 Weed/grass control may be needed
         ${street.weedNotes ? `<div class="weed-notes">${escHtml(street.weedNotes)}</div>` : ''}
         ${(street.weedNotes && street.scanPhotos?.length) ? (() => {
           const indices = extractWeedPhotoIndices(street.weedNotes);
@@ -1767,7 +1792,7 @@ function selectStreet(id) {
         })() : ''}
       </div>` : ''}
       ${street.ravelingAlert ? `<div class="detail-weed-warn" style="border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.08)">
-        ⚠ Raveling detected on this street — surface aggregate loss noted
+        ⚠ Raveling detected
         ${street.ravelingNotes ? `<div class="weed-notes">${escHtml(street.ravelingNotes)}</div>` : ''}
         ${(street.ravelingNotes && street.scanPhotos?.length) ? (() => {
           const indices = extractWeedPhotoIndices(street.ravelingNotes);
@@ -1780,85 +1805,134 @@ function selectStreet(id) {
         })() : ''}
       </div>` : ''}
       ${street.rrAlert ? `<div class="detail-weed-warn" style="border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.08)">
-        🔴 Remove &amp; Replace needed — structural failure detected
+        🔴 Remove &amp; Replace needed
         ${street.rrNotes ? `<div class="weed-notes">${escHtml(street.rrNotes)}</div>` : ''}
       </div>` : ''}
-      ${isArterialStreet(street) ? `<div class="detail-lane-layout">
+      ${isArterialStreet(street) && street.laneLayout ? `<div class="detail-lane-layout">
         <div class="lane-layout-title">🛣 Lane Layout</div>
-        ${street.laneLayout ? `
-          <div class="lane-layout-grid">
-            ${street.laneLayout.throughLanes != null ? `<div class="lane-item"><span class="lane-label">Through Lanes</span><span class="lane-value">${street.laneLayout.throughLanes} per direction</span></div>` : ''}
-            ${street.laneLayout.bikeLane?.present ? `<div class="lane-item"><span class="lane-label">Bike Lane</span><span class="lane-value">${street.laneLayout.bikeLane.side ? street.laneLayout.bikeLane.side + ' side' : 'Yes'}</span></div>` : ''}
-            ${street.laneLayout.leftTurnPockets ? `<div class="lane-item"><span class="lane-label">Left Turn Pockets</span><span class="lane-value">${street.laneLayout.leftTurnPockets}</span></div>` : ''}
-            ${street.laneLayout.rightLaneDrop ? `<div class="lane-item"><span class="lane-label">Right Lane Drop</span><span class="lane-value">Yes</span></div>` : ''}
-            ${street.laneLayout.parkingLane ? `<div class="lane-item"><span class="lane-label">Parking Lane</span><span class="lane-value">Yes</span></div>` : ''}
-            ${street.laneLayout.median ? `<div class="lane-item"><span class="lane-label">Median</span><span class="lane-value">Yes</span></div>` : ''}
+        <div class="lane-layout-grid">
+          ${street.laneLayout.throughLanes != null ? `<div class="lane-item"><span class="lane-label">Through Lanes</span><span class="lane-value">${street.laneLayout.throughLanes} per direction</span></div>` : ''}
+          ${street.laneLayout.bikeLane?.present ? `<div class="lane-item"><span class="lane-label">Bike Lane</span><span class="lane-value">${street.laneLayout.bikeLane.side ? street.laneLayout.bikeLane.side + ' side' : 'Yes'}</span></div>` : ''}
+          ${street.laneLayout.leftTurnPockets ? `<div class="lane-item"><span class="lane-label">Left Turn Pockets</span><span class="lane-value">${street.laneLayout.leftTurnPockets}</span></div>` : ''}
+          ${street.laneLayout.rightLaneDrop ? `<div class="lane-item"><span class="lane-label">Right Lane Drop</span><span class="lane-value">Yes</span></div>` : ''}
+          ${street.laneLayout.median ? `<div class="lane-item"><span class="lane-label">Median</span><span class="lane-value">Yes</span></div>` : ''}
+        </div>
+        ${street.laneLayout.notes ? `<div class="lane-notes">${escHtml(street.laneLayout.notes)}</div>` : ''}
+        <button class="btn-secondary" style="margin-top:6px;font-size:11px;width:100%" onclick="rescanLaneLayout('${street.id}')">Re-analyze Lanes</button>
+      </div>` : ''}
+
+      <div class="detail-stats">
+        <div class="detail-stat">
+          <div class="detail-stat-label">Sq Ft</div>
+          <div class="detail-stat-value">${street.sqft ? formatNumber(street.sqft) : '—'}</div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-label">Sq Yards</div>
+          <div class="detail-stat-value">${street.sqft ? formatNumber(Math.round(street.sqft / 9)) : '—'}</div>
+        </div>
+        <div class="detail-stat rating-card-${street.rating}">
+          <div class="detail-stat-label">Rating</div>
+          <div class="detail-stat-value"><span class="rating-badge rating-${street.rating}">${ratingLabel(street.rating)}</span></div>
+          <select class="rating-select rating-${street.rating}" onchange="setRating('${street.id}', this.value)">
+            <option value="level-1" ${street.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
+            <option value="level-2" ${street.rating === 'level-2' ? 'selected' : ''}>LVL 2</option>
+            <option value="level-3" ${street.rating === 'level-3' ? 'selected' : ''}>LVL 3</option>
+            <option value="level-4" ${street.rating === 'level-4' ? 'selected' : ''}>LVL 4</option>
+          </select>
+        </div>
+      </div>
+      <div id="calibration-reason-prompt" class="hidden"></div>
+      <div class="detail-stats">
+        ${street.rating && street.rating !== 'pending' ? `
+        <div class="detail-stat">
+          <div class="detail-stat-label">Treatment</div>
+          <div class="detail-stat-value" style="font-size:11px;color:${getTreatment(street.rating, activeProject.type).color};font-weight:600">${getTreatment(street.rating, activeProject.type).label}</div>
+        </div>` : ''}
+        <div class="detail-stat">
+          <div class="detail-stat-label">Length</div>
+          <div class="detail-stat-value">${street.length ? street.length + ' ft' : '—'}</div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-label">Width</div>
+          <div class="detail-stat-value">${street.width ? street.width + ' ft' : '—'}</div>
+          ${street.roadType ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">${escHtml(street.roadType)}</div>` : ''}
+        </div>
+      </div>
+
+      <div class="detail-actions">
+        ${activeProject.aiEnabled !== false ? `<button class="btn-rescan" onclick="rescanStreet('${street.id}')">Re-scan</button>` : ''}
+        <button class="btn-danger" onclick="deleteStreet('${street.id}')">Delete</button>
+      </div>
+    </div>
+
+    <!-- ── PHOTOS TAB ── -->
+    <div data-tab-content="photos" ${activeTab!=='photos'?'class="hidden"':''}>
+      <div class="detail-section">
+        <h4>Street View</h4>
+        <img class="streetview-img" src="${street.svImage}" alt="Street View" onclick="openStreetViewAt(${street.lat}, ${street.lng})" style="cursor:pointer" title="Click to open interactive Street View" onerror="loadSvThumbnailViaProxy(this, '${street.svImage}')">
+      </div>
+
+      <div class="detail-section">
+        <h4>On-Site Photos (${(street.photos || []).length})</h4>
+        <button class="btn-photo" onclick="openPhotoCapture('${street.id}')">Take Photo</button>
+        ${(street.photos || []).length > 0 ? `
+          <div class="scan-photo-grid" style="margin-top:8px">
+            ${street.photos.map((p, i) => `
+              <div class="scan-photo-card scan-photo-rated-${p.rating || 'none'}" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').photos, ${i}, '${street.id}')" title="Click to view photo">
+                <button class="scan-photo-delete" onclick="event.stopPropagation();deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
+                <span class="scan-photo-icon">&#128247;</span>
+                <span class="scan-photo-label">${escHtml(street.name.split(',')[0])} (${i + 1})</span>
+                <select class="photo-rating-select photo-rating-${p.rating || ''}" onclick="event.stopPropagation()" onchange="setOnSitePhotoRating('${street.id}','${p.id}',this.value)">
+                  <option value="">—</option>
+                  <option value="level-1" ${p.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
+                  <option value="level-2" ${p.rating === 'level-2' ? 'selected' : ''}>LVL 2</option>
+                  <option value="level-3" ${p.rating === 'level-3' ? 'selected' : ''}>LVL 3</option>
+                  <option value="level-4" ${p.rating === 'level-4' ? 'selected' : ''}>LVL 4</option>
+                </select>
+              </div>
+            `).join('')}
           </div>
-          ${street.laneLayout.notes ? `<div class="lane-notes">${escHtml(street.laneLayout.notes)}</div>` : ''}
-          <button class="btn-secondary" style="margin-top:8px;font-size:11px;width:100%" onclick="rescanLaneLayout('${street.id}')">Re-analyze Lanes</button>
-        ` : `
-          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">Not yet analyzed for this street.</p>
-          <button class="btn-secondary" style="font-size:11px;width:100%" onclick="rescanLaneLayout('${street.id}')">Analyze Lanes</button>
-        `}
+        ` : '<p class="text-dim">No photos yet</p>'}
+      </div>
+
+      ${activeProject.detectRR ? `
+      <div class="detail-section" style="border-color:rgba(239,68,68,0.3)">
+        <h4 style="color:#ef4444">R&amp;R Photos (${(street.rrPhotos || []).length})</h4>
+        <button class="btn-photo" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#ef4444" onclick="openRRPhotoCapture('${street.id}')">Take R&amp;R Photo</button>
+        ${(street.rrPhotos || []).length > 0 ? `
+          <div class="photo-grid" style="margin-top:8px">
+            ${(street.rrPhotos || []).map((p, i) => `
+              <div class="photo-card" onclick="openAllRRLightbox('${p.id}')" style="cursor:pointer;border-color:rgba(239,68,68,0.3)">
+                <img src="${p.dataUrl}" alt="R&R photo" class="photo-thumb">
+                <div class="photo-info">
+                  <div class="photo-info-top">
+                    <span class="photo-info-addr" style="color:#ef4444">R&amp;R — ${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</span>
+                    ${p.lat ? `<button class="btn-photo-jump" onclick="event.stopPropagation();map.panTo({lat:${p.lat},lng:${p.lng}});map.setZoom(19)">&#128205;</button>` : ''}
+                  </div>
+                  <span class="photo-info-date">${new Date(p.takenAt).toLocaleDateString()}</span>
+                  ${p.note ? `<span class="photo-note">${escHtml(p.note)}</span>` : ''}
+                </div>
+                <button class="photo-delete" onclick="event.stopPropagation();deleteRRPhoto('${street.id}','${p.id}')">&times;</button>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<p class="text-dim" style="margin-top:6px">No R&R photos yet</p>'}
       </div>` : ''}
-      <div class="detail-address">Added ${formatDate(street.createdAt)}</div>
-    </div>
 
-    <div class="detail-stats">
-      <div class="detail-stat">
-        <div class="detail-stat-label">Sq Ft</div>
-        <div class="detail-stat-value">${street.sqft ? formatNumber(street.sqft) : '—'}</div>
-      </div>
-      <div class="detail-stat">
-        <div class="detail-stat-label">Sq Yards</div>
-        <div class="detail-stat-value">${street.sqft ? formatNumber(Math.round(street.sqft / 9)) : '—'}</div>
-      </div>
-      <div class="detail-stat rating-card-${street.rating}">
-        <div class="detail-stat-label">Rating</div>
-        <div class="detail-stat-value"><span class="rating-badge rating-${street.rating}">${ratingLabel(street.rating)}</span></div>
-        <select class="rating-select rating-${street.rating}" onchange="setRating('${street.id}', this.value)">
-          <option value="level-1" ${street.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
-          <option value="level-2" ${street.rating === 'level-2' ? 'selected' : ''}>LVL 2</option>
-          <option value="level-3" ${street.rating === 'level-3' ? 'selected' : ''}>LVL 3</option>
-          <option value="level-4" ${street.rating === 'level-4' ? 'selected' : ''}>LVL 4</option>
-        </select>
-      </div>
-    </div>
-    <div id="calibration-reason-prompt" class="hidden"></div>
-    <div class="detail-stats">
-      ${street.rating && street.rating !== 'pending' ? `
-      <div class="detail-stat">
-        <div class="detail-stat-label">Treatment</div>
-        <div class="detail-stat-value" style="font-size:11px;color:${getTreatment(street.rating, activeProject.type).color};font-weight:600">${getTreatment(street.rating, activeProject.type).label}</div>
-      </div>` : ''}
-      <div class="detail-stat">
-        <div class="detail-stat-label">Length</div>
-        <div class="detail-stat-value">${street.length ? street.length + ' ft' : '—'}</div>
-      </div>
-      <div class="detail-stat">
-        <div class="detail-stat-label">Width</div>
-        <div class="detail-stat-value">${street.width ? street.width + ' ft' : '—'}</div>
-        ${street.roadType ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">${escHtml(street.roadType)}</div>` : ''}
-      </div>
-    </div>
-
-    <div class="detail-section">
-      <h4>Street View</h4>
-      <img class="streetview-img" src="${street.svImage}" alt="Street View of ${escHtml(street.name)}" onclick="openStreetViewAt(${street.lat}, ${street.lng})" style="cursor:pointer" title="Click to open interactive Street View" onerror="loadSvThumbnailViaProxy(this, '${street.svImage}')">
-    </div>
-
-    ${activeProject.aiEnabled !== false ? `
-    <div class="detail-section">
-      <h4>On-Site Photos (${(street.photos || []).length})</h4>
-      <button class="btn-photo" onclick="openPhotoCapture('${street.id}')">Take Photo</button>
-      ${(street.photos || []).length > 0 ? `
-        <div class="scan-photo-grid" style="margin-top:8px">
-          ${street.photos.map((p, i) => `
-            <div class="scan-photo-card scan-photo-rated-${p.rating || 'none'}" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').photos, ${i}, '${street.id}')" title="Click to view photo">
-              <button class="scan-photo-delete" onclick="event.stopPropagation();deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
+      ${(street.scanPhotos && street.scanPhotos.length > 0) ? `
+      <div class="detail-section">
+        <h4>AI Scan Photos (${street.scanPhotos.length})
+          <button class="btn-clear-scan-photos" onclick="clearScanPhotos('${street.id}')">Clear All</button>
+        </h4>
+        <div class="scan-photo-grid">
+          ${street.scanPhotos.map((p, i) => `
+            <div class="scan-photo-card scan-photo-rated-${p.rating || 'none'}" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').scanPhotos, ${i}, '${street.id}')">
+              <button class="scan-photo-delete" onclick="event.stopPropagation();deleteScanPhoto('${street.id}', ${i})">&times;</button>
               <span class="scan-photo-icon">&#128247;</span>
-              <span class="scan-photo-label">${escHtml(street.name.split(',')[0])} (${i + 1})</span>
-              <select class="photo-rating-select photo-rating-${p.rating || ''}" onclick="event.stopPropagation()" onchange="setOnSitePhotoRating('${street.id}','${p.id}',this.value)">
+              <span class="scan-photo-label">${escHtml(p.label)}</span>
+              ${p.svDate ? `<span class="scan-photo-date${parseInt(p.svDate) < new Date().getFullYear() - 4 ? ' scan-photo-date-old' : ''}">${p.svDate.slice(0,4)}</span>` : ''}
+              <button class="scan-photo-retake" onclick="event.stopPropagation();retakeScanPhoto('${street.id}', ${i})">&#8635;</button>
+              <select class="photo-rating-select photo-rating-${p.rating || ''}" onclick="event.stopPropagation()" onchange="setPhotoRating('${street.id}', ${i}, this.value)">
                 <option value="">—</option>
                 <option value="level-1" ${p.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
                 <option value="level-2" ${p.rating === 'level-2' ? 'selected' : ''}>LVL 2</option>
@@ -1868,100 +1942,40 @@ function selectStreet(id) {
             </div>
           `).join('')}
         </div>
-      ` : '<p class="text-dim">No photos yet — take one on-site</p>'}
+      </div>` : ''}
     </div>
-    ` : ''}
 
-    ${activeProject.detectRR ? `
-    <div class="detail-section" style="border-color:rgba(239,68,68,0.3)">
-      <h4 style="color:#ef4444">&#128247; R&amp;R Field Photos (${(street.rrPhotos || []).length})</h4>
-      <button class="btn-photo" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#ef4444" onclick="openRRPhotoCapture('${street.id}')">Take R&amp;R Photo</button>
-      ${(street.rrPhotos || []).length > 0 ? `
-        <div class="photo-grid" style="margin-top:8px">
-          ${(street.rrPhotos || []).map((p, i) => `
-            <div class="photo-card" onclick="openAllRRLightbox('${p.id}')" style="cursor:pointer;border-color:rgba(239,68,68,0.3)" title="Click to view">
-              <img src="${p.dataUrl}" alt="R&R photo" class="photo-thumb">
-              <div class="photo-info">
-                <div class="photo-info-top">
-                  <span class="photo-info-addr" style="color:#ef4444">R&amp;R — ${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</span>
-                  ${p.lat ? `<button class="btn-photo-jump" onclick="event.stopPropagation();map.panTo({lat:${p.lat},lng:${p.lng}});map.setZoom(19)" title="Jump to location on map">&#128205;</button>` : ''}
-                </div>
-                <span class="photo-info-date">${new Date(p.takenAt).toLocaleDateString()}</span>
-                ${p.rating ? `<span class="rating-badge rating-${p.rating}" style="font-size:9px;padding:1px 5px;align-self:flex-start">${ratingLabel(p.rating)}</span>` : ''}
-                ${p.note ? `<span class="photo-note">${escHtml(p.note)}</span>` : ''}
-              </div>
-              <button class="photo-delete" onclick="event.stopPropagation();deleteRRPhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
-            </div>
-          `).join('')}
-        </div>
-      ` : '<p class="text-dim" style="margin-top:6px">No R&R photos yet</p>'}
-    </div>
-    ` : ''}
-
-    ${(street.scanPhotos && street.scanPhotos.length > 0) ? `
-    <div class="detail-section">
-      <h4>Photos AI Analyzed (${street.scanPhotos.length})
-        <button class="btn-clear-scan-photos" onclick="clearScanPhotos('${street.id}')" title="Delete all AI scan photos">Clear All</button>
-      </h4>
-      <div class="scan-photo-grid">
-        ${street.scanPhotos.map((p, i) => `
-          <div class="scan-photo-card scan-photo-rated-${p.rating || 'none'}" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').scanPhotos, ${i}, '${street.id}')" title="Click to view photo">
-            <button class="scan-photo-delete" onclick="event.stopPropagation();deleteScanPhoto('${street.id}', ${i})" title="Delete">&times;</button>
-            <span class="scan-photo-icon">&#128247;</span>
-            <span class="scan-photo-label">${escHtml(p.label)}</span>
-            ${p.svDate ? `<span class="scan-photo-date${parseInt(p.svDate) < new Date().getFullYear() - 4 ? ' scan-photo-date-old' : ''}">${p.svDate.slice(0,4)}</span>` : ''}
-            <button class="scan-photo-retake" onclick="event.stopPropagation();retakeScanPhoto('${street.id}', ${i})" title="Retake at a better angle">&#8635;</button>
-            <select class="photo-rating-select photo-rating-${p.rating || ''}" onclick="event.stopPropagation()" onchange="setPhotoRating('${street.id}', ${i}, this.value)">
-              <option value="">—</option>
-              <option value="level-1" ${p.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
-              <option value="level-2" ${p.rating === 'level-2' ? 'selected' : ''}>LVL 2</option>
-              <option value="level-3" ${p.rating === 'level-3' ? 'selected' : ''}>LVL 3</option>
-              <option value="level-4" ${p.rating === 'level-4' ? 'selected' : ''}>LVL 4</option>
-            </select>
+    <!-- ── ANALYSIS TAB ── -->
+    <div data-tab-content="analysis" ${activeTab!=='analysis'?'class="hidden"':''}>
+      ${activeProject.aiEnabled !== false ? `
+      <div class="detail-section analysis-section-${street.rating}">
+        <h4>AI Pavement Analysis ${street.photosScanned ? `(${street.photosScanned} photo${street.photosScanned > 1 ? 's' : ''})` : ''}
+          <button class="btn-edit-analysis" onclick="toggleEditAnalysis('${street.id}')" id="edit-analysis-btn">Edit</button>
+        </h4>
+        <div class="analysis-rating-summary">${ratingLabel(street.rating)} — ${ratingDescription(street.rating)}</div>
+        <div class="ai-analysis" id="analysis-display">${formatAnalysis(street.analysis)}</div>
+        <div class="analysis-edit-area hidden" id="analysis-edit">
+          <textarea id="analysis-textarea" class="analysis-textarea">${escHtml(street.analysis || '')}</textarea>
+          <div class="analysis-edit-actions">
+            <button class="btn-save-analysis" onclick="saveAnalysis('${street.id}')">Save</button>
+            <button class="btn-secondary btn-cancel-analysis" onclick="cancelEditAnalysis()">Cancel</button>
           </div>
-        `).join('')}
-      </div>
-    </div>
-    ` : ''}
+        </div>
+      </div>` : `<div class="detail-section"><div class="ai-off-notice">AI analysis is off for this project</div></div>`}
 
-    ${activeProject.aiEnabled !== false ? `
-    <div class="detail-section analysis-section-${street.rating}">
-      <h4>AI Pavement Analysis ${street.photosScanned ? `(${street.photosScanned} photo${street.photosScanned > 1 ? 's' : ''} scanned)` : ''}
-        <button class="btn-edit-analysis" onclick="toggleEditAnalysis('${street.id}')" id="edit-analysis-btn">Edit</button>
-      </h4>
-      <div class="analysis-rating-summary">${ratingLabel(street.rating)} — ${ratingDescription(street.rating)}</div>
-      <div class="ai-analysis" id="analysis-display">${formatAnalysis(street.analysis)}</div>
-      <div class="analysis-edit-area hidden" id="analysis-edit">
-        <textarea id="analysis-textarea" class="analysis-textarea">${escHtml(street.analysis || '')}</textarea>
-        <div class="analysis-edit-actions">
-          <button class="btn-save-analysis" onclick="saveAnalysis('${street.id}')">Save</button>
-          <button class="btn-secondary btn-cancel-analysis" onclick="cancelEditAnalysis()">Cancel</button>
+      <div class="detail-section">
+        <h4>Admin Notes
+          <button class="btn-edit-analysis" onclick="toggleEditNotes('${street.id}')" id="edit-notes-btn">${street.adminNotes ? 'Edit' : 'Add'}</button>
+        </h4>
+        ${street.adminNotes ? `<div class="admin-notes" id="notes-display">${escHtml(street.adminNotes)}</div>` : `<p class="text-dim" id="notes-display">No notes yet</p>`}
+        <div class="analysis-edit-area hidden" id="notes-edit">
+          <textarea id="notes-textarea" class="analysis-textarea" placeholder="Add your own notes...">${escHtml(street.adminNotes || '')}</textarea>
+          <div class="analysis-edit-actions">
+            <button class="btn-save-analysis" onclick="saveAdminNotes('${street.id}')">Save</button>
+            <button class="btn-secondary btn-cancel-analysis" onclick="cancelEditNotes()">Cancel</button>
+          </div>
         </div>
       </div>
-    </div>
-    ` : `
-    <div class="detail-section">
-      <div class="ai-off-notice">AI analysis is off for this project</div>
-    </div>
-    `}
-
-    <div class="detail-section">
-      <h4>Admin Notes
-        <button class="btn-edit-analysis" onclick="toggleEditNotes('${street.id}')" id="edit-notes-btn">${street.adminNotes ? 'Edit' : 'Add'}</button>
-      </h4>
-      ${street.adminNotes ? `<div class="admin-notes" id="notes-display">${escHtml(street.adminNotes)}</div>` : `<p class="text-dim" id="notes-display">No admin notes yet</p>`}
-      <div class="analysis-edit-area hidden" id="notes-edit">
-        <textarea id="notes-textarea" class="analysis-textarea" placeholder="Add your own notes about this street...">${escHtml(street.adminNotes || '')}</textarea>
-        <div class="analysis-edit-actions">
-          <button class="btn-save-analysis" onclick="saveAdminNotes('${street.id}')">Save</button>
-          <button class="btn-secondary btn-cancel-analysis" onclick="cancelEditNotes()">Cancel</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="detail-actions">
-      ${activeProject.aiEnabled !== false ? `<button class="btn-rescan" onclick="rescanStreet('${street.id}')">Re-scan</button>` : ''}
-      <button class="btn-danger" onclick="deleteStreet('${street.id}')">Delete</button>
     </div>
   `;
 
