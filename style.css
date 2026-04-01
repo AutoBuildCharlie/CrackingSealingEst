@@ -421,7 +421,8 @@ body {
 .refine-rule-delete:hover { color: #ef4444; }
 .refine-ai-actions { display: flex; gap: 10px; margin-top: 14px; }
 .toggle-pill {
-  flex: 1;
+  flex: 1 1 calc(50% - 3px);
+  max-width: calc(50% - 3px);
   display: flex;
   align-items: center;
   justify-content: space-between;
