@@ -1698,7 +1698,7 @@ function selectStreet(id) {
             <div class="scan-photo-card scan-photo-rated-${p.rating || 'none'}" onclick="openLightbox(streets.find(s=>s.id==='${street.id}').photos, ${i}, '${street.id}')" title="Click to view photo">
               <button class="scan-photo-delete" onclick="event.stopPropagation();deletePhoto('${street.id}','${p.id}')" title="Delete">&times;</button>
               <span class="scan-photo-icon">&#128247;</span>
-              <span class="scan-photo-label">${p.address ? escHtml(p.address.split(',')[0]) : 'GPS tagged'}</span>
+              <span class="scan-photo-label">${escHtml(street.name.split(',')[0])} (${i + 1})</span>
               <select class="photo-rating-select photo-rating-${p.rating || ''}" onclick="event.stopPropagation()" onchange="setOnSitePhotoRating('${street.id}','${p.id}',this.value)">
                 <option value="">—</option>
                 <option value="level-1" ${p.rating === 'level-1' ? 'selected' : ''}>LVL 1</option>
