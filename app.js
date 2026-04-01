@@ -3110,6 +3110,20 @@ function closeStreetViewPanel() {
 let drawingMode = false;
 let drawCount = 0;
 
+function setMapCursor(cursorClass) {
+  const mapEl = document.getElementById('map');
+  if (!mapEl) return;
+  mapEl.classList.remove('cursor-pin-start', 'cursor-pin-end');
+  if (cursorClass) mapEl.classList.add(cursorClass);
+  // Force cursor onto Google Maps' internal canvas and div layers
+  const cursors = { 'cursor-pin-start': mapEl.style.getPropertyValue('--pin-start-cur') || 'crosshair', 'cursor-pin-end': 'crosshair' };
+  const svgGreen = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='10' stroke='%2322c55e' stroke-width='2' fill='none'/%3E%3Cline x1='16' y1='4' x2='16' y2='12' stroke='%2322c55e' stroke-width='2'/%3E%3Cline x1='16' y1='20' x2='16' y2='28' stroke='%2322c55e' stroke-width='2'/%3E%3Cline x1='4' y1='16' x2='12' y2='16' stroke='%2322c55e' stroke-width='2'/%3E%3Cline x1='20' y1='16' x2='28' y2='16' stroke='%2322c55e' stroke-width='2'/%3E%3C/svg%3E") 16 16, crosshair`;
+  const svgRed = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='10' stroke='%23ef4444' stroke-width='2' fill='none'/%3E%3Cline x1='16' y1='4' x2='16' y2='12' stroke='%23ef4444' stroke-width='2'/%3E%3Cline x1='16' y1='20' x2='16' y2='28' stroke='%23ef4444' stroke-width='2'/%3E%3Cline x1='4' y1='16' x2='12' y2='16' stroke='%23ef4444' stroke-width='2'/%3E%3Cline x1='20' y1='16' x2='28' y2='16' stroke='%23ef4444' stroke-width='2'/%3E%3C/svg%3E") 16 16, crosshair`;
+  const cur = cursorClass === 'cursor-pin-start' ? svgGreen : cursorClass === 'cursor-pin-end' ? svgRed : '';
+  mapEl.querySelectorAll('canvas, div[draggable], div[style]').forEach(el => { el.style.cursor = cur; });
+  mapEl.style.cursor = cur;
+}
+
 function startFreeHighlight() {
   if (drawingMode) { stopDrawingMode(); return; }
   if (streetViewMode) toggleStreetView(); // turn off street view
@@ -3123,7 +3137,7 @@ function startFreeHighlight() {
   document.getElementById('highlight-bar-text').textContent = 'Click the START of a street';
   document.getElementById('detail-panel').classList.add('hidden');
   document.querySelector('.qa-highlight').classList.add('qa-active');
-  document.getElementById('map').classList.add('cursor-pin-start');
+  setMapCursor('cursor-pin-start');
 }
 
 function cancelHighlight() {
@@ -3143,8 +3157,7 @@ function stopDrawingMode() {
   drawCount = 0;
   const pinLabel = document.getElementById('btn-pin-label');
   if (pinLabel) pinLabel.textContent = 'Pin.Start';
-  const mapEl = document.getElementById('map');
-  if (mapEl) { mapEl.classList.remove('cursor-pin-start'); mapEl.classList.remove('cursor-pin-end'); }
+  setMapCursor(null);
 }
 
 function clearTempPolyline() {
@@ -3265,8 +3278,7 @@ function handleMapClick(latLng) {
     document.getElementById('highlight-bar-text').textContent = 'Now click the END of this street';
     const pinLabel = document.getElementById('btn-pin-label');
     if (pinLabel) pinLabel.textContent = 'Pin.End';
-    document.getElementById('map').classList.remove('cursor-pin-start');
-    document.getElementById('map').classList.add('cursor-pin-end');
+    setMapCursor('cursor-pin-end');
   } else {
     // Click 2 = END of street → auto-save
     const startPt = window._drawStart;
@@ -3424,8 +3436,7 @@ async function saveHighlightedStreet(startPt, endPt) {
   document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} saved (${formatNumber(roadLengthFt)} ft) — click next street or Done`;
   const pinLabel = document.getElementById('btn-pin-label');
   if (pinLabel) pinLabel.textContent = 'Pin.Start';
-  const mapEl2 = document.getElementById('map');
-  if (mapEl2) { mapEl2.classList.remove('cursor-pin-end'); mapEl2.classList.add('cursor-pin-start'); }
+  setMapCursor('cursor-pin-start');
   showToast(`${formatNumber(roadLengthFt)} ft — ${formatNumber(street.sqft)} sq ft`);
 
   // Name already set from vote across start/mid/end geocodes — saved above
