@@ -3362,20 +3362,7 @@ async function saveHighlightedStreet(startPt, endPt) {
 
   const street = {
     id: crypto.randomUUID?.() || Date.now().toString(36),
-    name: (() => {
-      // Directions API dominant step is most reliable — use it if available
-      if (window._directionsStreetName) {
-        const n = window._directionsStreetName;
-        window._directionsStreetName = null;
-        return n;
-      }
-      // Fallback: vote across start/mid/end geocodes
-      const votes = [startGeo.route, midGeo.route, endGeo.route, roadInfo.name].filter(Boolean);
-      const counts = {};
-      votes.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
-      const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-      return best ? best[0] : 'Unknown location';
-    })(),
+    name: midGeo.route || startGeo.route || endGeo.route || 'Unknown location',
     lat: startPt.lat,
     lng: startPt.lng,
     length: roadLengthFt,
