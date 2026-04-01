@@ -242,20 +242,32 @@ body {
 .advanced-toggle-bar:hover { color: var(--accent); }
 .photo-settings-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
 }
-.photo-setting {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+.photo-setting-card {
   flex: 1;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 .photo-setting-label {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
   white-space: nowrap;
+}
+.photo-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .photo-step-btn {
   background: var(--bg-dark);
@@ -280,10 +292,10 @@ body {
   opacity: 0.6;
 }
 .photo-setting-val {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--accent);
-  min-width: 36px;
+  min-width: 40px;
   text-align: center;
 }
 

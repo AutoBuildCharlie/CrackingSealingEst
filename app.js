@@ -338,17 +338,21 @@ function renderProjectSelector() {
     </div>
     <div id="advanced-body" ${_advancedOpen ? '' : 'class="hidden"'}>
       <div class="photo-settings-row">
-        <div class="photo-setting">
+        <div class="photo-setting-card">
           <span class="photo-setting-label">Photo every</span>
-          <button class="photo-step-btn" onclick="savePhotoInterval(${(activeProject.photoInterval||200)-50})">−</button>
-          <span class="photo-setting-val">${activeProject.photoInterval || 200} ft</span>
-          <button class="photo-step-btn" onclick="savePhotoInterval(${(activeProject.photoInterval||200)+50})">+</button>
+          <div class="photo-stepper">
+            <button class="photo-step-btn" onclick="savePhotoInterval(${(activeProject.photoInterval||200)-50})">−</button>
+            <span class="photo-setting-val">${activeProject.photoInterval || 200} ft</span>
+            <button class="photo-step-btn" onclick="savePhotoInterval(${(activeProject.photoInterval||200)+50})">+</button>
+          </div>
         </div>
-        <div class="photo-setting">
+        <div class="photo-setting-card">
           <span class="photo-setting-label">Max photos</span>
-          <button class="photo-step-btn" onclick="saveMaxPhotos(${(activeProject.maxPhotos||6)-1})">−</button>
-          <span class="photo-setting-val">${activeProject.maxPhotos || 6}</span>
-          <button class="photo-step-btn" onclick="saveMaxPhotos(${(activeProject.maxPhotos||6)+1})">+</button>
+          <div class="photo-stepper">
+            <button class="photo-step-btn" onclick="saveMaxPhotos(${(activeProject.maxPhotos||6)-1})">−</button>
+            <span class="photo-setting-val">${activeProject.maxPhotos || 6}</span>
+            <button class="photo-step-btn" onclick="saveMaxPhotos(${(activeProject.maxPhotos||6)+1})">+</button>
+          </div>
         </div>
       </div>
       <div class="photo-settings-default">Default: 200 ft · 6 photos</div>
