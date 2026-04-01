@@ -90,11 +90,15 @@
   text-align: center;
 }
 
+html {
+  height: 100%;
+  overflow: hidden;
+}
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg-dark);
   color: var(--text);
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 ::-webkit-scrollbar { width: 5px; }
