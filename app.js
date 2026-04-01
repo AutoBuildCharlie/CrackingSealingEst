@@ -103,6 +103,9 @@ function initMap() {
   map.addListener('rightclick', () => {
     if (drawingMode) { stopDrawingMode(); showToast('Pin cancelled'); }
   });
+  document.getElementById('map').addEventListener('contextmenu', (e) => {
+    if (drawingMode) { e.preventDefault(); stopDrawingMode(); showToast('Pin cancelled'); }
+  });
 
   renderProjectSelector();
   renderStreetList();
