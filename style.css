@@ -214,6 +214,17 @@ body {
 }
 .btn-project-action:hover { border-color: var(--accent); color: var(--accent); }
 .btn-project-delete:hover { border-color: var(--red); color: var(--red); }
+.btn-settings-collapse {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: auto;
+}
+.btn-settings-collapse:hover { border-color: var(--accent); color: var(--accent); }
 
 .project-toggles {
   display: flex;

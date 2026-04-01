@@ -249,6 +249,16 @@ function renameProject(id) {
   renderProjectSelector();
 }
 
+let _settingsCollapsed = false;
+
+function toggleSettingsCollapse() {
+  _settingsCollapsed = !_settingsCollapsed;
+  const body = document.getElementById('project-settings-body');
+  const arrow = document.getElementById('settings-arrow');
+  if (body) body.classList.toggle('hidden', _settingsCollapsed);
+  if (arrow) arrow.textContent = _settingsCollapsed ? '▸' : '▾';
+}
+
 function renderProjectSelector() {
   const container = document.getElementById('project-selector');
   if (!container) return;
@@ -260,7 +270,9 @@ function renderProjectSelector() {
       <button class="btn-project-action" onclick="addNewProject()" title="New Project">+ New</button>
       <button class="btn-project-action" onclick="renameProject('${activeProject.id}')" title="Rename">Rename</button>
       <button class="btn-project-action btn-project-delete" onclick="deleteProject('${activeProject.id}')" title="Delete">Delete</button>
+      <button class="btn-settings-collapse" onclick="toggleSettingsCollapse()" title="Toggle settings"><span id="settings-arrow">${_settingsCollapsed ? '▸' : '▾'}</span></button>
     </div>
+    <div id="project-settings-body" ${_settingsCollapsed ? 'class="hidden"' : ''}>
     <div class="project-toggles">
       <div class="toggle-pill" onclick="toggleWideCracks()" title="${activeProject.includeWideCracks ? 'Wide cracks (1.25&quot;+) INCLUDED in scope' : 'Wide cracks (1.25&quot;+) NOT in scope — click to change'}">
         <span class="toggle-label">Wide Cracks 1.25"+</span>
@@ -314,6 +326,7 @@ function renderProjectSelector() {
         ${activeProject.calibrationLog?.length > 0 ? `<button class="btn-calib-refine" onclick="openRefineAIModal()">Refine AI</button>` : ''}
         ${activeProject.calibrationRules?.length > 0 ? `<button class="btn-calib-clear" onclick="clearCalibrationRules()">Clear</button>` : ''}
       </div>
+    </div>
     </div>
   `;
 }
