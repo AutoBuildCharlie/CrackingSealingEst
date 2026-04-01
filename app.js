@@ -3140,6 +3140,8 @@ function stopDrawingMode() {
   document.getElementById('highlight-bar').classList.add('hidden');
   document.querySelector('.qa-highlight').classList.remove('qa-active');
   drawCount = 0;
+  const pinLabel = document.getElementById('btn-pin-label');
+  if (pinLabel) pinLabel.textContent = 'Pin.Start';
 }
 
 function clearTempPolyline() {
@@ -3258,6 +3260,8 @@ function handleMapClick(latLng) {
     clearTempPolyline();
     addTempMarker(latLng, 'S', '#22c55e');
     document.getElementById('highlight-bar-text').textContent = 'Now click the END of this street';
+    const pinLabel = document.getElementById('btn-pin-label');
+    if (pinLabel) pinLabel.textContent = 'Pin.End';
   } else {
     // Click 2 = END of street → auto-save
     const startPt = window._drawStart;
@@ -3413,6 +3417,8 @@ async function saveHighlightedStreet(startPt, endPt) {
 
   drawCount++;
   document.getElementById('highlight-bar-text').textContent = `Street ${drawCount} saved (${formatNumber(roadLengthFt)} ft) — click next street or Done`;
+  const pinLabel = document.getElementById('btn-pin-label');
+  if (pinLabel) pinLabel.textContent = 'Pin.Start';
   showToast(`${formatNumber(roadLengthFt)} ft — ${formatNumber(street.sqft)} sq ft`);
 
   // Name already set from vote across start/mid/end geocodes — saved above
