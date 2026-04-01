@@ -270,7 +270,10 @@ function renderProjectSelector() {
       <button class="btn-project-action" onclick="addNewProject()" title="New Project">+ New</button>
       <button class="btn-project-action" onclick="renameProject('${activeProject.id}')" title="Rename">Rename</button>
       <button class="btn-project-action btn-project-delete" onclick="deleteProject('${activeProject.id}')" title="Delete">Delete</button>
-      <button class="btn-settings-collapse" onclick="toggleSettingsCollapse()" title="Toggle settings"><span id="settings-arrow">${_settingsCollapsed ? '▸' : '▾'}</span></button>
+    </div>
+    <div class="settings-collapse-bar" onclick="toggleSettingsCollapse()">
+      <span>Settings</span>
+      <span id="settings-arrow">${_settingsCollapsed ? '▸' : '▾'}</span>
     </div>
     <div id="project-settings-body" ${_settingsCollapsed ? 'class="hidden"' : ''}>
     <div class="project-toggles">

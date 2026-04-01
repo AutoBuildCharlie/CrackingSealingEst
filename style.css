@@ -214,17 +214,20 @@ body {
 }
 .btn-project-action:hover { border-color: var(--accent); color: var(--accent); }
 .btn-project-delete:hover { border-color: var(--red); color: var(--red); }
-.btn-settings-collapse {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  border-radius: 6px;
-  padding: 3px 7px;
+.settings-collapse-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
   font-size: 11px;
+  color: var(--text-dim);
+  background: var(--bg-dark);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
-  margin-left: auto;
+  user-select: none;
 }
-.btn-settings-collapse:hover { border-color: var(--accent); color: var(--accent); }
+.settings-collapse-bar:hover { color: var(--accent); }
 
 .project-toggles {
   display: flex;
