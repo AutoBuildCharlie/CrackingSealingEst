@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PavementScan</title>
+  <link rel="stylesheet" href="mobile.css?v=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#0a0e1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+</head>
+<body>
+
+  <!-- ─── LOGIN ───────────────────────────────────────── -->
+  <div id="login-screen">
+    <div class="login-box">
+      <h2>Pavement<em>Scan</em></h2>
+      <p class="login-sub">Pavement Assessment Tool</p>
+      <input type="text" id="login-user" placeholder="Username" autocomplete="username">
+      <input type="password" id="login-pass" placeholder="Passcode" autocomplete="current-password">
+      <div id="login-error" class="login-error hidden">Incorrect username or passcode.</div>
+      <button onclick="doLogin()">Enter</button>
+    </div>
+  </div>
+
+  <!-- ─── MAP (full screen) ───────────────────────────── -->
+  <div id="map"></div>
+
+  <!-- ─── TOP BAR ─────────────────────────────────────── -->
+  <div id="top-bar">
+    <button id="project-chip" onclick="openProjectSheet()">
+      <span id="project-chip-name">Loading…</span>
+      <span class="chip-arrow">▾</span>
+    </button>
+    <div class="search-row">
+      <input type="text" id="search-input" placeholder="Search address…" onkeydown="if(event.key==='Enter')searchLocation()">
+      <button class="btn-nearme" onclick="goToMyLocation()">⊙</button>
+    </div>
+  </div>
+
+  <!-- ─── FABs ─────────────────────────────────────────── -->
+  <div id="fab-group">
+    <button id="fab-scan" class="fab" onclick="openScanSheet()" title="Scan a street">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+    </button>
+    <button id="fab-photo" class="fab" onclick="startPhoto()" title="Take a photo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
+    </button>
+    <div id="fab-sv" class="fab fab-sv" title="Drag to open Street View">
+      <svg width="20" height="28" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="11" cy="9" r="3.5" fill="#fde68a"/>
+        <rect x="2" y="13.5" width="6" height="2.5" rx="1.25" fill="#f97316" transform="rotate(20,7.5,14.75)"/>
+        <rect x="14" y="13.5" width="6" height="2.5" rx="1.25" fill="#f97316" transform="rotate(-20,14.5,14.75)"/>
+        <rect x="7.5" y="13" width="7" height="7" rx="2" fill="#f97316"/>
+        <rect x="7.5" y="19.5" width="3" height="7.5" rx="1.5" fill="#374151"/>
+        <rect x="11.5" y="19.5" width="3" height="7.5" rx="1.5" fill="#374151"/>
+      </svg>
+    </div>
+    <button id="fab-pin" class="fab fab-pin" onclick="togglePinMode()" title="Pin a street">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+        <circle cx="12" cy="10" r="3"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ─── PIN MODE BAR ─────────────────────────────────── -->
+  <div id="pin-bar" class="hidden">
+    <span id="pin-bar-text">Tap the START of the street</span>
+    <button onclick="cancelPin()">Cancel</button>
+  </div>
+
+  <!-- ─── BOTTOM SHEET ─────────────────────────────────── -->
+  <div id="bottom-sheet">
+    <div id="sheet-handle-wrap">
+      <div id="sheet-handle"></div>
+    </div>
+    <div id="sheet-inner">
+      <!-- Street List view -->
+      <div id="view-list">
+        <div class="sheet-stats" id="sheet-stats"></div>
+        <div id="mobile-street-list"></div>
+      </div>
+      <!-- Street Detail view -->
+      <div id="view-detail" class="hidden">
+        <div id="detail-header-mobile"></div>
+        <div class="mobile-tabs">
+          <button class="mobile-tab active" data-tab="overview" onclick="switchMobileTab('overview')">Overview</button>
+          <button class="mobile-tab" data-tab="photos" onclick="switchMobileTab('photos')">Photos <span id="mobile-photo-count" class="tab-badge"></span></button>
+          <button class="mobile-tab" data-tab="analysis" onclick="switchMobileTab('analysis')">Analysis</button>
+        </div>
+        <div id="mobile-tab-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PROJECT SHEET ────────────────────────────────── -->
+  <div id="project-sheet-overlay" class="overlay hidden" onclick="closeProjectSheet(event)">
+    <div id="project-sheet" onclick="event.stopPropagation()">
+      <div id="sheet-handle-wrap"><div id="sheet-handle"></div></div>
+      <div class="project-sheet-header">
+        <h3>Projects</h3>
+        <button class="btn-new-project" onclick="promptNewProject()">+ New</button>
+      </div>
+      <div id="project-list-mobile"></div>
+    </div>
+  </div>
+
+  <!-- ─── SCAN SHEET ───────────────────────────────────── -->
+  <div id="scan-sheet-overlay" class="overlay hidden" onclick="closeScanSheet(event)">
+    <div id="scan-sheet" onclick="event.stopPropagation()">
+      <div id="sheet-handle-wrap"><div id="sheet-handle"></div></div>
+      <h3>Add Street</h3>
+      <div class="form-group">
+        <label>Street Name</label>
+        <input type="text" id="scan-street-name" placeholder="e.g. 1200 W Ball Rd, Anaheim">
+      </div>
+      <div class="form-group">
+        <label>Length (ft)</label>
+        <input type="number" id="scan-street-length" placeholder="e.g. 500">
+      </div>
+      <p class="form-hint">Width is auto-detected from road type.</p>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <textarea id="scan-street-notes" rows="2" placeholder="Parking lot, residential, etc."></textarea>
+      </div>
+      <button class="btn-primary-full" onclick="submitScanSheet()">Add &amp; Scan</button>
+      <button class="btn-secondary-full" onclick="closeScanSheet()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ─── NAME PROMPT SHEET ────────────────────────────── -->
+  <div id="name-sheet-overlay" class="overlay hidden" onclick="closeNameSheet(event)">
+    <div id="name-sheet" onclick="event.stopPropagation()">
+      <div id="sheet-handle-wrap"><div id="sheet-handle"></div></div>
+      <h3>Name This Street</h3>
+      <p class="sheet-sub">What street did you just highlight?</p>
+      <input type="text" id="name-sheet-input" placeholder="e.g. Katella Avenue" onkeydown="if(event.key==='Enter')confirmNameSheet()">
+      <button class="btn-primary-full" onclick="confirmNameSheet()">Save Name</button>
+      <button class="btn-secondary-full" onclick="closeNameSheet()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ─── SCANNING SPINNER ─────────────────────────────── -->
+  <div id="scanning-overlay" class="overlay hidden">
+    <div id="scanning-modal">
+      <div class="scan-spinner"></div>
+      <h3>Scanning Street View…</h3>
+      <p id="scanning-status">Pulling imagery and analyzing pavement</p>
+    </div>
+  </div>
+
+  <!-- ─── STREET VIEW OVERLAY ──────────────────────────── -->
+  <div id="sv-overlay" class="hidden">
+    <div id="sv-pano"></div>
+    <div id="sv-toolbar">
+      <button id="btn-close-sv" onclick="closeSV()">← Back</button>
+      <div id="sv-snap-btns">
+        <button class="btn-sv-snap" onclick="snapSV(false)">📷 Snap</button>
+        <button class="btn-sv-snap" onclick="snapSV(true)">📷 R&amp;R</button>
+      </div>
+      <button id="btn-sv-replace" class="btn-sv-snap hidden" onclick="snapRetakeMobile()">↩ Replace</button>
+    </div>
+  </div>
+
+  <!-- ─── SV SNAP SHEET ────────────────────────────────── -->
+  <div id="snap-sheet-overlay" class="overlay hidden" onclick="closeSnapSheet(event)">
+    <div id="snap-sheet" onclick="event.stopPropagation()">
+      <div id="sheet-handle-wrap"><div id="sheet-handle"></div></div>
+      <h3>Save Photo</h3>
+      <img id="snap-preview" src="" alt="" class="snap-img">
+      <div class="form-group">
+        <label>Rating</label>
+        <select id="snap-rating">
+          <option value="">— No rating —</option>
+          <option value="level-1">LVL 1 — Good</option>
+          <option value="level-2">LVL 2 — Light cracks</option>
+          <option value="level-3">LVL 3 — Heavy cracks</option>
+          <option value="level-4">LVL 4 — Alligator</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Note (optional)</label>
+        <textarea id="snap-note" rows="2" placeholder="e.g. Deep crack at driveway"></textarea>
+      </div>
+      <button class="btn-primary-full" onclick="saveSnapMobile()">Save to Street</button>
+      <button class="btn-secondary-full" onclick="closeSnapSheet()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ─── PHOTO LIGHTBOX ───────────────────────────────── -->
+  <div id="lightbox" class="hidden" onclick="closeLightboxMobile()">
+    <div class="lightbox-inner" onclick="event.stopPropagation()">
+      <button class="lightbox-close" onclick="closeLightboxMobile()">&times;</button>
+      <img id="lb-img" src="" alt="">
+      <div id="lb-label" class="lb-label"></div>
+      <div class="lb-rating-row">
+        <select id="lb-rating" onchange="lbSetRating(this.value)">
+          <option value="">— Not rated —</option>
+          <option value="level-1">LVL 1 — Good</option>
+          <option value="level-2">LVL 2 — Light cracks</option>
+          <option value="level-3">LVL 3 — Heavy cracks</option>
+          <option value="level-4">LVL 4 — Alligator</option>
+        </select>
+      </div>
+      <div id="lb-calib" class="hidden lb-calib"></div>
+      <div class="lb-nav">
+        <button id="lb-retake" class="hidden" onclick="lbRetake()">↺</button>
+        <button onclick="lbNav(-1)">←</button>
+        <span id="lb-count"></span>
+        <button onclick="lbNav(1)">→</button>
+        <button id="lb-delete" onclick="lbDelete()" class="lb-delete">🗑</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TOAST ─────────────────────────────────────────── -->
+  <div id="toast" class="hidden"></div>
+
+  <!-- hidden file inputs -->
+  <input type="file" id="photo-input" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoInput(event)">
+  <input type="file" id="rr-photo-input" accept="image/*" capture="environment" class="hidden" onchange="handleRRPhotoInput(event)">
+
+  <script src="mobile.js?v=1"></script>
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async&libraries=marker">
+  </script>
+
+</body>
+</html>
