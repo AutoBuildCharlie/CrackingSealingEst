@@ -48,10 +48,26 @@ function initMap() {
   map = new google.maps.Map(document.getElementById('map'), {
     center: { lat: 33.835, lng: -117.914 },
     zoom: 14,
-    mapId: MAP_ID,
     disableDefaultUI: true,
     gestureHandling: 'greedy',
     clickableIcons: false,
+    styles: [
+      { elementType: 'geometry', stylers: [{ color: '#0d1117' }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#94a3b8' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#0d1117' }] },
+      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1e293b' }] },
+      { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#0a0e1a' }] },
+      { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#94a3b8' }] },
+      { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2d3f55' }] },
+      { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#cbd5e1' }] },
+      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0a1628' }] },
+      { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4b6a8a' }] },
+      { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+      { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+      { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
+      { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#1e293b' }] },
+      { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: '#64748b' }] },
+    ],
   });
 
   map.addListener('click', e => handleMapClick(e.latLng));
@@ -679,15 +695,21 @@ function confirmNameSheet() {
 
   const s = _pendingStreet;
   s.name = name;
-  const roadType = 'residential';
-  s.width = roadTypeWidth(roadType);
-  s.roadType = roadType;
-  s.sqft = s.length * s.width;
   s.rating = null; s.analysis = ''; s.aiRating = null;
   s.photos = []; s.rrPhotos = []; s.scanPhotos = [];
   s.weedAlert = false; s.ravelingAlert = false; s.rrAlert = false;
   s.createdAt = new Date().toISOString();
   _pendingStreet = null;
+
+  // Detect road type before scan
+  detectRoadType(s.lat, s.lng).then(rt => {
+    s.roadType = rt;
+    s.width = roadTypeWidth(rt);
+    s.sqft = (s.length || 300) * s.width;
+    saveProjects();
+  }).catch(() => {
+    s.roadType = 'residential'; s.width = 36; s.sqft = (s.length || 300) * 36;
+  });
 
   activeProject.streets.push(s);
   saveProjects();
@@ -695,7 +717,7 @@ function confirmNameSheet() {
 
   if (activeProject.aiEnabled !== false) {
     showScanning('Scanning Street View…');
-    analyzeStreet(s).catch(e => { console.error(e); hideScanning(); });
+    analyzeStreet(s).catch(e => { console.error(e); hideScanning(); showToast('Scan failed'); });
   } else {
     renderAll();
     openStreet(s.id);
@@ -736,8 +758,6 @@ async function analyzeStreet(street) {
       try {
         const base64 = await fetchImageBase64(url);
         if (!base64) continue;
-        const hasRoad = await checkHasRoad(base64);
-        if (!hasRoad) continue;
         photoData.push({ base64, url, lat: pt.lat, lng: pt.lng, heading: pt.heading });
         if (photoData.length >= (activeProject.maxPhotos || 6)) break;
       } catch {}
