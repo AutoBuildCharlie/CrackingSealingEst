@@ -1958,3 +1958,9 @@ body {
 .due-badge-due-overdue { background: rgba(239,68,68,0.2);   color: #ef4444; }
 .due-badge-due-future  { background: rgba(100,116,139,0.15);color: #94a3b8; }
 .btn-optimize { border-color: rgba(245,158,11,0.5) !important; color: var(--accent) !important; }
+.route-row { margin-top: 4px; flex-wrap: wrap; }
+.route-label { font-size: 10px; color: var(--text-dim); font-weight: 600; white-space: nowrap; }
+.route-mode-group { display: flex; gap: 2px; }
+.route-mode-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); font-size: 10px; padding: 4px 8px; cursor: pointer; white-space: nowrap; font-weight: 500; transition: all 0.15s; }
+.route-mode-btn:hover { border-color: var(--accent); color: var(--accent); }
+.route-mode-btn.active { background: rgba(245,158,11,0.15); border-color: var(--accent); color: var(--accent); font-weight: 700; }

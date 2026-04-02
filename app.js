@@ -243,26 +243,46 @@ function nearestNeighborOrder(pool, startLat, startLng) {
   return result;
 }
 
+function setRouteMode(mode) {
+  activeProject.routeMode = mode;
+  saveProjects();
+  renderProjectSelector();
+  showToast('Route mode: ' + mode.charAt(0).toUpperCase() + mode.slice(1));
+}
+
 function optimizeRoute() {
   if (!streets.length) { showToast('No streets to optimize'); return; }
-  const withDate = streets.filter(s => s.dueDate);
-  const withoutDate = streets.filter(s => !s.dueDate);
-  const dateGroups = {};
-  withDate.forEach(s => { if (!dateGroups[s.dueDate]) dateGroups[s.dueDate] = []; dateGroups[s.dueDate].push(s); });
-  const sortedDates = Object.keys(dateGroups).sort();
+  const mode = activeProject.routeMode || 'hybrid';
   let ordered = [];
-  let lastLat = streets[0].lat, lastLng = streets[0].lng;
-  sortedDates.forEach(date => {
-    const sorted = nearestNeighborOrder(dateGroups[date], lastLat, lastLng);
-    ordered = ordered.concat(sorted);
-    if (sorted.length) { lastLat = sorted[sorted.length-1].lat; lastLng = sorted[sorted.length-1].lng; }
-  });
-  if (withoutDate.length) ordered = ordered.concat(nearestNeighborOrder(withoutDate, lastLat, lastLng));
+  const startLat = streets[0].lat, startLng = streets[0].lng;
+
+  if (mode === 'auto') {
+    // Pure nearest-neighbor — ignore due dates
+    ordered = nearestNeighborOrder([...streets], startLat, startLng);
+  } else if (mode === 'manual') {
+    showToast('Manual mode — set route stop numbers directly on each street');
+    return;
+  } else {
+    // Hybrid — due dates first, then nearest-neighbor within each group
+    const withDate = streets.filter(s => s.dueDate);
+    const withoutDate = streets.filter(s => !s.dueDate);
+    const dateGroups = {};
+    withDate.forEach(s => { if (!dateGroups[s.dueDate]) dateGroups[s.dueDate] = []; dateGroups[s.dueDate].push(s); });
+    const sortedDates = Object.keys(dateGroups).sort();
+    let lastLat = startLat, lastLng = startLng;
+    sortedDates.forEach(date => {
+      const sorted = nearestNeighborOrder(dateGroups[date], lastLat, lastLng);
+      ordered = ordered.concat(sorted);
+      if (sorted.length) { lastLat = sorted[sorted.length-1].lat; lastLng = sorted[sorted.length-1].lng; }
+    });
+    if (withoutDate.length) ordered = ordered.concat(nearestNeighborOrder(withoutDate, lastLat, lastLng));
+  }
+
   ordered.forEach((s, i) => { s.order = i + 1; });
   saveStreets();
   renderStreetList();
   drawAllHighlights();
-  showToast(`Route optimized — ${ordered.length} streets ordered`);
+  showToast('Route optimized — ' + ordered.length + ' streets ordered');
 }
 
 function clearRouteOrder() {
@@ -397,9 +417,17 @@ function renderProjectSelector() {
       <button class="btn-project-action" onclick="addNewProject()" title="New Project">+ New</button>
       <button class="btn-project-action" onclick="renameProject('${activeProject.id}')" title="Rename">Rename</button>
       <button class="btn-project-action" onclick="exportProject()" title="Export project as JSON">Export</button>
-      <button class="btn-project-action btn-optimize" onclick="optimizeRoute()" title="Auto-order streets by due date then driving efficiency">⚡ Optimize Route</button>
-      ${streets.some(s => s.order != null) ? `<button class="btn-project-action" onclick="clearRouteOrder()" style="border-color:rgba(239,68,68,0.4);color:#ef4444">✕ Clear Order</button>` : ''}
       <button class="btn-project-action btn-project-delete" onclick="deleteProject('${activeProject.id}')" title="Delete">Delete</button>
+    </div>
+    <div class="project-row route-row">
+      <span class="route-label">Route:</span>
+      <div class="route-mode-group">
+        <button class="route-mode-btn ${(activeProject.routeMode||'hybrid')==='manual'?'active':''}" onclick="setRouteMode('manual')" title="Set order numbers yourself — no auto-sorting">Manual</button>
+        <button class="route-mode-btn ${(activeProject.routeMode||'hybrid')==='hybrid'?'active':''}" onclick="setRouteMode('hybrid')" title="Due dates first, then nearest-neighbor efficiency">Hybrid</button>
+        <button class="route-mode-btn ${(activeProject.routeMode||'hybrid')==='auto'?'active':''}" onclick="setRouteMode('auto')" title="Pure nearest-neighbor — ignore due dates">Auto</button>
+      </div>
+      <button class="btn-project-action btn-optimize" onclick="optimizeRoute()" title="Apply route optimization">⚡ Optimize Route</button>
+      ${streets.some(s => s.order != null) ? '<button class="btn-project-action" onclick="clearRouteOrder()" style="border-color:rgba(239,68,68,0.4);color:#ef4444">&#x2715; Clear</button>' : ''}
     </div>
     <div class="settings-collapse-bar" onclick="toggleSettingsCollapse()">
       <span>Settings</span>
