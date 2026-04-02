@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PavementScan</title>
-  <link rel="stylesheet" href="mobile.css?v=3">
+  <link rel="stylesheet" href="mobile.css?v=4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -86,6 +86,26 @@
     <button onclick="cancelPin()">Cancel</button>
   </div>
 
+  <!-- ─── ORDER MODE BAR ───────────────────────────────── -->
+  <div id="order-bar" class="hidden">
+    <span id="order-bar-text">Tap street — Stop #1</span>
+    <button id="order-half-btn" onclick="toggleOrderHalfMode()" title="Toggle half stop">½</button>
+    <button onclick="cancelOrderMode()">Done</button>
+  </div>
+
+  <!-- ─── ORDER NOTE SHEET ─────────────────────────────── -->
+  <div id="order-note-overlay" class="overlay hidden">
+    <div id="order-note-sheet">
+      <div id="order-note-label" style="font-size:13px;font-weight:600;color:#f59e0b;margin-bottom:10px"></div>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Why this street next? <span style="opacity:0.6">(optional)</span></p>
+      <input id="order-note-input" type="text" placeholder="e.g. connects to stop 2, do before traffic" maxlength="120"
+        style="width:100%;background:var(--bg-dark);border:1px solid rgba(245,158,11,0.4);border-radius:8px;color:#fff;font-size:14px;padding:10px 12px;outline:none;box-sizing:border-box"
+        onkeydown="if(event.key==='Enter')saveOrderNote()">
+      <button class="btn-primary-full" style="margin-top:10px" onclick="saveOrderNote()">Save Note</button>
+      <button class="btn-secondary-full" style="margin-top:6px" onclick="skipOrderNote()">Skip</button>
+    </div>
+  </div>
+
   <!-- ─── BOTTOM SHEET ─────────────────────────────────── -->
   <div id="bottom-sheet">
     <div id="sheet-handle-wrap">
@@ -120,6 +140,9 @@
       </div>
       <div id="project-list-mobile"></div>
       <div style="padding:12px 16px 4px">
+        <button class="btn-secondary-full" onclick="startOrderMode()" style="border-color:var(--accent);color:var(--accent)">▶ Set Route Order</button>
+      </div>
+      <div style="padding:4px 16px 4px">
         <button class="btn-secondary-full" onclick="clearRouteOrder()" style="border-color:#ef4444;color:#ef4444">✕ Clear All Order Numbers</button>
       </div>
       <div style="padding:4px 16px 4px">
@@ -256,7 +279,7 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
   </script>
-  <script src="mobile.js?v=47"></script>
+  <script src="mobile.js?v=48"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async">
   </script>

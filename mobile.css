@@ -216,6 +216,38 @@ html, body {
   border-radius: 12px; padding: 5px 12px;
   font-size: 12px; font-weight: 600; cursor: pointer;
 }
+#order-bar {
+  position: fixed;
+  bottom: calc(210px + var(--safe-bottom));
+  left: 50%; transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid #f59e0b;
+  border-radius: 20px;
+  padding: 10px 16px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; font-weight: 600; color: #f59e0b;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  z-index: 200; white-space: nowrap;
+}
+#order-bar button {
+  background: rgba(245,158,11,0.15);
+  border: 1px solid rgba(245,158,11,0.4);
+  color: #f59e0b;
+  border-radius: 12px; padding: 5px 12px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+#order-half-btn.half-active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+#order-note-sheet {
+  background: var(--bg-card);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 20px calc(20px + var(--safe-bottom));
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 1100;
+}
 
 /* ─── BOTTOM SHEET ──────────────────────────────────────── */
 #bottom-sheet {

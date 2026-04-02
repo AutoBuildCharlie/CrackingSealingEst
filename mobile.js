@@ -623,13 +623,20 @@ function drawAllPolylines() {
     const color = s.completed ? '#4b5563' : ratingColor(s.rating);
     const isActive = s.id === activeStreetId;
 
+    const _streetClickHandler = (e) => {
+      if (_orderMode) {
+        const pt = e?.latLng ? { lat: e.latLng.lat(), lng: e.latLng.lng() } : null;
+        _orderHalfMode ? assignHalfOrderToStreet(s.id, pt) : assignOrderToStreet(s.id, pt);
+      } else { openStreet(s.id); setSheetState('half'); }
+    };
+
     // Wide invisible tap target
     const tap = new google.maps.Polyline({
       path: points, geodesic: true,
       strokeColor: color, strokeOpacity: 0.001, strokeWeight: 30, map,
       zIndex: 2, clickable: true
     });
-    tap.addListener('click', () => { openStreet(s.id); setSheetState('half'); });
+    tap.addListener('click', _streetClickHandler);
     polylines.push(tap);
 
     // Glow
@@ -638,7 +645,7 @@ function drawAllPolylines() {
       strokeColor: color, strokeOpacity: 0.08, strokeWeight: 10, map,
       zIndex: 3
     });
-    glow.addListener('click', () => { openStreet(s.id); setSheetState('half'); });
+    glow.addListener('click', _streetClickHandler);
     polylines.push(glow);
 
     // Main line
@@ -649,19 +656,21 @@ function drawAllPolylines() {
       strokeWeight: isActive ? 6 : 5,
       map, zIndex: isActive ? 20 : 5
     });
-    line.addListener('click', () => openStreet(s.id));
+    line.addListener('click', _streetClickHandler);
     polylines.push(line);
 
     if (s.order != null && s.path?.length >= 2) {
       const midIdx = Math.floor(s.path.length / 2);
-      const midPt = s.path[midIdx];
+      const fallback = s.path[midIdx];
+      const badgePt = s.orderClickPt || fallback;
+      const isHalf = String(s.order).includes('.');
       const orderMarker = new google.maps.Marker({
-        position: midPt, map,
-        label: { text: String(s.order), color: '#000', fontWeight: 'bold', fontSize: '10px' },
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 11, fillColor: '#f59e0b', fillOpacity: 1, strokeWeight: 1.5, strokeColor: '#fff' },
+        position: badgePt, map,
+        label: { text: String(s.order), color: '#fff', fontWeight: 'bold', fontSize: '9px' },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: isHalf ? 13 : 11, fillColor: isHalf ? '#6366f1' : '#f59e0b', fillOpacity: 1, strokeWeight: 1.5, strokeColor: '#fff' },
         title: `Stop #${s.order}: ${s.name}`, zIndex: 20
       });
-      orderMarker.addListener('click', () => { openStreet(s.id); setSheetState('half'); });
+      orderMarker.addListener('click', _streetClickHandler);
       polylines.push(orderMarker);
     }
 
@@ -1823,11 +1832,103 @@ function toggleStreetDone(id) {
 
 function clearRouteOrder() {
   const streets = getStreets();
-  streets.forEach(s => { s.order = null; });
+  streets.forEach(s => { s.order = null; s.orderClickPt = null; s.orderNote = ''; });
   saveProjects();
   renderAll();
   closeProjectSheet();
   showToast('Route order cleared');
+}
+
+// ─── ORDER MODE ─────────────────────────────────────────────
+let _orderMode = false;
+let _orderCounter = 1;
+let _orderHalfMode = false;
+let _orderPendingId = null;
+
+function startOrderMode() {
+  const streets = getStreets();
+  if (!streets.length) { showToast('No streets to order'); return; }
+  closeProjectSheet();
+  _orderMode = true;
+  _orderHalfMode = false;
+  const maxOrder = streets.reduce((m, s) => s.order != null ? Math.max(m, s.order) : m, 0);
+  _orderCounter = maxOrder > 0 ? Math.ceil(maxOrder) + 1 : 1;
+  document.getElementById('order-bar').classList.remove('hidden');
+  document.getElementById('order-half-btn').classList.remove('half-active');
+  _updateOrderBarText();
+}
+
+function cancelOrderMode() {
+  _orderMode = false;
+  _orderHalfMode = false;
+  _orderPendingId = null;
+  document.getElementById('order-bar').classList.add('hidden');
+  document.getElementById('order-note-overlay').classList.add('hidden');
+}
+
+function toggleOrderHalfMode() {
+  _orderHalfMode = !_orderHalfMode;
+  document.getElementById('order-half-btn').classList.toggle('half-active', _orderHalfMode);
+  _updateOrderBarText();
+}
+
+function _updateOrderBarText() {
+  const stopNum = _orderHalfMode ? (_orderCounter - 0.5 || 0.5) : _orderCounter;
+  document.getElementById('order-bar-text').textContent = (_orderHalfMode ? '½ Half — Stop #' : 'Tap — Stop #') + stopNum;
+}
+
+function assignOrderToStreet(id, clickPt) {
+  const s = getStreets().find(s => s.id === id);
+  if (!s) return;
+  s.order = _orderCounter++;
+  s.orderNote = '';
+  if (clickPt) s.orderClickPt = clickPt;
+  _orderHalfMode = false;
+  document.getElementById('order-half-btn').classList.remove('half-active');
+  saveProjects();
+  drawAllPolylines();
+  _updateOrderBarText();
+  _showOrderNotePrompt(id, s.order, s.name);
+}
+
+function assignHalfOrderToStreet(id, clickPt) {
+  const s = getStreets().find(s => s.id === id);
+  if (!s) return;
+  s.order = _orderCounter > 1 ? _orderCounter - 0.5 : 0.5;
+  s.orderNote = '';
+  if (clickPt) s.orderClickPt = clickPt;
+  _orderHalfMode = false;
+  document.getElementById('order-half-btn').classList.remove('half-active');
+  saveProjects();
+  drawAllPolylines();
+  _updateOrderBarText();
+  _showOrderNotePrompt(id, s.order, s.name);
+}
+
+function _showOrderNotePrompt(id, stopNum, streetName) {
+  _orderPendingId = id;
+  document.getElementById('order-note-overlay').classList.remove('hidden');
+  document.getElementById('order-note-label').textContent = 'Stop #' + stopNum + ' → ' + streetName;
+  const input = document.getElementById('order-note-input');
+  input.value = '';
+  setTimeout(() => input.focus(), 100);
+}
+
+function saveOrderNote() {
+  const note = document.getElementById('order-note-input').value.trim();
+  if (_orderPendingId) {
+    const s = getStreets().find(s => s.id === _orderPendingId);
+    if (s) { s.orderNote = note; saveProjects(); }
+  }
+  _orderPendingId = null;
+  document.getElementById('order-note-overlay').classList.add('hidden');
+  _updateOrderBarText();
+}
+
+function skipOrderNote() {
+  _orderPendingId = null;
+  document.getElementById('order-note-overlay').classList.add('hidden');
+  _updateOrderBarText();
 }
 
 function formatDueDateBadge(dueDateStr) {
