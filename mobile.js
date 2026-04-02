@@ -223,6 +223,14 @@ function renderStreetList() {
   const el = document.getElementById('mobile-street-list');
   let streets = getStreets();
 
+  // Sort by order: ordered streets first (ascending), then unordered
+  streets = [...streets].sort((a, b) => {
+    if (a.order != null && b.order != null) return a.order - b.order;
+    if (a.order != null) return -1;
+    if (b.order != null) return 1;
+    return 0;
+  });
+
   // Filter by search query
   if (_streetFilter) {
     streets = streets.filter(s => s.name.toLowerCase().includes(_streetFilter));
@@ -242,14 +250,15 @@ function renderStreetList() {
     const badge = ratingLabel(s.rating);
     const sqft = s.sqft ? `${formatNum(s.sqft)} sqft` : '';
     const photoCount = (s.photos?.length || 0) + (s.scanPhotos?.length || 0);
+    const dueBadge = (() => { const d = formatDueDateBadge(s.dueDate); return d ? `<span class="mobile-due-badge mobile-due-${d.cls}">${d.label}</span>` : ''; })();
     return `<div class="mobile-street-item swipe-item" data-id="${s.id}"
         ontouchstart="swipeStart(event,this)" ontouchmove="swipeMove(event,this)" ontouchend="swipeEnd(event,this,'${s.id}')"
         onclick="openStreet('${s.id}')">
       <div class="swipe-content">
         <div class="street-item-rating ${rc}"></div>
         <div class="street-item-info">
-          <div class="street-item-name">${escHtml(s.name)}</div>
-          <div class="street-item-meta">${sqft}${sqft && photoCount ? ' · ' : ''}${photoCount ? photoCount + ' photos' : ''}</div>
+          <div class="street-item-name">${s.order != null ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:16px;padding:0 4px;border-radius:8px;background:#f59e0b;color:#000;font-size:9px;font-weight:800;margin-right:4px">#${s.order}</span>` : ''}${escHtml(s.name)}</div>
+          <div class="street-item-meta">${sqft}${sqft && photoCount ? ' · ' : ''}${photoCount ? photoCount + ' photos' : ''}${dueBadge ? ' ' + dueBadge : ''}</div>
         </div>
         <div class="street-item-badge" style="background:${ratingBg(s.rating)};color:${ratingColor(s.rating)}">${badge}</div>
       </div>
@@ -474,6 +483,11 @@ function renderOverviewTab(s) {
       <div class="mobile-stat-label">Treatment</div>
       <div style="font-size:14px;font-weight:600;margin-top:4px">${treatment}</div>
     </div>
+    ${(s.dueDate || s.order != null) ? `
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      ${s.order != null ? `<div class="mobile-stat-card" style="flex:1;text-align:center"><div class="mobile-stat-label">Route Stop</div><div style="font-size:22px;font-weight:800;color:var(--accent)">#${s.order}</div></div>` : ''}
+      ${s.dueDate ? (() => { const d = formatDueDateBadge(s.dueDate); return `<div class="mobile-stat-card" style="flex:1;text-align:center"><div class="mobile-stat-label">Due Date</div><div style="margin-top:6px"><span class="mobile-due-badge mobile-due-${d?.cls||'due-future'}">${d?.label||s.dueDate}</span></div></div>`; })() : ''}
+    </div>` : ''}
     <div class="form-group" style="margin:12px 0">
       <label>Rating</label>
       <select class="mobile-rating-select" onchange="setMobileRating('${s.id}', this.value)">
@@ -620,6 +634,19 @@ function drawAllPolylines() {
     });
     line.addListener('click', () => openStreet(s.id));
     polylines.push(line);
+
+    if (s.order != null && s.path?.length >= 2) {
+      const midIdx = Math.floor(s.path.length / 2);
+      const midPt = s.path[midIdx];
+      const orderMarker = new google.maps.Marker({
+        position: midPt, map,
+        label: { text: String(s.order), color: '#000', fontWeight: 'bold', fontSize: '10px' },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 11, fillColor: '#f59e0b', fillOpacity: 1, strokeWeight: 1.5, strokeColor: '#fff' },
+        title: `Stop #${s.order}: ${s.name}`, zIndex: 20
+      });
+      orderMarker.addListener('click', () => { openStreet(s.id); setSheetState('half'); });
+      polylines.push(orderMarker);
+    }
 
     if (isActive) {
       const outerGlow = new google.maps.Polyline({ path: points, geodesic: true, strokeColor: color, strokeOpacity: 0.08, strokeWeight: 20, map, zIndex: 17 });
@@ -1766,6 +1793,18 @@ function ratingLabel(r) {
 }
 function formatNum(n) { return Math.round(n || 0).toLocaleString(); }
 function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function formatDueDateBadge(dueDateStr) {
+  if (!dueDateStr) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dueDateStr + 'T00:00:00');
+  const diffDays = Math.round((due - today) / 86400000);
+  if (diffDays < 0)  return { label: 'Overdue',  cls: 'due-overdue' };
+  if (diffDays === 0) return { label: 'Due Today', cls: 'due-today' };
+  if (diffDays === 1) return { label: 'Due Tomorrow', cls: 'due-soon' };
+  if (diffDays <= 6)  return { label: 'Due ' + due.toLocaleDateString('en-US',{weekday:'short'}), cls: 'due-soon' };
+  return { label: due.toLocaleDateString('en-US',{month:'short',day:'numeric'}), cls: 'due-future' };
+}
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 function showToast(msg, dur = 2500) {
   const t = document.getElementById('toast');

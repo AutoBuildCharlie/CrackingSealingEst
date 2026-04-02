@@ -193,6 +193,86 @@ function exportProject() {
   showToast('Project exported');
 }
 
+// ─── DUE DATE HELPERS ──────────────────────────────────────
+function formatDueDateBadge(dueDateStr) {
+  if (!dueDateStr) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dueDateStr + 'T00:00:00');
+  const diffDays = Math.round((due - today) / 86400000);
+  if (diffDays < 0)  return { label: 'Overdue',  cls: 'due-overdue' };
+  if (diffDays === 0) return { label: 'Due Today', cls: 'due-today' };
+  if (diffDays === 1) return { label: 'Due Tomorrow', cls: 'due-soon' };
+  if (diffDays <= 6)  return { label: 'Due ' + due.toLocaleDateString('en-US',{weekday:'short'}), cls: 'due-soon' };
+  return { label: due.toLocaleDateString('en-US',{month:'short',day:'numeric'}), cls: 'due-future' };
+}
+
+function setStreetDueDate(id, value) {
+  const s = streets.find(s => s.id === id);
+  if (!s) return;
+  s.dueDate = value || null;
+  saveStreets();
+  renderStreetList();
+  if (activeStreetId === id) selectStreet(id);
+}
+
+function setStreetOrder(id, value) {
+  const s = streets.find(s => s.id === id);
+  if (!s) return;
+  const num = parseInt(value);
+  s.order = isNaN(num) || num < 1 ? null : num;
+  saveStreets();
+  renderStreetList();
+  drawAllHighlights();
+}
+
+// ─── ROUTE OPTIMIZATION ────────────────────────────────────
+function nearestNeighborOrder(pool, startLat, startLng) {
+  const unvisited = [...pool];
+  const result = [];
+  let curLat = startLat, curLng = startLng;
+  while (unvisited.length > 0) {
+    let bestIdx = 0, bestDist = Infinity;
+    for (let i = 0; i < unvisited.length; i++) {
+      const d = calcDistanceFt({ lat: curLat, lng: curLng }, { lat: unvisited[i].lat, lng: unvisited[i].lng });
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    const chosen = unvisited.splice(bestIdx, 1)[0];
+    result.push(chosen);
+    curLat = chosen.lat; curLng = chosen.lng;
+  }
+  return result;
+}
+
+function optimizeRoute() {
+  if (!streets.length) { showToast('No streets to optimize'); return; }
+  const withDate = streets.filter(s => s.dueDate);
+  const withoutDate = streets.filter(s => !s.dueDate);
+  const dateGroups = {};
+  withDate.forEach(s => { if (!dateGroups[s.dueDate]) dateGroups[s.dueDate] = []; dateGroups[s.dueDate].push(s); });
+  const sortedDates = Object.keys(dateGroups).sort();
+  let ordered = [];
+  let lastLat = streets[0].lat, lastLng = streets[0].lng;
+  sortedDates.forEach(date => {
+    const sorted = nearestNeighborOrder(dateGroups[date], lastLat, lastLng);
+    ordered = ordered.concat(sorted);
+    if (sorted.length) { lastLat = sorted[sorted.length-1].lat; lastLng = sorted[sorted.length-1].lng; }
+  });
+  if (withoutDate.length) ordered = ordered.concat(nearestNeighborOrder(withoutDate, lastLat, lastLng));
+  ordered.forEach((s, i) => { s.order = i + 1; });
+  saveStreets();
+  renderStreetList();
+  drawAllHighlights();
+  showToast(`Route optimized — ${ordered.length} streets ordered`);
+}
+
+function clearRouteOrder() {
+  streets.forEach(s => { s.order = null; });
+  saveStreets();
+  renderStreetList();
+  drawAllHighlights();
+  showToast('Route order cleared');
+}
+
 function saveStreets() {
   activeProject.streets = streets;
   saveProjects();
@@ -306,6 +386,8 @@ function renderProjectSelector() {
       <button class="btn-project-action" onclick="addNewProject()" title="New Project">+ New</button>
       <button class="btn-project-action" onclick="renameProject('${activeProject.id}')" title="Rename">Rename</button>
       <button class="btn-project-action" onclick="exportProject()" title="Export project as JSON">Export</button>
+      <button class="btn-project-action btn-optimize" onclick="optimizeRoute()" title="Auto-order streets by due date then driving efficiency">⚡ Optimize Route</button>
+      ${streets.some(s => s.order != null) ? `<button class="btn-project-action" onclick="clearRouteOrder()" style="border-color:rgba(239,68,68,0.4);color:#ef4444">✕ Clear Order</button>` : ''}
       <button class="btn-project-action btn-project-delete" onclick="deleteProject('${activeProject.id}')" title="Delete">Delete</button>
     </div>
     <div class="settings-collapse-bar" onclick="toggleSettingsCollapse()">
@@ -538,6 +620,8 @@ function migrateOldData() {
       if (s.weedAlert === undefined) { s.weedAlert = false; changed = true; }
       if (s.ravelingAlert === undefined) { s.ravelingAlert = false; changed = true; }
       if (s.rrAlert === undefined) { s.rrAlert = false; changed = true; }
+      if (s.dueDate === undefined) { s.dueDate = null; changed = true; }
+      if (s.order === undefined) { s.order = null; changed = true; }
     });
     if (!p.type) { p.type = 'crack-seal'; changed = true; }
     if (p.detectRR === undefined) { p.detectRR = false; changed = true; }
@@ -1691,16 +1775,28 @@ function renderStreetList() {
 
   // When Street View is open and a street is selected, only show that street
   const svOpen = isStreetViewOpen();
-  const visibleStreets = (svOpen && activeStreetId) ? streets.filter(s => s.id === activeStreetId) : streets;
+
+  // Sort by order: ordered streets first (ascending), then unordered
+  const sortedStreets = [...streets].sort((a, b) => {
+    if (a.order != null && b.order != null) return a.order - b.order;
+    if (a.order != null) return -1;
+    if (b.order != null) return 1;
+    return 0;
+  });
+
+  const visibleStreets = (svOpen && activeStreetId) ? sortedStreets.filter(s => s.id === activeStreetId) : sortedStreets;
 
   // Show a "back to all" link when filtered
   const backLink = (svOpen && activeStreetId && streets.length > 1) ?
     `<div class="street-list-back" onclick="closeDetailPanel();updateStats()">← Show all ${streets.length} streets</div>` : '';
 
-  container.innerHTML = backLink + visibleStreets.map(s => `
+  container.innerHTML = backLink + visibleStreets.map(s => {
+    const dueBadge = (() => { const d = formatDueDateBadge(s.dueDate); return d ? `<span class="due-badge due-badge-${d.cls}">${d.label}</span>` : ''; })();
+    return `
     <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''} street-card-${s.rating}" onclick="selectStreet('${s.id}')">
       <button class="street-card-delete" onclick="event.stopPropagation(); deleteStreet('${s.id}')" title="Delete">&times;</button>
-      <div class="street-card-name" title="${escHtml(s.name)}">${escHtml(s.name)}</div>
+      <div class="street-card-name" title="${escHtml(s.name)}">${s.order != null ? `<span class="order-badge">#${s.order}</span>` : ''}${escHtml(s.name)}</div>
+      ${dueBadge ? `<div>${dueBadge}</div>` : ''}
       ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}${s.roadType ? ' · ' + escHtml(s.roadType) : ''}</div>` : (s.roadType ? `<div class="street-card-city">${escHtml(s.roadType)}</div>` : '')}
       ${s.crossesBoundary ? `<div class="street-card-boundary">⚠ ${escHtml(s.boundaryNote)}</div>` : ''}
       ${s.weedAlert ? `<div class="street-card-weed">🌿 Weed control needed</div>` : ''}
@@ -1869,6 +1965,22 @@ function selectStreet(id) {
           <div class="detail-stat-label">Width</div>
           <div class="detail-stat-value">${street.width ? street.width + ' ft' : '—'}</div>
           ${street.roadType ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">${escHtml(street.roadType)}</div>` : ''}
+        </div>
+      </div>
+
+      <div class="detail-section" style="margin-top:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Scheduling</div>
+        <div class="detail-stats">
+          <div class="detail-stat">
+            <div class="detail-stat-label">Due Date</div>
+            <input type="date" value="${street.dueDate || ''}" onchange="setStreetDueDate('${street.id}', this.value)" style="margin-top:4px;width:100%;background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;padding:4px 6px;outline:none;cursor:pointer">
+            ${street.dueDate ? `<button onclick="setStreetDueDate('${street.id}','')" style="font-size:9px;color:var(--text-dim);background:none;border:none;cursor:pointer;margin-top:2px;padding:0">Clear date</button>` : ''}
+          </div>
+          <div class="detail-stat">
+            <div class="detail-stat-label">Route Stop #</div>
+            <input type="number" min="1" value="${street.order != null ? street.order : ''}" placeholder="—" onchange="setStreetOrder('${street.id}', this.value)" style="margin-top:4px;width:100%;background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;color:var(--accent);font-size:16px;font-weight:700;padding:4px 6px;text-align:center;outline:none">
+            ${street.order != null ? `<button onclick="setStreetOrder('${street.id}','')" style="font-size:9px;color:var(--text-dim);background:none;border:none;cursor:pointer;margin-top:2px;padding:0">Clear</button>` : ''}
+          </div>
         </div>
       </div>
 
@@ -3804,6 +3916,18 @@ function drawAllHighlights() {
     });
     line.addListener('click', () => selectStreet(street.id));
     polylines.push(line);
+
+    // Order number label on map
+    if (street.order != null && points.length >= 2) {
+      const midIdx = Math.floor(points.length / 2);
+      const midPt = points[midIdx];
+      const orderEl = document.createElement('div');
+      orderEl.style.cssText = 'display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#f59e0b;color:#000;font-size:10px;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,0.6);cursor:pointer;';
+      orderEl.textContent = street.order;
+      const orderMarker = makeMarker({ position: { lat: midPt.lat, lng: midPt.lng }, map, content: orderEl, zIndex: 20, title: `Stop #${street.order}: ${street.name}` });
+      orderMarker.addEventListener('gmp-click', () => selectStreet(street.id));
+      polylines.push(orderMarker);
+    }
 
     // Boundary crossing marker + city labels on each side
     if (street.crossesBoundary && street.boundaryPoint) {
