@@ -63,12 +63,8 @@
       </svg>
     </button>
     <button id="fab-location" class="fab" onclick="goToMyLocation()" title="My location">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <line x1="12" y1="2" x2="12" y2="6"/>
-        <line x1="12" y1="18" x2="12" y2="22"/>
-        <line x1="2" y1="12" x2="6" y2="12"/>
-        <line x1="18" y1="12" x2="22" y2="12"/>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2L4.5 20.5l.8.3L12 17l6.7 3.8.8-.3L12 2z"/>
       </svg>
     </button>
     <button id="fab-pin" class="fab fab-pin" onclick="togglePinMode()" title="Pin a street">
@@ -261,7 +257,7 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
   </script>
-  <script src="mobile.js?v=29"></script>
+  <script src="mobile.js?v=30"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async">
   </script>
