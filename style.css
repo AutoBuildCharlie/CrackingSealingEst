@@ -640,6 +640,22 @@ body {
   font-size: 11px;
   cursor: pointer;
 }
+.order-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(245,158,11,0.1);
+  border-bottom: 1px solid rgba(245,158,11,0.3);
+  font-size: 11px;
+  color: #f59e0b;
+  font-weight: 500;
+  gap: 6px;
+}
+.order-bar .btn-cancel-highlight {
+  border-color: rgba(245,158,11,0.4);
+  color: #f59e0b;
+}
 
 .street-list {
   flex: 1;

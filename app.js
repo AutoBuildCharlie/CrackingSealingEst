@@ -234,6 +234,32 @@ function clearRouteOrder() {
   showToast('Route order cleared');
 }
 
+function startOrderMode() {
+  if (!streets.length) { showToast('No streets to order'); return; }
+  _orderMode = true;
+  const maxOrder = streets.reduce((m, s) => s.order != null ? Math.max(m, s.order) : m, 0);
+  _orderCounter = maxOrder > 0 ? maxOrder + 1 : 1;
+  document.getElementById('order-bar').classList.remove('hidden');
+  document.getElementById('order-bar-text').textContent = 'Click street — Stop #' + _orderCounter;
+  setMapCursor('pin-start');
+}
+
+function cancelOrderMode() {
+  _orderMode = false;
+  document.getElementById('order-bar').classList.add('hidden');
+  setMapCursor('');
+}
+
+function assignOrderToStreet(id) {
+  const s = streets.find(s => s.id === id);
+  if (!s) return;
+  s.order = _orderCounter++;
+  saveStreets();
+  drawAllHighlights();
+  renderStreetList();
+  document.getElementById('order-bar-text').textContent = 'Click street — Stop #' + _orderCounter;
+  showToast('Stop #' + s.order + ' \u2192 ' + s.name);
+}
 
 function toggleStreetDone(id) {
   const s = streets.find(s => s.id === id);
@@ -331,6 +357,8 @@ function renameProject(id) {
 
 let _settingsCollapsed = false;
 let _advancedOpen = false;
+let _orderMode = false;
+let _orderCounter = 1;
 
 function toggleAdvanced() {
   _advancedOpen = !_advancedOpen;
@@ -361,7 +389,10 @@ function renderProjectSelector() {
       <button class="btn-project-action" onclick="exportProject()" title="Export project as JSON">Export</button>
       <button class="btn-project-action btn-project-delete" onclick="deleteProject('${activeProject.id}')" title="Delete">Delete</button>
     </div>
-    ${streets.some(s => s.order != null) ? '<div class="project-row"><button class="btn-project-action" onclick="clearRouteOrder()" style="border-color:rgba(239,68,68,0.4);color:#ef4444;margin-left:auto">&#x2715; Clear All Order Numbers</button></div>' : ''}
+    ${streets.length ? `<div class="project-row" style="gap:6px">
+      <button class="btn-project-action" onclick="startOrderMode()" style="border-color:var(--accent);color:var(--accent);flex:1">&#9654; Set Route Order</button>
+      ${streets.some(s => s.order != null) ? '<button class="btn-project-action" onclick="clearRouteOrder()" style="border-color:rgba(239,68,68,0.4);color:#ef4444">&#x2715; Clear</button>' : ''}
+    </div>` : ''}
     <div class="settings-collapse-bar" onclick="toggleSettingsCollapse()">
       <span>Settings</span>
       <span id="settings-arrow">${_settingsCollapsed ? '▸' : '▾'}</span>
@@ -1695,7 +1726,7 @@ function placeAllMarkers() {
       content: makeDotContent(ratingColor(street.rating), hasLine ? 12 : 16, '#fff', hasLine ? 0 : 1)
     });
 
-    marker.addEventListener('gmp-click', () => selectStreet(street.id));
+    marker.addEventListener('gmp-click', () => _orderMode ? assignOrderToStreet(street.id) : selectStreet(street.id));
     markers.push(marker);
   });
 }
@@ -3885,7 +3916,7 @@ function drawAllHighlights() {
         strokeWeight: 12,
         map: map
       });
-      glow.addListener('click', () => selectStreet(street.id));
+      glow.addListener('click', () => _orderMode ? assignOrderToStreet(street.id) : selectStreet(street.id));
       polylines.push(glow);
     }
 
@@ -3899,7 +3930,7 @@ function drawAllHighlights() {
       map: map,
       zIndex: isActive ? 20 : 5
     });
-    line.addListener('click', () => selectStreet(street.id));
+    line.addListener('click', () => _orderMode ? assignOrderToStreet(street.id) : selectStreet(street.id));
     polylines.push(line);
 
     // Order number label on map
@@ -3910,7 +3941,7 @@ function drawAllHighlights() {
       orderEl.style.cssText = 'display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#f59e0b;color:#000;font-size:10px;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,0.6);cursor:pointer;';
       orderEl.textContent = street.order;
       const orderMarker = makeMarker({ position: { lat: midPt.lat, lng: midPt.lng }, map, content: orderEl, zIndex: 20, title: `Stop #${street.order}: ${street.name}` });
-      orderMarker.addEventListener('gmp-click', () => selectStreet(street.id));
+      orderMarker.addEventListener('gmp-click', () => _orderMode ? assignOrderToStreet(street.id) : selectStreet(street.id));
       polylines.push(orderMarker);
     }
 
