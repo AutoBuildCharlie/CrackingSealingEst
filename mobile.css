@@ -721,8 +721,11 @@ html, body {
   border-radius: 50%;
   transform: translate(-50%, -50%);
   animation: halo-drop 2.8s ease-in infinite;
+  animation-delay: 0s;
   z-index: 1;
 }
+.loc-halo-2 { animation-delay: -0.93s; }
+.loc-halo-3 { animation-delay: -1.87s; }
 @keyframes halo-drop {
   0%   { transform: translate(-50%, calc(-50% - 52px)); opacity: 0; width: 26px; height: 26px; }
   12%  { opacity: 1; }

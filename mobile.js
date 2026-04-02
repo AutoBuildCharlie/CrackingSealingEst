@@ -1455,7 +1455,7 @@ function getLocationDotOverlayClass() {
     onAdd() {
       const el = document.createElement('div');
       el.className = 'loc-overlay';
-      el.innerHTML = '<div class="loc-halo"></div><div class="loc-dot"></div>';
+      el.innerHTML = '<div class="loc-halo"></div><div class="loc-halo loc-halo-2"></div><div class="loc-halo loc-halo-3"></div><div class="loc-dot"></div>';
       this._el = el;
       this.getPanes().overlayMouseTarget.appendChild(el);
     }
