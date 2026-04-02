@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PavementScan</title>
-  <link rel="stylesheet" href="mobile.css?v=2">
+  <link rel="stylesheet" href="mobile.css?v=3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -119,9 +119,8 @@
         <button class="btn-new-project" onclick="promptNewProject()">+ New</button>
       </div>
       <div id="project-list-mobile"></div>
-      <div style="padding:12px 16px 4px;display:flex;gap:8px">
-        <button class="btn-secondary-full" onclick="optimizeRoute()" style="border-color:#f59e0b;color:#f59e0b;flex:1">⚡ Optimize Route</button>
-        <button class="btn-secondary-full" onclick="clearRouteOrder()" style="border-color:#ef4444;color:#ef4444;flex:1">✕ Clear Order</button>
+      <div style="padding:12px 16px 4px">
+        <button class="btn-secondary-full" onclick="clearRouteOrder()" style="border-color:#ef4444;color:#ef4444">✕ Clear All Order Numbers</button>
       </div>
       <div style="padding:4px 16px 4px">
         <button class="btn-secondary-full" onclick="document.getElementById('import-project-input').click()" style="border-color:#f59e0b;color:#f59e0b">⬆ Import Project (.json)</button>
@@ -257,7 +256,7 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
   </script>
-  <script src="mobile.js?v=46"></script>
+  <script src="mobile.js?v=47"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async">
   </script>

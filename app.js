@@ -225,146 +225,6 @@ function setStreetOrder(id, value) {
   drawAllHighlights();
 }
 
-// ─── ROUTE OPTIMIZATION ────────────────────────────────────
-function routeDist(route) {
-  let total = 0;
-  for (let i = 0; i < route.length - 1; i++) {
-    total += calcDistanceFt({ lat: route[i].lat, lng: route[i].lng }, { lat: route[i+1].lat, lng: route[i+1].lng });
-  }
-  return total;
-}
-
-function twoOptImprove(route) {
-  if (route.length < 4) return route;
-  let improved = true;
-  let best = [...route];
-  while (improved) {
-    improved = false;
-    for (let i = 0; i < best.length - 1; i++) {
-      for (let k = i + 2; k < best.length; k++) {
-        // Reverse the segment between i+1 and k
-        const candidate = best.slice(0, i + 1).concat(best.slice(i + 1, k + 1).reverse()).concat(best.slice(k + 1));
-        if (routeDist(candidate) < routeDist(best)) {
-          best = candidate;
-          improved = true;
-        }
-      }
-    }
-  }
-  return best;
-}
-
-// Group streets into proximity clusters — any street within maxFt of another in the group joins it.
-function buildClusters(streets, maxFt) {
-  const clusters = streets.map(s => [s]);
-  let merged = true;
-  while (merged) {
-    merged = false;
-    for (let i = 0; i < clusters.length && !merged; i++) {
-      for (let j = i + 1; j < clusters.length && !merged; j++) {
-        for (const a of clusters[i]) {
-          for (const b of clusters[j]) {
-            if (calcDistanceFt({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng }) <= maxFt) {
-              clusters[i] = clusters[i].concat(clusters.splice(j, 1)[0]);
-              merged = true;
-              break;
-            }
-          }
-          if (merged) break;
-        }
-      }
-    }
-  }
-  return clusters;
-}
-
-// Cluster-first, route-second: group nearby streets, route between clusters, route within each cluster.
-function optimizeWithClusters(streetList, startLat, startLng) {
-  const CLUSTER_FT = 500;
-  const clusters = buildClusters(streetList, CLUSTER_FT);
-  // Represent each cluster by its centroid for inter-cluster routing
-  const clusterPts = clusters.map(c => ({
-    lat: c.reduce((s, x) => s + x.lat, 0) / c.length,
-    lng: c.reduce((s, x) => s + x.lng, 0) / c.length,
-    streets: c
-  }));
-  const orderedClusters = twoOptImprove(nearestNeighborOrder([...clusterPts], startLat, startLng));
-  // Route within each cluster starting from where the previous cluster ended
-  let ordered = [];
-  let curLat = startLat, curLng = startLng;
-  for (const cp of orderedClusters) {
-    const internal = cp.streets.length > 1
-      ? twoOptImprove(nearestNeighborOrder([...cp.streets], curLat, curLng))
-      : cp.streets;
-    ordered = ordered.concat(internal);
-    if (internal.length) { curLat = internal[internal.length-1].lat; curLng = internal[internal.length-1].lng; }
-  }
-  return ordered;
-}
-
-function nearestNeighborOrder(pool, startLat, startLng) {
-  const unvisited = [...pool];
-  const result = [];
-  let curLat = startLat, curLng = startLng;
-  while (unvisited.length > 0) {
-    let bestIdx = 0, bestDist = Infinity;
-    for (let i = 0; i < unvisited.length; i++) {
-      const d = calcDistanceFt({ lat: curLat, lng: curLng }, { lat: unvisited[i].lat, lng: unvisited[i].lng });
-      if (d < bestDist) { bestDist = d; bestIdx = i; }
-    }
-    const chosen = unvisited.splice(bestIdx, 1)[0];
-    result.push(chosen);
-    curLat = chosen.lat; curLng = chosen.lng;
-  }
-  return result;
-}
-
-function setRouteMode(mode) {
-  activeProject.routeMode = mode;
-  saveProjects();
-  renderProjectSelector();
-  showToast('Route mode: ' + mode.charAt(0).toUpperCase() + mode.slice(1));
-}
-
-function optimizeRoute() {
-  if (!streets.length) { showToast('No streets to optimize'); return; }
-  const mode = activeProject.routeMode || 'hybrid';
-  let ordered = [];
-  const startStreet = streets.find(s => s.id === activeProject.startStreetId) || streets[0];
-  const startLat = startStreet.lat, startLng = startStreet.lng;
-
-  if (mode === 'auto') {
-    ordered = optimizeWithClusters([...streets], startLat, startLng);
-    // Pin start street to position 1
-    if (activeProject.startStreetId) {
-      const idx = ordered.findIndex(s => s.id === activeProject.startStreetId);
-      if (idx > 0) ordered = [ordered[idx], ...ordered.slice(0, idx), ...ordered.slice(idx + 1)];
-    }
-  } else if (mode === 'manual') {
-    showToast('Manual mode — set route stop numbers directly on each street');
-    return;
-  } else {
-    // Hybrid — group by due date first, then cluster-first routing within each group
-    const withDate = streets.filter(s => s.dueDate);
-    const withoutDate = streets.filter(s => !s.dueDate);
-    const dateGroups = {};
-    withDate.forEach(s => { if (!dateGroups[s.dueDate]) dateGroups[s.dueDate] = []; dateGroups[s.dueDate].push(s); });
-    const sortedDates = Object.keys(dateGroups).sort();
-    let lastLat = startLat, lastLng = startLng;
-    sortedDates.forEach(date => {
-      const sorted = optimizeWithClusters(dateGroups[date], lastLat, lastLng);
-      ordered = ordered.concat(sorted);
-      if (sorted.length) { lastLat = sorted[sorted.length-1].lat; lastLng = sorted[sorted.length-1].lng; }
-    });
-    if (withoutDate.length) ordered = ordered.concat(optimizeWithClusters(withoutDate, lastLat, lastLng));
-  }
-
-  ordered.forEach((s, i) => { s.order = i + 1; });
-  saveStreets();
-  renderStreetList();
-  drawAllHighlights();
-  showToast('Route optimized — ' + ordered.length + ' streets ordered');
-}
 
 function clearRouteOrder() {
   streets.forEach(s => { s.order = null; });
@@ -374,14 +234,6 @@ function clearRouteOrder() {
   showToast('Route order cleared');
 }
 
-function setStartStreet(id) {
-  activeProject.startStreetId = (activeProject.startStreetId === id) ? null : id;
-  saveProjects();
-  placeAllMarkers();
-  drawAllHighlights();
-  selectStreet(id);
-  showToast(activeProject.startStreetId ? '★ Starting street set' : 'Starting street cleared');
-}
 
 function toggleStreetDone(id) {
   const s = streets.find(s => s.id === id);
@@ -509,16 +361,7 @@ function renderProjectSelector() {
       <button class="btn-project-action" onclick="exportProject()" title="Export project as JSON">Export</button>
       <button class="btn-project-action btn-project-delete" onclick="deleteProject('${activeProject.id}')" title="Delete">Delete</button>
     </div>
-    <div class="project-row route-row">
-      <span class="route-label">Route:</span>
-      <div class="route-mode-group">
-        <button class="route-mode-btn ${(activeProject.routeMode||'hybrid')==='manual'?'active':''}" onclick="setRouteMode('manual')" title="Set order numbers yourself — no auto-sorting">Manual</button>
-        <button class="route-mode-btn ${(activeProject.routeMode||'hybrid')==='hybrid'?'active':''}" onclick="setRouteMode('hybrid')" title="Due dates first, then nearest-neighbor efficiency">Hybrid</button>
-        <button class="route-mode-btn ${(activeProject.routeMode||'hybrid')==='auto'?'active':''}" onclick="setRouteMode('auto')" title="Pure nearest-neighbor — ignore due dates">Auto</button>
-      </div>
-      <button class="btn-project-action btn-optimize" onclick="optimizeRoute()" title="Apply route optimization">⚡ Optimize Route</button>
-      ${streets.some(s => s.order != null) ? '<button class="btn-project-action" onclick="clearRouteOrder()" style="border-color:rgba(239,68,68,0.4);color:#ef4444">&#x2715; Clear</button>' : ''}
-    </div>
+    ${streets.some(s => s.order != null) ? '<div class="project-row"><button class="btn-project-action" onclick="clearRouteOrder()" style="border-color:rgba(239,68,68,0.4);color:#ef4444;margin-left:auto">&#x2715; Clear All Order Numbers</button></div>' : ''}
     <div class="settings-collapse-bar" onclick="toggleSettingsCollapse()">
       <span>Settings</span>
       <span id="settings-arrow">${_settingsCollapsed ? '▸' : '▾'}</span>
@@ -763,8 +606,6 @@ function migrateOldData() {
     if (!p.calibrationRules) { p.calibrationRules = []; changed = true; }
     if (!p.photoInterval) { p.photoInterval = 200; changed = true; }
     if (!p.maxPhotos) { p.maxPhotos = 6; changed = true; }
-    if (!p.routeMode) { p.routeMode = 'hybrid'; changed = true; }
-    if (p.startStreetId === undefined) { p.startStreetId = null; changed = true; }
   });
   if (changed) {
     streets = activeProject.streets;
@@ -1847,14 +1688,11 @@ function placeAllMarkers() {
 
   streets.forEach(street => {
     const hasLine = street.path && street.path.length >= 2;
-    const isStart = street.id === activeProject.startStreetId;
     const marker = makeMarker({
       position: { lat: street.lat, lng: street.lng },
       map: map,
       title: street.name,
-      content: isStart
-        ? (() => { const el = document.createElement('div'); el.style.cssText = 'width:26px;height:26px;border-radius:50%;background:#f59e0b;border:2px solid #fff;box-shadow:0 0 10px rgba(245,158,11,0.8);display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1'; el.textContent = '★'; return el; })()
-        : makeDotContent(ratingColor(street.rating), hasLine ? 12 : 16, '#fff', hasLine ? 0 : 1)
+      content: makeDotContent(ratingColor(street.rating), hasLine ? 12 : 16, '#fff', hasLine ? 0 : 1)
     });
 
     marker.addEventListener('gmp-click', () => selectStreet(street.id));
@@ -2133,7 +1971,6 @@ function selectStreet(id) {
       <div class="detail-actions">
         ${activeProject.aiEnabled !== false ? `<button class="btn-rescan" onclick="rescanStreet('${street.id}')">Re-scan</button>` : ''}
         <button class="btn-rescan" onclick="toggleStreetDone('${street.id}')" style="border-color:#22c55e;color:#22c55e">${street.completed ? '&#8629; Incomplete' : '&#10003; Mark Done'}</button>
-        <button class="btn-rescan" onclick="setStartStreet('${street.id}')" style="${activeProject.startStreetId === street.id ? 'border-color:#f59e0b;color:#f59e0b;background:rgba(245,158,11,0.12)' : 'border-color:rgba(245,158,11,0.4);color:#9ca3af'}" title="Set as starting point for route optimization">${activeProject.startStreetId === street.id ? '&#9733; Start' : '&#9734; Set Start'}</button>
         <button class="btn-danger" onclick="deleteStreet('${street.id}')">Delete</button>
       </div>
     </div>
