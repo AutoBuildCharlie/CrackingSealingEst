@@ -27,6 +27,21 @@
     </div>
   </div>
 
+  <!-- ─── LOADING SPLASH ──────────────────────────────── -->
+  <div id="loading-splash">
+    <div class="splash-inner">
+      <h1>Pavement<em>Scan</em></h1>
+      <div class="splash-spinner"></div>
+      <p>Loading map…</p>
+    </div>
+  </div>
+
+  <!-- ─── PULL TO REFRESH ──────────────────────────────── -->
+  <div id="pull-indicator">
+    <div class="pull-spinner"></div>
+    <span>Release to refresh</span>
+  </div>
+
   <!-- ─── MAP (full screen) ───────────────────────────── -->
   <div id="map"></div>
 
@@ -243,7 +258,7 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
   </script>
-  <script src="mobile.js?v=7"></script>
+  <script src="mobile.js?v=8"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async">
   </script>

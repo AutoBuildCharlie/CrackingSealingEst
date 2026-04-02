@@ -73,9 +73,16 @@ function initMap() {
   map.addListener('click', e => handleMapClick(e.latLng));
   map.addListener('rightclick', () => cancelPin());
 
+  // Hide splash once map tiles start loading
+  google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
+    const splash = document.getElementById('loading-splash');
+    if (splash) { splash.classList.add('hidden'); setTimeout(() => splash.remove(), 500); }
+  });
+
   loadProjects();
   initBottomSheet();
   initWorkerDrag();
+  initPullToRefresh();
 
   // Start collapsed — user swipes up when they need it
   setTimeout(() => setSheetState('peek'), 400);
@@ -1355,6 +1362,36 @@ function logCalibration(street, aiRating, newRating) {
     reason: '', loggedAt: new Date().toISOString()
   });
   saveProjects();
+}
+
+// ─── PULL TO REFRESH ───────────────────────────────────────
+function initPullToRefresh() {
+  let startY = 0, pulling = false;
+  const indicator = document.getElementById('pull-indicator');
+
+  document.addEventListener('touchstart', e => {
+    // Only trigger when sheet is in peek state (map is exposed at top)
+    if (_sheetState !== 'peek') return;
+    startY = e.touches[0].clientY;
+    pulling = false;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (_sheetState !== 'peek') return;
+    const delta = e.touches[0].clientY - startY;
+    if (delta > 60) {
+      pulling = true;
+      indicator.classList.add('visible');
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => {
+    if (pulling) {
+      indicator.classList.remove('visible');
+      setTimeout(() => location.reload(), 200);
+    }
+    pulling = false;
+  });
 }
 
 // ─── HELPERS ───────────────────────────────────────────────
