@@ -263,15 +263,13 @@ function onSheetDragEnd(e) {
   const sheet = document.getElementById('bottom-sheet');
   sheet.style.transition = '';
 
-  if (delta < -60) {
+  if (delta < -40) {
     // dragged up
     if (_sheetState === 'peek') setSheetState('half');
-    else if (_sheetState === 'half') setSheetState('full');
     else setSheetState('full');
-  } else if (delta > 60) {
+  } else if (delta > 40) {
     // dragged down
     if (_sheetState === 'full') setSheetState('half');
-    else if (_sheetState === 'half') setSheetState('peek');
     else setSheetState('peek');
   } else {
     // snap back

@@ -190,15 +190,24 @@ html, body {
 #bottom-sheet.peek  { transform: translateY(calc(100% - 120px)); }
 
 #sheet-handle-wrap {
-  display: flex; justify-content: center;
-  padding: 12px 0 8px;
+  display: flex; justify-content: center; align-items: center;
+  padding: 14px 0 12px;
   cursor: grab;
+  /* Full width drag zone — easy to grab anywhere across the top */
+  width: 100%;
+  min-height: 48px;
+  touch-action: none;
 }
 #sheet-handle-wrap:active { cursor: grabbing; }
 #sheet-handle {
-  width: 36px; height: 4px;
-  background: var(--border);
-  border-radius: 2px;
+  width: 48px; height: 6px;
+  background: #334155;
+  border-radius: 3px;
+  transition: background 0.15s, width 0.15s;
+}
+#sheet-handle-wrap:active #sheet-handle {
+  background: var(--accent);
+  width: 64px;
 }
 
 #sheet-inner {
