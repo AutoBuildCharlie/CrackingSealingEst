@@ -1,20 +1,20 @@
 /* ================================================================
-   PAVEMENTSCAN — Service Worker
-   Caches app shell for offline/fast load. Network-first for API calls.
+   PAVEMENTSCAN — Service Worker v2
    ================================================================ */
 
-const CACHE = 'pavementscan-v1';
+const CACHE = 'pavementscan-v2';
 const APP_SHELL = [
   '/PavementScan/mobile.html',
   '/PavementScan/mobile.css',
   '/PavementScan/mobile.js',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',
 ];
 
-// Install — cache the app shell
+// Install — cache only local files, never block on external URLs
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(APP_SHELL))
+    caches.open(CACHE).then(cache =>
+      Promise.allSettled(APP_SHELL.map(url => cache.add(url)))
+    )
   );
   self.skipWaiting();
 });
@@ -29,31 +29,30 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// Fetch — cache-first for app shell, network-first for everything else
+// Fetch — only cache local app files, let everything else go to network
 self.addEventListener('fetch', e => {
   const url = e.request.url;
-
-  // Skip non-GET, Maps API calls, and proxy calls (always need network)
   if (e.request.method !== 'GET') return;
-  if (url.includes('maps.googleapis.com') || url.includes('workers.dev') || url.includes('overpass-api.de')) return;
 
-  // App shell — cache first
-  if (APP_SHELL.some(s => url.endsWith(s) || url.includes(s))) {
+  // Always use network for external APIs
+  if (
+    url.includes('maps.googleapis.com') ||
+    url.includes('workers.dev') ||
+    url.includes('overpass-api.de') ||
+    url.includes('fonts.googleapis.com') ||
+    url.includes('fonts.gstatic.com')
+  ) return;
+
+  // Local app shell — serve from cache, update in background
+  if (APP_SHELL.some(s => url.includes(s))) {
     e.respondWith(
       caches.match(e.request).then(cached => {
-        // Return cache, but fetch update in background
-        const fetchUpdate = fetch(e.request).then(res => {
+        const networkFetch = fetch(e.request).then(res => {
           if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
           return res;
         }).catch(() => cached);
-        return cached || fetchUpdate;
+        return cached || networkFetch;
       })
     );
-    return;
   }
-
-  // Everything else — network first, fall back to cache
-  e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
-  );
 });

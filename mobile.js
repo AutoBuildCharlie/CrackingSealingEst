@@ -73,11 +73,13 @@ function initMap() {
   map.addListener('click', e => handleMapClick(e.latLng));
   map.addListener('rightclick', () => cancelPin());
 
-  // Hide splash once map tiles start loading
-  google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
+  // Hide splash once map tiles load, or after 8s max — never freeze
+  const hideSplash = () => {
     const splash = document.getElementById('loading-splash');
     if (splash) { splash.classList.add('hidden'); setTimeout(() => splash.remove(), 500); }
-  });
+  };
+  google.maps.event.addListenerOnce(map, 'tilesloaded', hideSplash);
+  setTimeout(hideSplash, 8000);
 
   loadProjects();
   initBottomSheet();
