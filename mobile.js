@@ -145,6 +145,15 @@ function switchProject(id) {
   showListView();
 }
 
+function clearAllData() {
+  if (!confirm('Delete ALL projects and data? This cannot be undone.')) return;
+  localStorage.removeItem('cse_projects');
+  localStorage.removeItem('cse_active_project');
+  localStorage.removeItem('cse_global_settings');
+  sessionStorage.removeItem('cse_auth');
+  location.reload();
+}
+
 function importProject(e) {
   const file = e.target.files[0];
   if (!file) return;
