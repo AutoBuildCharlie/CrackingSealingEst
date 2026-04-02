@@ -578,6 +578,10 @@ html, body {
   min-height: 80px;
   max-height: 70vh;
 }
+#sv-minimap .gmnoprint,
+#sv-minimap .gm-style-cc,
+#sv-minimap a[href*="maps.google.com"],
+#sv-minimap button[title="Keyboard shortcuts"] { display: none !important; }
 #sv-resize-handle {
   height: 18px;
   flex-shrink: 0;
