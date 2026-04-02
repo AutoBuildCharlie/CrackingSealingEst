@@ -37,10 +37,7 @@
   </div>
 
   <!-- ─── PULL TO REFRESH ──────────────────────────────── -->
-  <div id="pull-indicator">
-    <div class="pull-spinner"></div>
-    <span>Release to refresh</span>
-  </div>
+  <div id="pull-indicator">↓ Pull down again to refresh</div>
 
   <!-- ─── MAP (full screen) ───────────────────────────── -->
   <div id="map"></div>
@@ -254,7 +251,7 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
   </script>
-  <script src="mobile.js?v=10"></script>
+  <script src="mobile.js?v=11"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async">
   </script>

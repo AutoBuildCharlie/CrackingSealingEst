@@ -57,16 +57,19 @@ html, body {
 
 /* ─── PULL TO REFRESH ───────────────────────────────────── */
 #pull-indicator {
-  position: fixed; top: -60px; left: 0; right: 0;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
+  position: fixed; bottom: 130px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
   background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 8px 16px;
   z-index: 9000;
-  transition: top 0.2s;
-  font-size: 13px; color: var(--text-dim);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+  white-space: nowrap;
 }
-#pull-indicator.visible { top: 0; }
+#pull-indicator.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 .pull-spinner {
   width: 18px; height: 18px;
   border: 2px solid var(--border);

@@ -1493,32 +1493,37 @@ function swipeDeleteStreet(id) {
 
 // ─── PULL TO REFRESH ───────────────────────────────────────
 function initPullToRefresh() {
-  let startY = 0, pulling = false;
   const indicator = document.getElementById('pull-indicator');
+  const handle = document.getElementById('sheet-handle-wrap');
+  let startY = 0, pullCount = 0, pullTimer = null;
 
-  document.addEventListener('touchstart', e => {
-    // Only trigger when sheet is in peek state (map is exposed at top)
-    if (_sheetState !== 'peek') return;
+  // Only listen on the sheet handle — not the map
+  handle.addEventListener('touchstart', e => {
     startY = e.touches[0].clientY;
-    pulling = false;
   }, { passive: true });
 
-  document.addEventListener('touchmove', e => {
+  handle.addEventListener('touchend', e => {
+    // Only when sheet is already at bottom (peek)
     if (_sheetState !== 'peek') return;
-    const delta = e.touches[0].clientY - startY;
-    if (delta > 60) {
-      pulling = true;
+    const delta = e.changedTouches[0].clientY - startY;
+    if (delta < 40) return; // not a downward pull
+
+    pullCount++;
+    clearTimeout(pullTimer);
+
+    if (pullCount === 1) {
+      indicator.textContent = '↓ Pull down again to refresh';
       indicator.classList.add('visible');
+      pullTimer = setTimeout(() => {
+        pullCount = 0;
+        indicator.classList.remove('visible');
+      }, 2000);
+    } else if (pullCount >= 2) {
+      pullCount = 0;
+      indicator.textContent = 'Refreshing…';
+      setTimeout(() => location.reload(), 300);
     }
   }, { passive: true });
-
-  document.addEventListener('touchend', () => {
-    if (pulling) {
-      indicator.classList.remove('visible');
-      setTimeout(() => location.reload(), 200);
-    }
-    pulling = false;
-  });
 }
 
 // ─── HELPERS ───────────────────────────────────────────────
