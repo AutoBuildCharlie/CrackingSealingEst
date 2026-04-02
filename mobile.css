@@ -168,7 +168,7 @@ html, body {
 #fab-group {
   position: fixed;
   right: 14px;
-  bottom: 220px;
+  bottom: 136px;
   z-index: 100;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
 }
