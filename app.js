@@ -1806,10 +1806,13 @@ function renderStreetList() {
 
   container.innerHTML = backLink + visibleStreets.map(s => {
     const dueBadge = (() => { const d = formatDueDateBadge(s.dueDate); return d ? `<span class="due-badge due-badge-${d.cls}">${d.label}</span>` : ''; })();
+    const orderBadge = s.order != null ? '<span class="order-badge">#' + s.order + '</span>' : '';
+    const doneBadge = s.completed ? '<span style="color:#22c55e;font-size:10px;font-weight:700;margin-right:4px">&#10003; DONE</span>' : '';
+    const doneClass = s.completed ? ' street-card-done' : '';
     return `
-    <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''} street-card-${s.rating}${s.completed ? ' street-card-done' : ''}" onclick="selectStreet('${s.id}')">
+    <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''} street-card-${s.rating}${doneClass}" onclick="selectStreet('${s.id}')">
       <button class="street-card-delete" onclick="event.stopPropagation(); deleteStreet('${s.id}')" title="Delete">&times;</button>
-      <div class="street-card-name" title="${escHtml(s.name)}">${s.order != null ? `<span class="order-badge">#${s.order}</span>` : ''}${s.completed ? `<span style="color:#22c55e;font-size:10px;font-weight:700;margin-right:4px">✓ DONE</span>` : ''}${escHtml(s.name)}</div>
+      <div class="street-card-name" title="${escHtml(s.name)}">${orderBadge}${doneBadge}${escHtml(s.name)}</div>
       ${dueBadge ? `<div>${dueBadge}</div>` : ''}
       ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}${s.roadType ? ' · ' + escHtml(s.roadType) : ''}</div>` : (s.roadType ? `<div class="street-card-city">${escHtml(s.roadType)}</div>` : '')}
       ${s.crossesBoundary ? `<div class="street-card-boundary">⚠ ${escHtml(s.boundaryNote)}</div>` : ''}
