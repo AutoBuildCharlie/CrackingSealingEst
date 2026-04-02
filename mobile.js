@@ -1300,6 +1300,16 @@ function openSVAt(lat, lng, heading = 0) {
     });
     _svMinimapOverlay = new (getLocationDotOverlayClass())({ lat, lng });
     _svMinimapOverlay.setMap(_svMinimap);
+    // Draw streets on minimap
+    getStreets().forEach(s => {
+      if (!s.path?.length) return;
+      new google.maps.Polyline({
+        path: s.path, geodesic: true,
+        strokeColor: ratingColor(s.rating),
+        strokeOpacity: 0.9, strokeWeight: 4,
+        map: _svMinimap, zIndex: 5
+      });
+    });
   } else {
     _svMinimap.panTo({ lat, lng });
     _svMinimapOverlay.setLatLng({ lat, lng });
