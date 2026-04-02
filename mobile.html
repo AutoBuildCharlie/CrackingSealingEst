@@ -38,7 +38,6 @@
     </button>
     <div class="search-row">
       <input type="text" id="search-input" placeholder="Search address…" onkeydown="if(event.key==='Enter')searchLocation()">
-      <button class="btn-nearme" onclick="goToMyLocation()">⊙</button>
     </div>
   </div>
 
@@ -65,6 +64,15 @@
         <rect x="11.5" y="19.5" width="3" height="7.5" rx="1.5" fill="#374151"/>
       </svg>
     </div>
+    <button id="fab-location" class="fab" onclick="goToMyLocation()" title="My location">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <line x1="12" y1="2" x2="12" y2="6"/>
+        <line x1="12" y1="18" x2="12" y2="22"/>
+        <line x1="2" y1="12" x2="6" y2="12"/>
+        <line x1="18" y1="12" x2="22" y2="12"/>
+      </svg>
+    </button>
     <button id="fab-pin" class="fab fab-pin" onclick="togglePinMode()" title="Pin a street">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
@@ -235,7 +243,7 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
   </script>
-  <script src="mobile.js?v=5"></script>
+  <script src="mobile.js?v=6"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async">
   </script>

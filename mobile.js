@@ -1294,7 +1294,7 @@ let _locMarker = null, _locCircle = null, _locWatch = null, _locTracking = false
 function goToMyLocation() {
   if (!navigator.geolocation) { showToast('Geolocation not supported'); return; }
 
-  const btn = document.querySelector('.btn-nearme');
+  const btn = document.getElementById('fab-location');
 
   if (_locTracking) {
     // Already tracking — just re-center
@@ -1304,7 +1304,7 @@ function goToMyLocation() {
 
   // Start tracking
   _locTracking = true;
-  if (btn) btn.style.color = '#3b82f6';
+  if (btn) { btn.style.background = '#3b82f6'; btn.style.color = '#fff'; btn.style.borderColor = '#3b82f6'; }
 
   _locWatch = navigator.geolocation.watchPosition(pos => {
     const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -1341,7 +1341,7 @@ function goToMyLocation() {
   }, () => {
     showToast('Could not get location');
     _locTracking = false;
-    if (btn) btn.style.color = '';
+    if (btn) { btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }
   }, { enableHighAccuracy: true });
 }
 
