@@ -6,28 +6,31 @@
 
 ## Table of Contents
 
-1. [What Is PaveScan](#1-what-is-pavescan)
+1. [What Is PavementScan](#1-what-is-pavementscan)
 2. [Live URL & Deployment](#2-live-url--deployment)
 3. [File Structure](#3-file-structure)
 4. [Tech Stack](#4-tech-stack)
 5. [Data Schema](#5-data-schema)
-6. [UI Layout](#6-ui-layout)
-7. [Features List](#7-features-list)
-8. [Key Functions Reference](#8-key-functions-reference)
-9. [Project Settings Schema](#9-project-settings-schema)
-10. [AI Scanning System](#10-ai-scanning-system)
-11. [Calibration System](#11-calibration-system)
-12. [Street Drawing (Pin Mode)](#12-street-drawing-pin-mode)
-13. [Photo Systems](#13-photo-systems)
-14. [Street View Integration](#14-street-view-integration)
-15. [Known Decisions & Rules](#15-known-decisions--rules)
-16. [Current Version](#16-current-version)
+6. [Desktop UI Layout](#6-desktop-ui-layout)
+7. [Mobile UI Layout](#7-mobile-ui-layout)
+8. [Features List — Desktop](#8-features-list--desktop)
+9. [Features List — Mobile](#9-features-list--mobile)
+10. [Key Functions Reference — Desktop](#10-key-functions-reference--desktop)
+11. [Key Functions Reference — Mobile](#11-key-functions-reference--mobile)
+12. [Project Settings Schema](#12-project-settings-schema)
+13. [AI Scanning System](#13-ai-scanning-system)
+14. [Calibration System](#14-calibration-system)
+15. [Street Drawing (Pin Mode)](#15-street-drawing-pin-mode)
+16. [Photo Systems](#16-photo-systems)
+17. [Street View Integration](#17-street-view-integration)
+18. [Known Decisions & Rules](#18-known-decisions--rules)
+19. [Current Version](#19-current-version)
 
 ---
 
-## 1. What Is PaveScan
+## 1. What Is PavementScan
 
-A pavement assessment tool built for crack seal and slurry seal contractors (e.g. Cal's company). Field workers drive streets, the app auto-collects Street View photos along the route, sends them to an AI model, and returns a condition rating (LVL 1–4). The app tracks square footage, generates reports, and helps prioritize which streets need treatment.
+A pavement assessment tool built for crack seal and slurry seal contractors (Cal's company). Field workers drive streets, the app auto-collects Street View photos along the route, sends them to an AI model, and returns a condition rating (LVL 1–4). Tracks square footage, generates reports, helps prioritize treatment.
 
 **Login:** username `Cal.Zentara` / passcode `0911`
 
@@ -35,24 +38,32 @@ A pavement assessment tool built for crack seal and slurry seal contractors (e.g
 
 ## 2. Live URL & Deployment
 
-- **Live:** https://autobuildcharlie.github.io/PavementScan/
-- **Repo:** GitHub Pages — auto-deploys on push to `master`
-- **Deploy command:** `/git-deploy` or manual `git add . && git commit -m "..." && git push`
-- **Version tag convention:** bump version number in `index.html` on `<link rel="stylesheet">` and `<script src="app.js">` query strings (e.g. `?v=142`)
+- **Desktop:** https://autobuildcharlie.github.io/PavementScan/
+- **Mobile:** https://autobuildcharlie.github.io/PavementScan/mobile.html
+- **Repo:** https://github.com/AutoBuildCharlie/PavementScan
+- **Branch:** `master` — GitHub Pages auto-deploys on push
+- **Deploy command:** `/git-deploy` or `git add . && git commit -m "vXXX: ..." && git push`
+- **Version convention:** bump `?v=XXX` on `<link rel="stylesheet">` and `<script src="...">` in both `index.html` and `mobile.html`
+- **Current version:** v175 (desktop index.html), mobile.js v12
 
 ---
 
 ## 3. File Structure
 
 ```
-PavementScan/
-├── index.html       — All HTML: login, header, modals, panels, lightbox
-├── app.js           — All JavaScript (~3940 lines): map, AI, data, UI
-├── style.css        — All CSS: dark theme, layout, components
-└── CLAUDE.md        — This file
+CrackingSealingEst/
+├── index.html      — Desktop HTML: login, header, modals, panels, lightbox
+├── app.js          — Desktop JS (~4000+ lines): map, AI, data, UI
+├── style.css       — Desktop CSS: dark theme, layout, components
+├── mobile.html     — Mobile HTML: Google Maps-style layout
+├── mobile.css      — Mobile CSS: bottom sheet, FABs, sheets
+├── mobile.js       — Mobile JS (~1600 lines): all mobile logic
+├── manifest.json   — PWA manifest (name, icon, theme, start_url)
+├── sw.js           — Service worker v2 (caches local files only)
+└── CLAUDE.md       — This file
 ```
 
-No build system. No npm. No dependencies except Google Maps JS API (loaded via script tag) and the AI worker proxy.
+No build system. No npm. Pure HTML/CSS/JS.
 
 ---
 
@@ -60,16 +71,17 @@ No build system. No npm. No dependencies except Google Maps JS API (loaded via s
 
 | Layer | What |
 |---|---|
-| Maps | Google Maps JavaScript API (`mapId: f2e86140855a96ecc6c0576f`, dark theme) |
+| Maps | Google Maps JavaScript API (dark theme via inline styles on mobile, mapId on desktop) |
 | Street View photos | Google Street View Static API (via proxy) |
 | AI analysis | GPT-4o or Gemini Flash via Cloudflare Worker proxy |
 | AI proxy URL | `https://cse-worker.aestheticcal22.workers.dev` |
 | Road type detection | OpenStreetMap Overpass API |
 | Geocoding | Google Maps Geocoder (JS API) |
-| Persistence | `localStorage` only — no backend database |
-| Auth | Simple sessionStorage flag (`cse_auth = '1'`) |
-| Fonts | Inter (Google Fonts) |
+| Persistence | `localStorage` only — no backend |
+| Auth | `sessionStorage` flag (`cse_auth = '1'`) |
+| Fonts | Inter (Google Fonts — loaded async on mobile to avoid blocking) |
 | Deployment | GitHub Pages |
+| PWA | manifest.json + sw.js (service worker caches only local files) |
 
 ---
 
@@ -80,8 +92,10 @@ No build system. No npm. No dependencies except Google Maps JS API (loaded via s
 | Key | Contents |
 |---|---|
 | `cse_projects` | Array of all project objects (JSON) |
-| `cse_active_project` | UUID string of the selected project |
+| `cse_active_project` | UUID string of selected project |
 | `cse_global_settings` | `{ globalAiNotes: string }` |
+
+Both desktop and mobile share the same localStorage keys — data is identical across both.
 
 ### Project Object
 
@@ -92,15 +106,16 @@ No build system. No npm. No dependencies except Google Maps JS API (loaded via s
   type: "crack-seal" | "slurry" | "both",
   streets: [ ...street objects... ],
   createdAt: "ISO string",
-
-  // per-project settings (with defaults):
   photoInterval: 200,        // ft between scan photo samples
-  maxPhotos: 5,              // max scan photos per street
+  maxPhotos: 6,              // max scan photos per street
   detectRR: true,            // show R&R section
   aiEnabled: true,           // run AI analysis on scan
-  scanModel: "gpt",          // "gpt" | "gemini"
+  scanModel: "gpt-4o",       // "gpt-4o" | "gemini-2.0-flash"
   aiNotes: "",               // per-project AI instructions
-  detectWideCracks: false    // wide crack detection flag
+  includeWideCracks: false,  // wide crack detection toggle
+  detectLaneLayout: false,   // lane layout AI detection (off by default)
+  calibrationLog: [],        // correction history
+  calibrationRules: [],      // generated AI rules
 }
 ```
 
@@ -111,445 +126,407 @@ No build system. No npm. No dependencies except Google Maps JS API (loaded via s
   id: "uuid",
   name: "W Crestwood Ln",
   lat, lng,                  // midpoint coords
-  length,                    // ft (user-entered or auto)
+  length,                    // ft
   width,                     // ft (auto from road type)
   sqft,                      // length × width
   rating: "level-1" | "level-2" | "level-3" | "level-4" | null,
+  aiRating: "level-X" | null,  // original AI rating before manual override
   roadType: "residential" | "arterial" | "highway" | "parking-lot",
-  notes: "",                 // user notes
+  notes: "",
   analysis: "",              // AI analysis text
-  adminNotes: "",            // internal notes
-  weedAlert: bool,
-  weedNotes: "",
-  ravelingAlert: bool,
-  ravelingNotes: "",
-  svImage: "url",            // thumbnail for list
-  path: [{ lat, lng }, ...], // highlight polyline points
-  photos: [...],             // on-site photos (see below)
+  adminNotes: "",
+  weedAlert: bool, weedNotes: "",
+  ravelingAlert: bool, ravelingNotes: "",
+  rrAlert: bool,
+  svImage: "url",            // thumbnail
+  path: [{ lat, lng }, ...], // polyline points
+  photos: [...],             // on-site photos
   rrPhotos: [...],           // R&R photos
   scanPhotos: [...],         // AI-analyzed Street View photos
-  photoRatings: {},          // { photoIndex: "level-X" }
   scannedAt: "ISO string",
   createdAt: "ISO string"
 }
 ```
 
-### Photo Object (on-site photos)
+### Photo Object
 
 ```js
 {
   id: "uuid",
-  dataUrl: "base64",
+  dataUrl: "base64",         // on-site/RR photos
+  url: "sv static url",      // scan photos
+  hdUrl: "sv static url",    // scan photos HD
   lat, lng,
-  address: "",
+  label: "",
   note: "",
   rating: "level-X" | null,
   takenAt: "ISO string"
 }
 ```
 
-### Scan Photo Object
+---
 
-```js
-{
-  url: "sv static url",
-  hdUrl: "sv static url (larger)",
-  label: "N at 123ft",
-  lat, lng
-}
+## 6. Desktop UI Layout
+
 ```
+┌──────────────────────────────────────────────────────────────┐
+│ HEADER: PavementScan | stats pills | Report | Global Settings│
+├──────────────┬─────────────────────────────┬─────────────────┤
+│ LEFT PANEL   │        MAP (center)          │ RIGHT PANEL     │
+│ - Project    │  Google Maps dark mode       │ Street Detail   │
+│   selector   │  + polyline overlays         │ 3 tabs:         │
+│   + settings │  + photo markers             │ Overview|Photos │
+│ - Streets    │  + animated pulse on select  │ |Analysis       │
+│   list       │                              │ (hidden until   │
+│ - Search bar │  [Street View panel -        │  street select) │
+│ - Quick      │   slides over map]           │                 │
+│   actions    │                              │                 │
+│   (Pin/SV/   │                              │                 │
+│   Photo)     │                              │                 │
+└──────────────┴─────────────────────────────┴─────────────────┘
+```
+
+**Desktop Modals:** Add Street, Scan spinner, Photo Lightbox, SV Snap, Name Prompt, Refine AI, Global Settings, Report
 
 ---
 
-## 6. UI Layout
+## 7. Mobile UI Layout
 
-```
-┌──────────────────────────────────────────────────────────┐
-│ HEADER: logo | stats pills | Report btn | Global Settings│
-├──────────────┬───────────────────────────┬───────────────┤
-│ LEFT PANEL   │        MAP (center)        │ RIGHT PANEL   │
-│ - Project    │  Google Maps dark mode     │ Street Detail │
-│   selector   │  + polyline overlays       │ (hidden until │
-│   + settings │  + photo markers           │  street       │
-│ - Streets    │                            │  selected)    │
-│   list       │  [Street View panel -      │               │
-│ - Search bar │   slides over map]         │               │
-│ - Quick      │                            │               │
-│   actions    │                            │               │
-│   (Pin/SV/   │                            │               │
-│   Photo)     │                            │               │
-└──────────────┴───────────────────────────┴───────────────┘
-```
+Google Maps-style layout:
+- **Full-screen map** — dark theme via inline styles (no mapId needed)
+- **Top bar** — project chip (tap to switch) + search bar (filters street list in real-time)
+- **FABs (right side)** — Photo, Street View worker (draggable), Location, Pin
+  - FABs hide automatically when bottom sheet is fully open
+- **Bottom sheet** — 3 states: peek (120px) | half (50%) | full (100%)
+  - Drag handle is full-width, 48px tall — easy to grab anywhere
+  - Handle color = active street's rating color
+  - Double pull-down on handle to refresh (not map drag)
+- **Street list view** — inside sheet, swipe left on item to delete
+- **Street detail view** — 3 tabs: Overview | Photos | Analysis
+- **Overlays:** Project sheet, Scan sheet, Name sheet, SV overlay, Snap sheet, Lightbox, Scanning spinner
 
-**Modals (overlays):**
-- Add Street — name + length input
-- Scan (spinner) — while AI runs
-- Photo Lightbox — view/rate/delete/retake any photo
-- SV Snap modal — save a Street View screenshot to a street
-- Name Prompt — confirm street name after Pin.End
-- Refine AI modal — shows generated calibration rules
-- Global Settings modal — global AI instructions textarea
-- Report modal — full project PDF-style report
+**PWA:** installable via "Add to Home Screen", service worker caches local files only (not Google APIs — they were causing 5-min hangs). Splash screen shows on load, hides when map tiles load or after 8s max.
 
 ---
 
-## 7. Features List
+## 8. Features List — Desktop
 
 ### Core
-- Multi-project support — create, rename, delete, switch projects
+- Multi-project support — create, rename, delete, switch
 - Per-project type: crack seal / slurry / both
 - Street list with search
 - Add street by address (auto-geocodes, detects road type + width)
 - Stats bar: total streets, sq ft, sq yards, avg rating
 
 ### Street Drawing (Pin Mode)
-- Pin.Start / Pin.End button in sidebar
-- Click map to drop start point (green crosshair cursor), click again for end (red crosshair cursor)
-- Draws a polyline on the map along the route
-- After Pin.End, shows "Name This Street" confirmation prompt
-- Right-click on map cancels drawing mode at any time
+- Pin.Start → click map → Pin.End → click map → name prompt
+- Green crosshair cursor on start, red on end
+- Right-click cancels at any time
+- Street name suggested from midpoint geocode
 
 ### AI Scanning
-- Samples Street View photos along the street path (every N ft, up to max photos)
-- Sends photos to AI (GPT-4o or Gemini Flash) for pavement condition analysis
-- Returns: overall rating (LVL 1–4), analysis text, weed/raveling/R&R flags
-- Per-project settings control photo interval and max photo count
-- AI can be disabled per project (still captures photos, no analysis)
+- Samples Street View photos every N ft along path (up to maxPhotos)
+- GPT-4o or Gemini Flash via proxy
+- Returns: rating (LVL 1–4), analysis text, weed/raveling/R&R alerts
+- AI can be disabled per project
 
 ### Ratings
-- LVL 1 — Good condition
-- LVL 2 — Light cracks
-- LVL 3 — Heavy cracks
-- LVL 4 — Alligator cracking
-- Color coded: green / yellow / orange / red
-- Rating can be manually overridden in detail panel or lightbox
+- LVL 1 — Good (green) / LVL 2 — Light cracks (yellow)
+- LVL 3 — Heavy cracks (orange) / LVL 4 — Alligator (red)
+- Override in detail panel or lightbox
 
-### Calibration System
-- When user changes a rating, logs the correction
-- Shows "Why did you change this?" prompt (in lightbox or detail panel)
-- "Refine AI" button generates custom rules from correction history
-- Rules get injected into all future AI prompts
+### Detail Panel (3 tabs)
+- **Overview** — alerts, stat grid (sqft/sy/length/width), treatment, rating selector, rescan/delete
+- **Photos** — SV thumbnail, on-site photos, R&R photos, scan photo grid
+- **Analysis** — AI analysis text (level line stripped — shown in header), admin notes
 
-### Global AI Instructions
-- Gear icon in header → Global Settings
-- Free-text box for grading standards that apply to every scan
-- Injected into every AI prompt across all projects
+### Settings (per project)
+- Toggles: Wide Cracks, AI Analysis, R&R Detection, Lane Layout (2×2 grid)
+- Project Type pill — full width, own row
+- Advanced (collapsible): Photo Interval stepper, Max Photos stepper, Scan Model (GPT/Gemini)
 
-### Photo Systems
-- **On-Site Photos** — taken from phone camera in the field; shown in detail panel under "On-Site Photos"; named "StreetName (1)", "StreetName (2)"...
-- **R&R Photos** — remove & replace documentation photos (only shown if `detectRR` is on)
-- **Scan Photos** — Street View static images captured automatically during AI scan; shown in detail panel grid
-
-### Street View
-- Toggle Street View mode from sidebar
-- Click anywhere on map to open Street View at that location
-- "Snap Photo" — saves current SV view as an on-site photo or R&R photo
-- "Retake Photo" — replaces a specific scan photo with current SV angle
-
-### Lightbox
-- Opens for on-site photos, R&R photos, or scan photos
-- Rate, add note, delete, navigate prev/next
-- Retake button (for scan photos only) — opens Street View at that photo's location
-- Changing rating in lightbox updates street rating + triggers calibration prompt
-
-### Map Features
-- Dark map theme
-- Street polylines colored by rating
-- Photo markers on map (camera icon)
-- Animated pulse on selected street
-- Fit map to all markers button
-- Search by address / intersection
+### Map
+- Dark theme, polylines colored by rating
+- Pulsing glow on selected street (slow, ~2s cycle), main line semi-transparent
+- Photo markers, search by address
 
 ### Report
-- AI-generated project summary report
-- Lists all streets with ratings, sq ft, recommended treatment
-- Shows totals and project overview
-
-### Advanced Settings (per project, collapsible)
-- AI Instructions textarea
-- Toggle: Detect R&R / Wide Cracks / AI enabled
-- Photo Interval stepper (+/- buttons, default 200 ft)
-- Max Photos stepper (+/- buttons, default 5)
-- Scan model selector (GPT / Gemini)
+- AI-generated project summary (all streets, ratings, sqft, treatment recommendations)
 
 ---
 
-## 8. Key Functions Reference
+## 9. Features List — Mobile
+
+All desktop features plus mobile-specific:
+- **Tap polyline on map** → detail sheet opens (wide invisible tap target)
+- **Search** filters street list in real-time + geocodes on Enter
+- **"Use My Location"** in Add Street sheet — GPS → reverse geocode → fills name
+- **One-tap photo FAB** — if street selected, goes straight to camera; if not, finds nearest street within 2000ft
+- **Swipe left** on street list item → red Delete button appears
+- **Handle color** = rating color of selected street
+- **FABs hide** when sheet fully open
+- **Live location** blue dot + accuracy circle (tracks as you move, button turns blue)
+- **Pull-to-refresh** — double pull on sheet handle only (not map)
+- **Loading splash** — shows immediately, hides when tiles load or 8s max
+- **PWA installable** — manifest + service worker
+
+---
+
+## 10. Key Functions Reference — Desktop
 
 ### Auth & Init
-| Function | What it does |
+| Function | What |
 |---|---|
-| `doLogin()` | Validates credentials, sets sessionStorage flag, calls `initMap()` |
+| `doLogin()` | Validates creds, sets sessionStorage, shows app |
 | `initMap()` | Google Maps init, loads projects, sets up listeners |
 
 ### Projects
-| Function | What it does |
+| Function | What |
 |---|---|
-| `loadProjects()` | Reads from localStorage, sets `activeProject` |
-| `saveProjects()` | Writes all projects to localStorage |
-| `createProject(name, type)` | Creates new project with defaults |
-| `switchProject(id)` | Changes active project, re-renders everything |
-| `deleteProject(id)` | Confirm + delete |
-| `renameProject(id)` | Inline rename in selector |
-| `renderProjectSelector()` | Re-renders the whole left-panel project bar + settings |
-| `toggleSettingsCollapse()` | Collapses/expands settings section |
-| `toggleAdvanced()` | Collapses/expands advanced settings subsection |
-| `savePhotoInterval(v)` | Saves interval, re-renders selector |
-| `saveMaxPhotos(v)` | Saves max, re-renders selector |
-| `toggleRR()` / `toggleAI()` / `toggleWideCracks()` | Toggle per-project flags |
-| `setScanModel(model)` | Sets "gpt" or "gemini" |
+| `loadProjects()` / `saveProjects()` | Read/write localStorage |
+| `createProject(name, type)` | New project with defaults |
+| `switchProject(id)` | Change active project, re-render |
+| `renderProjectSelector()` | Re-renders left panel project bar + settings |
+| `toggleSettingsCollapse()` / `toggleAdvanced()` | Collapse settings sections |
 
 ### Streets
-| Function | What it does |
+| Function | What |
 |---|---|
-| `saveStreet()` | Reads modal inputs, geocodes address, detects road type, kicks off AI scan |
-| `selectStreet(id)` | Opens right detail panel for a street |
-| `closeDetailPanel()` | Hides right panel |
-| `setRating(id, rating)` | Manually sets street rating, logs calibration if AI rating existed |
-| `deleteStreet(id)` / `confirmDelete(id)` | Delete with confirmation |
-| `rescanStreet(id)` | Re-runs AI analysis on existing street |
-| `renderStreetList()` | Re-renders the left-panel street list |
-| `updateStats()` | Recalculates header stat pills |
+| `saveStreet()` | Geocodes, detects road type, kicks off AI scan |
+| `selectStreet(id)` | Opens right detail panel |
+| `setRating(id, rating)` | Sets rating, logs calibration |
+| `rescanStreet(id)` | Re-runs AI on existing street |
+| `renderStreetList()` | Re-renders left panel list |
+| `updateStats()` | Recalculates header pills |
 
 ### Street Drawing
-| Function | What it does |
+| Function | What |
 |---|---|
-| `startFreeHighlight()` | Activates Pin.Start mode, sets cursor |
-| `cancelHighlight()` / `stopDrawingMode()` | Exits drawing mode, clears temp elements |
-| `handleMapClick(latLng)` | Routes clicks to highlight or photo mode |
-| `saveHighlightedStreet(startPt, endPt)` | Geocodes midpoint, shows name prompt |
-| `promptStreetName(street, suggestedName)` | Shows name confirmation modal |
-| `confirmStreetName()` | Saves name to pending street and stores it |
-| `setMapCursor(cursorClass)` | Forces custom SVG cursor onto Google Maps internal canvas |
-| `drawAllHighlights()` | Redraws all street polylines on map |
+| `startFreeHighlight()` | Activates Pin mode |
+| `handleMapClick(latLng)` | Routes clicks to pin or photo mode |
+| `confirmStreetName()` | Saves street, kicks off scan |
+| `setMapCursor(class)` | Forces cursor on Maps internal canvas |
+| `drawAllHighlights()` | Redraws all polylines |
 
 ### AI Scanning
-| Function | What it does |
+| Function | What |
 |---|---|
-| `analyzeStreetView(street)` | Main scan function — samples points, fetches SV photos, calls AI |
-| `getSamplePoints(street)` | Returns array of { lat, lng, heading } for photo capture |
-| `getStreetViewUrl(lat, lng, heading)` | Builds SV Static API URL |
-| `fetchSVMetadata(lat, lng)` | Checks if SV imagery exists at a location |
-| `checkPhotoHasRoad(base64)` | Pre-filter — skips non-road images |
-| `extractRating(text)` | Parses "level-X" from AI response |
-| `extractPhotoRatings(text, count)` | Parses per-photo ratings from AI |
-| `recalcRatingFromPhotos(streetId)` | Recalculates street rating from individual photo ratings |
+| `analyzeStreetView(street)` | Main scan — samples, fetches photos, calls AI |
+| `getSamplePoints(street)` | Returns `{lat,lng,heading}` array |
+| `getStreetViewUrl(...)` | Builds SV Static API URL |
+| `extractRating(text)` | Parses "level-X" from AI text |
+| `recalcRatingFromPhotos(id)` | Recalculates from individual photo ratings |
 
 ### Calibration
-| Function | What it does |
+| Function | What |
 |---|---|
-| `logCalibrationCorrection(street, aiRating, calRating)` | Saves correction to localStorage |
-| `showReasonPrompt()` | Shows "why did you change?" prompt — in lightbox or detail panel |
-| `dismissReasonPrompt()` | Hides prompt |
-| `saveCalibrationReason()` | Saves reason text to correction log |
-| `openRefineAIModal()` | Calls AI to generate rules from correction log |
-| `applyCalibrationRules()` | Saves generated rules to localStorage |
-| `clearCalibrationRules()` | Clears all rules |
+| `logCalibrationCorrection(street, ai, cal)` | Saves correction |
+| `showReasonPrompt()` | "Why did you change?" — in lightbox or detail panel |
+| `openRefineAIModal()` | AI generates rules from log |
+| `applyCalibrationRules()` | Saves rules to localStorage |
 
 ### Photos
-| Function | What it does |
+| Function | What |
 |---|---|
-| `openPhotoCapture(streetId)` | Opens hidden file input for on-site photo |
-| `handlePhotoCapture(e, streetId)` | Compresses + stores photo, re-renders |
-| `openRRPhotoCapture(streetId)` | Same for R&R photos |
-| `deletePhoto(streetId, photoId)` | Deletes on-site photo |
-| `deleteRRPhoto(streetId, photoId)` | Deletes R&R photo |
-| `deleteScanPhoto(streetId, index)` | Deletes one scan photo |
-| `retakeScanPhoto(streetId, photoIndex)` | Enters retake mode, opens Street View |
-| `snapRetake()` | Replaces scan photo with current SV angle |
-| `setOnSitePhotoRating(streetId, photoId, rating)` | Updates rating on on-site photo |
-| `setPhotoRating(streetId, photoIndex, rating)` | Updates rating on scan photo |
+| `openPhotoCapture(streetId)` | Opens file input |
+| `handlePhotoCapture(e, id)` | Compresses + stores photo |
+| `deleteScanPhoto(streetId, idx)` | Deletes one scan photo |
+| `retakeScanPhoto(streetId, idx)` | Opens SV at photo coords for retake |
 
 ### Lightbox
-| Function | What it does |
+| Function | What |
 |---|---|
-| `openLightbox(photos, idx, streetId, arrayName, rrMap)` | Opens lightbox for any photo array |
-| `lightboxNav(dir)` | Navigate -1 or +1 |
-| `lightboxSetRating(value)` | Updates rating from lightbox select |
-| `lightboxDeletePhoto()` | Deletes current photo |
-| `lightboxRetakePhoto()` | Triggers retake flow from lightbox |
-| `lightboxSaveNote()` | Saves text note to current photo |
-| `closeLightbox()` | Hides lightbox |
-| `_renderLightbox()` | Internal — re-renders lightbox content for current index |
-
-### Street View
-| Function | What it does |
-|---|---|
-| `toggleStreetView()` | Enables SV click mode |
-| `openStreetViewAt(lat, lng, heading)` | Opens SV panel at coords |
-| `snapStreetView(isRR)` | Captures current SV frame, opens save modal |
-| `saveSnap()` | Saves snapped photo to street |
-| `closeStreetViewPanel()` | Closes SV panel, returns to map |
-
-### Report
-| Function | What it does |
-|---|---|
-| `generateProjectReport()` | Builds prompt, calls AI, renders HTML report in modal |
-| `closeReport(e)` | Closes report modal |
+| `openLightbox(photos, idx, streetId, arrayName)` | Opens for any photo array |
+| `lightboxSetRating(value)` | Updates rating, triggers calibration if scan photo |
+| `lightboxRetakePhoto()` | Enters retake mode |
+| `_renderLightbox()` | Re-renders current photo |
 
 ### Helpers
-| Function | What it does |
+| Function | What |
 |---|---|
-| `geocodeAddress(address)` | Promise wrapper for Google geocoder |
-| `detectRoadType(lat, lng)` | OpenStreetMap query for highway tag → maps to road type |
-| `calcDistanceFt(p1, p2)` | Haversine distance in feet |
-| `escHtml(str)` | XSS-safe HTML escaping |
-| `formatNumber(n)` | Locale number formatting |
-| `showToast(msg, duration)` | Bottom toast notification |
-| `getGlobalSettings()` / `saveGlobalSettings()` | Read/write global settings |
+| `geocodeAddress(address)` | Promise → `{lat, lng}` |
+| `detectRoadType(lat, lng)` | OSM Overpass → road type string |
+| `calcDistanceFt(p1, p2)` | Haversine in feet |
+| `escHtml(str)` | XSS-safe escaping |
+| `showToast(msg, dur)` | Bottom toast |
+| `getGlobalSettings()` / `saveGlobalSettings()` | Global settings r/w |
 
 ---
 
-## 9. Project Settings Schema
+## 11. Key Functions Reference — Mobile
 
-All stored on the project object itself (not separate localStorage key):
+| Function | What |
+|---|---|
+| `initMap()` | Maps init + splash hide + pull-to-refresh init |
+| `loadProjects()` / `saveProjects()` | Same localStorage as desktop |
+| `renderAll()` | Re-renders chip, list, project list, polylines, markers, stats |
+| `setSheetState(state)` | peek/half/full — also hides FABs and updates handle color |
+| `openStreet(id)` | Opens detail view, pans map, animates polyline |
+| `renderStreetDetail()` | Renders header + tabs |
+| `switchMobileTab(tab)` | overview / photos / analysis |
+| `renderOverviewTab(s)` | Alerts, stat grid, rating select, actions |
+| `renderPhotosTab(s)` | Photo grids + add buttons |
+| `renderAnalysisTab(s)` | Formatted AI text + admin notes |
+| `drawAllPolylines()` | Draws all streets + wide tap targets + pulse on active |
+| `analyzeStreet(street)` | Full AI scan (same logic as desktop) |
+| `getSamplePoints(street)` | Sample points along path |
+| `handleMapClick(latLng)` | Pin mode — first click start, second click end |
+| `togglePinMode()` | Start/cancel pin drawing |
+| `confirmNameSheet()` | Saves pinned street, kicks off scan |
+| `goToMyLocation()` | Blue dot + accuracy circle, watches position |
+| `startPhoto()` | Camera — uses selected street or nearest within 2000ft |
+| `openLightboxMobile(streetId, array, idx)` | Opens photo lightbox |
+| `lbSetRating(value)` | Rate photo, recalc street rating |
+| `openSVAt(lat, lng, heading)` | Opens Street View overlay |
+| `snapSV(isRR)` | Captures SV frame, opens save sheet |
+| `initWorkerDrag()` | Drag worker figure → drop on map → opens SV |
+| `filterStreetList(query)` | Real-time street list filter |
+| `swipeStart/Move/End` | Swipe-to-delete on street items |
+| `useMyLocationForScan()` | GPS → reverse geocode → fills name input |
+| `initPullToRefresh()` | Double pull-down on handle → reload |
+| `updateHandleColor()` | Sets handle color to active street rating |
+
+---
+
+## 12. Project Settings Schema
+
+Stored on project object (not separate key):
 
 | Field | Default | Description |
 |---|---|---|
 | `photoInterval` | `200` | Feet between scan photo capture points |
-| `maxPhotos` | `5` | Max scan photos per street |
-| `detectRR` | `true` | Show R&R section in detail panel |
-| `aiEnabled` | `true` | Run AI analysis (false = photos only) |
-| `scanModel` | `"gpt"` | `"gpt"` = GPT-4o, `"gemini"` = Gemini Flash |
+| `maxPhotos` | `6` | Max scan photos per street |
+| `detectRR` | `true` | Show R&R section |
+| `aiEnabled` | `true` | Run AI analysis |
+| `scanModel` | `"gpt-4o"` | `"gpt-4o"` or `"gemini-2.0-flash"` |
 | `aiNotes` | `""` | Per-project AI grading instructions |
-| `detectWideCracks` | `false` | Wide crack detection toggle |
+| `includeWideCracks` | `false` | Wide crack detection |
+| `detectLaneLayout` | `false` | Lane layout AI detection (off by default — accuracy ~75%) |
 
 ---
 
-## 10. AI Scanning System
+## 13. AI Scanning System
 
-### How It Works
+### Flow
+1. `getSamplePoints(street)` — samples every `photoInterval` ft along path, up to `maxPhotos`
+2. Fetch SV Static photo → base64
+3. All photos → single AI call
+4. AI returns: rating, analysis, flags, per-photo ratings
+5. Stored on street, re-renders UI
 
-1. `getSamplePoints(street)` — samples points along the street path every `photoInterval` ft, up to `maxPhotos`
-2. Each point: fetch SV metadata to confirm imagery exists
-3. Download SV Static photo → convert to base64 → `checkPhotoHasRoad()` pre-filter
-4. Valid photos collected → single AI call with all photos
-5. AI returns: rating, analysis text, weed/raveling/R&R flags, per-photo ratings
-6. Results stored on street object, re-renders detail panel
-
-### AI Prompt Construction
-
-Injected in order:
+### Prompt Construction (in order)
 1. Global AI instructions (`cse_global_settings.globalAiNotes`)
 2. Per-project AI notes (`activeProject.aiNotes`)
-3. Calibration rules (from `cse_calibration_rules`)
-4. Base system prompt (rating criteria, LVL definitions)
+3. Calibration rules (`activeProject.calibrationRules`)
+4. Base system prompt (LVL definitions, rating criteria)
 5. Photos as base64 image attachments
 
-### Proxy Worker
+### Proxy
+All calls → `https://cse-worker.aestheticcal22.workers.dev`
+Worker holds API keys, routes to OpenAI or Google based on `provider` param.
 
-All AI calls go through: `https://cse-worker.aestheticcal22.workers.dev`
-
-The worker holds the actual API keys and routes to OpenAI or Google based on the model parameter.
-
----
-
-## 11. Calibration System
-
-Tracks when users override the AI's rating and learns from corrections.
-
-**Flow:**
-1. User changes rating → `logCalibrationCorrection()` saves to `cse_calibration_log`
-2. `showReasonPrompt()` appears — asks "Why did you change this?"
-3. User types reason → saved alongside the correction
-4. User clicks "Refine AI" → `openRefineAIModal()` sends full log to AI
-5. AI generates plain-English rules (e.g. "Faded striping alone is LVL 2 not LVL 1")
-6. Rules saved to `cse_calibration_rules` → injected into every future scan prompt
-
-**Where the prompt shows:**
-- If lightbox is open → inside `#lightbox-calibration-reason` (inside lightbox)
-- Otherwise → inside `#calibration-reason-prompt` (in detail panel)
+### Notes
+- `checkHasRoad` pre-filter was **removed from mobile** (caused extra AI calls, slowed scan)
+- Level line stripped from displayed analysis text (shown in header instead)
+- Lane layout uses satellite image + separate AI call — off by default
 
 ---
 
-## 12. Street Drawing (Pin Mode)
+## 14. Calibration System
 
-**Button:** `Pin.Start` → first click → becomes `Pin.End` → second click → done
+1. User changes rating → `logCalibrationCorrection()` → saved to `activeProject.calibrationLog`
+2. "Why did you change?" prompt appears (in lightbox or detail panel)
+3. User types reason → saved with correction
+4. "Refine AI" → AI reads log → generates plain-English rules
+5. Rules saved to `activeProject.calibrationRules` → injected into every future scan
 
-**Cursor behavior:**
-- Pin.Start active → green crosshair SVG cursor (via `setMapCursor('cursor-pin-start')`)
-- Pin.End active → red crosshair SVG cursor (via `setMapCursor('cursor-pin-end')`)
-- Must force cursor onto Google Maps internal `canvas` and `div` elements — setting it on `#map` alone doesn't work
-
-**After drawing:**
-- Geocodes midpoint via Google geocoder
-- Shows "Name This Street" modal with suggested name pre-filled
-- User confirms or types a new name
-- Street saved, highlight polyline drawn, AI scan kicks off
-
-**Cancel:**
-- Right-click on map at any time
-- Listener: `map.addListener('rightclick')` + `document.getElementById('map').addEventListener('contextmenu')`
+**Prompt location:**
+- Lightbox open → `#lightbox-calibration-reason` (inside lightbox)
+- Otherwise → `#calibration-reason-prompt` (detail panel)
 
 ---
 
-## 13. Photo Systems
+## 15. Street Drawing (Pin Mode)
 
-### Three Photo Types
+**Desktop:** Pin.Start button → green crosshair cursor → click start → red crosshair → click end → name modal
 
-| Type | Array | How Added | Shown In |
+**Mobile:** Tap Pin FAB → tap start on map → tap end → name sheet
+
+**Shared:**
+- Midpoint geocoded for name suggestion
+- Name confirmation always shown (auto-detect was unreliable)
+- Right-click (desktop) or Cancel button (mobile) exits pin mode
+- Desktop: must force cursor onto Google Maps internal `canvas` elements
+
+---
+
+## 16. Photo Systems
+
+| Type | Array | Added Via | Shown In |
 |---|---|---|---|
-| On-Site Photos | `street.photos` | Camera button → file input | Detail panel "On-Site Photos" |
-| R&R Photos | `street.rrPhotos` | R&R button → file input or SV snap | Detail panel "R&R Photos" (if detectRR on) |
-| Scan Photos | `street.scanPhotos` | Auto during AI scan | Detail panel scan photo grid |
+| On-Site | `street.photos` | Camera → file input | Detail "On-Site Photos" |
+| R&R | `street.rrPhotos` | R&R button or SV snap | Detail "R&R Photos" (if detectRR) |
+| Scan | `street.scanPhotos` | Auto during AI scan | Detail scan photo grid |
 
-### On-Site Photo Naming
-Photos are labeled by street name + sequential number: `"W Crestwood Ln (1)"`, `"W Crestwood Ln (2)"`, etc.
-This is generated at render time from the street's `name` field + index in `photos` array.
-
-### Photo Compression
-On-site and R&R photos are compressed before storage via `compressPhoto(file, maxPx, quality)` — reduces localStorage usage.
-
-### Lightbox `arrayName` Parameter
-When opening the lightbox, pass which array to use:
-- `"photos"` — on-site photos
-- `"rrPhotos"` — R&R photos
-- `"scanPhotos"` — AI scan photos
+- Photos compressed before storage (max 1200px, 80% quality)
+- Lightbox works for all 3 types: pass `arrayName` = `"photos"` | `"rrPhotos"` | `"scanPhotos"`
+- Retake: opens SV at photo's coords, "Replace Photo" button swaps the scan photo
 
 ---
 
-## 14. Street View Integration
+## 17. Street View Integration
 
 ### Modes
-1. **Scan mode** — automatic during `analyzeStreetView()`, not user-visible
-2. **Interactive SV** — user clicks "Street View" button, then clicks map to browse
-3. **Retake mode** — user clicks "Retake Photo" in lightbox, SV opens at that photo's coords, "Replace Photo" button appears in toolbar
+1. **Scan mode** — automatic in `analyzeStreetView()`, not user-visible
+2. **Interactive** — user drags worker figure (desktop/mobile) or clicks SV button → drops on map
+3. **Retake** — from lightbox → SV opens at photo coords → "Replace Photo" swaps it
 
-### Street View Panel
-- Slides in from right, overlays the map
-- Toolbar: Back to Map | Snap Photo | Snap R&R | Replace Photo (retake mode only)
-- `.sv-toolbar` z-index: 9999 (must be above Google Maps controls)
+### SV Static URLs (via proxy)
+- Thumbnail: `400×250` → stored as `url`
+- HD: `800×500` → stored as `hdUrl`
 
-### SV Static API
-- Thumbnail: `400×250`, stored as `url`
-- HD: `800×500`, stored as `hdUrl`
-- Both built via `getStreetViewUrl()` / `getStreetViewUrlHD()`
+### Desktop
+- SV panel slides in from right over map
+- Toolbar: Back | Snap Photo | Snap R&R | Replace Photo (retake only)
+- z-index 9999 (above Maps controls)
+
+### Mobile
+- SV full-screen overlay
+- Same toolbar buttons
 
 ---
 
-## 15. Known Decisions & Rules
+## 18. Known Decisions & Rules
 
 | Decision | Reason |
 |---|---|
-| Street name from midpoint geocode only | Start/end points near intersections caused wrong names. Midpoint is most reliably on the street itself. |
-| Name confirmation prompt after every draw | User kept getting wrong auto-detected names and had to fix them after |
-| No "Clear Line" button | Duplicate of Delete — removed |
-| No "Snap to Road" button | The polyline drawing already snaps well — not needed |
-| No page/body scroll | Panels scroll independently; body overflow locked to `hidden` |
-| Custom cursor must target internal canvas | Google Maps ignores cursor set on `#map` — must query and set on all child `canvas` + `div` elements |
-| R&R section is conditional | Only shown if `detectRR` is enabled — reduces clutter for non-R&R jobs |
-| Advanced settings hidden by default | Reduces cognitive load for new projects; accessible via "Advanced" toggle |
-| Photo steppers re-render selector on save | Otherwise the displayed value doesn't update until page reload |
-| Calibration prompt shown inside lightbox | If lightbox is open, the detail panel is hidden — prompt must render in `#lightbox-calibration-reason` |
-| No chips/preset buttons for AI instructions | Cal decided against them — free text textarea is sufficient |
-| No separate user-facing doc | Cal decided CLAUDE.md is enough |
+| Midpoint geocode for street name | Start/end near intersections gave wrong names |
+| Name prompt after every draw | Auto-detect was unreliable |
+| Mobile uses inline map styles not mapId | mapId requires Cloud Console config; inline styles work everywhere |
+| Service worker caches local files only | Caching Google Fonts caused 5-minute load hangs |
+| Splash screen 8s timeout | Map `tilesloaded` never fires if network fails — must force-hide |
+| Google Fonts loaded async on mobile | Blocked page render when loaded synchronously |
+| `checkHasRoad` removed from mobile | Added extra AI call per photo, doubled scan time |
+| Level line stripped from analysis display | Already shown in header; showing it in body caused confusion when user overrode rating |
+| Lane layout off by default | AI accuracy ~75-80%, not critical for crack seal |
+| Pull-to-refresh on handle only | Map touch events triggered accidental refreshes |
+| Double-pull required to refresh | Single pull too easy to trigger accidentally |
+| FABs hide when sheet is full | Sheet covers FABs at full height — hidden automatically |
+| Toggle pills 2×2 grid | 4 in a row was too tight to read |
+| Project Type pill full width | Needs its own row — `flex: 1 1 100%; max-width: 100%` |
+| Scan Model moved to Advanced | Reduces clutter in main settings |
+| No chips/presets for AI instructions | Free-text textarea is sufficient |
+| Calibration prompt in lightbox | Detail panel hidden when lightbox is open |
 
 ---
 
-## 16. Current Version
+## 19. Current Version
 
-**v142** (as of last session — bump this when deploying)
+- **Desktop:** v175
+- **Mobile JS:** v12
+- **Service Worker:** v2
 
-Check `index.html` line 7 and line 261 for the `?v=XXX` query string on stylesheet and script tags.
+Check `index.html` for `?v=XXX` on stylesheet + app.js script.
+Check `mobile.html` for `?v=XXX` on mobile.js script.
 
-> **Note to AI:** When Cal says "deploy" or "push live", use `/git-deploy`. Always bump the version number in `index.html` before deploying.
+> **Note to AI:** When Cal says "deploy" or "push live", use `/git-deploy`. Always bump version numbers in `index.html` AND `mobile.html` before deploying.
