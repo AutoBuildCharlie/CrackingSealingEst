@@ -1278,6 +1278,7 @@ function initSVResize() {
 function openSVAt(lat, lng, heading = 0) {
   const overlay = document.getElementById('sv-overlay');
   overlay.classList.remove('hidden');
+  document.querySelector('meta[name="theme-color"]').content = '#000000';
   initSVResize();
 
   // Init minimap
@@ -1327,6 +1328,7 @@ function openSVAt(lat, lng, heading = 0) {
 
 function closeSV() {
   document.getElementById('sv-overlay').classList.add('hidden');
+  document.querySelector('meta[name="theme-color"]').content = '#0a0e1a';
   _svIsRetake = false;
   document.getElementById('btn-sv-replace').classList.add('hidden');
 }
