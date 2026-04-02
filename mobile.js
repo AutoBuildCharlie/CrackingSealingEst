@@ -110,6 +110,11 @@ function loadProjects() {
     if (!p.scanModel) p.scanModel = 'gpt-4o';
     if (!p.type) p.type = 'crack-seal';
     if (!p.streets) p.streets = [];
+    p.streets.forEach(s => {
+      if (s.completed === undefined) s.completed = false;
+      if (s.dueDate === undefined) s.dueDate = null;
+      if (s.order === undefined) s.order = null;
+    });
   });
 
   if (!projects.length) {
@@ -223,8 +228,10 @@ function renderStreetList() {
   const el = document.getElementById('mobile-street-list');
   let streets = getStreets();
 
-  // Sort by order: ordered streets first (ascending), then unordered
+  // Sort: completed streets always at bottom, then by order
   streets = [...streets].sort((a, b) => {
+    if (a.completed && !b.completed) return 1;
+    if (!a.completed && b.completed) return -1;
     if (a.order != null && b.order != null) return a.order - b.order;
     if (a.order != null) return -1;
     if (b.order != null) return 1;
@@ -251,13 +258,16 @@ function renderStreetList() {
     const sqft = s.sqft ? `${formatNum(s.sqft)} sqft` : '';
     const photoCount = (s.photos?.length || 0) + (s.scanPhotos?.length || 0);
     const dueBadge = (() => { const d = formatDueDateBadge(s.dueDate); return d ? `<span class="mobile-due-badge mobile-due-${d.cls}">${d.label}</span>` : ''; })();
-    return `<div class="mobile-street-item swipe-item" data-id="${s.id}"
+    const dimStyle = s.completed ? 'opacity:0.45;' : '';
+    const nameStyle = s.completed ? 'color:#6b7280;text-decoration:line-through;' : '';
+    const doneCheck = s.completed ? `<span style="font-size:11px;color:#22c55e;font-weight:700;margin-right:6px">✓ Done</span>` : '';
+    return `<div class="mobile-street-item swipe-item" data-id="${s.id}" style="${dimStyle}"
         ontouchstart="swipeStart(event,this)" ontouchmove="swipeMove(event,this)" ontouchend="swipeEnd(event,this,'${s.id}')"
         onclick="openStreet('${s.id}')">
       <div class="swipe-content">
         <div class="street-item-rating ${rc}"></div>
         <div class="street-item-info">
-          <div class="street-item-name">${s.order != null ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:16px;padding:0 4px;border-radius:8px;background:#f59e0b;color:#000;font-size:9px;font-weight:800;margin-right:4px">#${s.order}</span>` : ''}${escHtml(s.name)}</div>
+          <div class="street-item-name" style="${nameStyle}">${s.order != null ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:16px;padding:0 4px;border-radius:8px;background:#f59e0b;color:#000;font-size:9px;font-weight:800;margin-right:4px">#${s.order}</span>` : ''}${doneCheck}${escHtml(s.name)}</div>
           <div class="street-item-meta">${sqft}${sqft && photoCount ? ' · ' : ''}${photoCount ? photoCount + ' photos' : ''}${dueBadge ? ' ' + dueBadge : ''}</div>
         </div>
         <div class="street-item-badge" style="background:${ratingBg(s.rating)};color:${ratingColor(s.rating)}">${badge}</div>
@@ -285,11 +295,12 @@ function updateStats() {
   const sqft = streets.reduce((a, s) => a + (s.sqft || 0), 0);
   const rated = streets.filter(s => s.rating);
   const avgR = rated.length ? (rated.reduce((a, s) => a + parseInt(s.rating?.replace('level-', '') || 0), 0) / rated.length).toFixed(1) : '—';
+  const done = streets.filter(s => s.completed).length;
   const el = document.getElementById('sheet-stats');
   if (el) el.innerHTML = `
     <div class="stat-chip">Streets <span>${streets.length}</span></div>
     <div class="stat-chip">Sq Ft <span>${formatNum(sqft)}</span></div>
-    <div class="stat-chip">Avg Rating <span>${avgR}</span></div>`;
+    <div class="stat-chip">Done <span style="color:${done > 0 ? '#22c55e' : 'inherit'}">${done}/${streets.length}</span></div>`;
 }
 
 // ─── BOTTOM SHEET ──────────────────────────────────────────
@@ -503,6 +514,12 @@ function renderOverviewTab(s) {
       <button class="mobile-action-btn" onclick="openSVAt(${s.lat},${s.lng})">📍 Street View</button>
     </div>
     <div class="mobile-actions">
+      ${s.completed
+        ? `<button class="mobile-action-btn" onclick="toggleStreetDone('${s.id}')" style="border-color:#22c55e;color:#22c55e">↩ Mark Incomplete</button>`
+        : `<button class="mobile-action-btn" onclick="toggleStreetDone('${s.id}')" style="border-color:#22c55e;color:#22c55e">✓ Mark Done</button>`
+      }
+    </div>
+    <div class="mobile-actions">
       <button class="mobile-action-btn danger" onclick="deleteMobileStreet('${s.id}')">🗑 Delete Street</button>
     </div>`;
 }
@@ -603,7 +620,7 @@ function drawAllPolylines() {
   getStreets().forEach(s => {
     if (!s.path?.length) return;
     const points = s.path;
-    const color = ratingColor(s.rating);
+    const color = s.completed ? '#4b5563' : ratingColor(s.rating);
     const isActive = s.id === activeStreetId;
 
     // Wide invisible tap target
@@ -1793,6 +1810,15 @@ function ratingLabel(r) {
 }
 function formatNum(n) { return Math.round(n || 0).toLocaleString(); }
 function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function toggleStreetDone(id) {
+  const s = getStreets().find(s => s.id === id);
+  if (!s) return;
+  s.completed = !s.completed;
+  saveProjects();
+  renderAll();
+  showToast(s.completed ? '✓ Street marked done' : 'Street marked incomplete');
+}
 
 function nearestNeighborOrder(pool, startLat, startLng) {
   const unvisited = [...pool];

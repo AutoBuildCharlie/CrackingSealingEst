@@ -741,6 +741,8 @@ body {
 .street-card.street-card-level-3.active { border-color: #f97316; box-shadow: 0 0 14px rgba(249,115,22,0.35); }
 .street-card.street-card-level-4:hover,
 .street-card.street-card-level-4.active { border-color: #ef4444; box-shadow: 0 0 14px rgba(239,68,68,0.35); }
+.street-card.street-card-done { opacity: 0.5; }
+.street-card.street-card-done .street-card-name { color: #6b7280; text-decoration: line-through; }
 .street-card-name {
   font-size: 13px;
   font-weight: 600;

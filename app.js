@@ -273,6 +273,17 @@ function clearRouteOrder() {
   showToast('Route order cleared');
 }
 
+function toggleStreetDone(id) {
+  const s = streets.find(s => s.id === id);
+  if (!s) return;
+  s.completed = !s.completed;
+  saveStreets();
+  renderStreetList();
+  drawAllHighlights();
+  selectStreet(id);
+  showToast(s.completed ? '✓ Street marked done' : 'Street marked incomplete');
+}
+
 function saveStreets() {
   activeProject.streets = streets;
   saveProjects();
@@ -622,6 +633,7 @@ function migrateOldData() {
       if (s.rrAlert === undefined) { s.rrAlert = false; changed = true; }
       if (s.dueDate === undefined) { s.dueDate = null; changed = true; }
       if (s.order === undefined) { s.order = null; changed = true; }
+      if (s.completed === undefined) { s.completed = false; changed = true; }
     });
     if (!p.type) { p.type = 'crack-seal'; changed = true; }
     if (p.detectRR === undefined) { p.detectRR = false; changed = true; }
@@ -1776,8 +1788,10 @@ function renderStreetList() {
   // When Street View is open and a street is selected, only show that street
   const svOpen = isStreetViewOpen();
 
-  // Sort by order: ordered streets first (ascending), then unordered
+  // Sort: completed streets always at bottom, then by order
   const sortedStreets = [...streets].sort((a, b) => {
+    if (a.completed && !b.completed) return 1;
+    if (!a.completed && b.completed) return -1;
     if (a.order != null && b.order != null) return a.order - b.order;
     if (a.order != null) return -1;
     if (b.order != null) return 1;
@@ -1793,9 +1807,9 @@ function renderStreetList() {
   container.innerHTML = backLink + visibleStreets.map(s => {
     const dueBadge = (() => { const d = formatDueDateBadge(s.dueDate); return d ? `<span class="due-badge due-badge-${d.cls}">${d.label}</span>` : ''; })();
     return `
-    <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''} street-card-${s.rating}" onclick="selectStreet('${s.id}')">
+    <div class="street-card ${s.id === activeStreetId ? 'active' : ''} ${s.crossesBoundary ? 'street-card-warning' : ''} street-card-${s.rating}${s.completed ? ' street-card-done' : ''}" onclick="selectStreet('${s.id}')">
       <button class="street-card-delete" onclick="event.stopPropagation(); deleteStreet('${s.id}')" title="Delete">&times;</button>
-      <div class="street-card-name" title="${escHtml(s.name)}">${s.order != null ? `<span class="order-badge">#${s.order}</span>` : ''}${escHtml(s.name)}</div>
+      <div class="street-card-name" title="${escHtml(s.name)}">${s.order != null ? `<span class="order-badge">#${s.order}</span>` : ''}${s.completed ? `<span style="color:#22c55e;font-size:10px;font-weight:700;margin-right:4px">✓ DONE</span>` : ''}${escHtml(s.name)}</div>
       ${dueBadge ? `<div>${dueBadge}</div>` : ''}
       ${s.city ? `<div class="street-card-city">${escHtml(s.city)}${s.county ? ', ' + escHtml(s.county) : ''}${s.roadType ? ' · ' + escHtml(s.roadType) : ''}</div>` : (s.roadType ? `<div class="street-card-city">${escHtml(s.roadType)}</div>` : '')}
       ${s.crossesBoundary ? `<div class="street-card-boundary">⚠ ${escHtml(s.boundaryNote)}</div>` : ''}
@@ -1986,6 +2000,7 @@ function selectStreet(id) {
 
       <div class="detail-actions">
         ${activeProject.aiEnabled !== false ? `<button class="btn-rescan" onclick="rescanStreet('${street.id}')">Re-scan</button>` : ''}
+        <button class="${street.completed ? 'btn-rescan' : 'btn-rescan'}" onclick="toggleStreetDone('${street.id}')" style="border-color:#22c55e;color:#22c55e">${street.completed ? '↩ Incomplete' : '✓ Mark Done'}</button>
         <button class="btn-danger" onclick="deleteStreet('${street.id}')">Delete</button>
       </div>
     </div>
