@@ -1290,12 +1290,61 @@ function searchLocation() {
   }).catch(() => showToast('Location not found'));
 }
 
+// ─── MY LOCATION ───────────────────────────────────────────
+let _locMarker = null, _locCircle = null, _locWatch = null, _locTracking = false;
+
 function goToMyLocation() {
   if (!navigator.geolocation) { showToast('Geolocation not supported'); return; }
-  navigator.geolocation.getCurrentPosition(pos => {
-    map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-    map.setZoom(16);
-  }, () => showToast('Could not get location'));
+
+  const btn = document.querySelector('.btn-nearme');
+
+  if (_locTracking) {
+    // Already tracking — just re-center
+    if (_locMarker) map.panTo(_locMarker.getPosition());
+    return;
+  }
+
+  // Start tracking
+  _locTracking = true;
+  if (btn) btn.style.color = '#3b82f6';
+
+  _locWatch = navigator.geolocation.watchPosition(pos => {
+    const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    const acc = pos.coords.accuracy;
+
+    // Blue dot marker
+    if (!_locMarker) {
+      _locMarker = new google.maps.Marker({
+        position: latlng, map,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#3b82f6',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 3,
+        },
+        zIndex: 999,
+        title: 'Your location',
+      });
+      // Accuracy circle
+      _locCircle = new google.maps.Circle({
+        center: latlng, radius: acc, map,
+        fillColor: '#3b82f6', fillOpacity: 0.1,
+        strokeColor: '#3b82f6', strokeOpacity: 0.4, strokeWeight: 1,
+      });
+      map.panTo(latlng);
+      map.setZoom(17);
+    } else {
+      _locMarker.setPosition(latlng);
+      _locCircle.setCenter(latlng);
+      _locCircle.setRadius(acc);
+    }
+  }, () => {
+    showToast('Could not get location');
+    _locTracking = false;
+    if (btn) btn.style.color = '';
+  }, { enableHighAccuracy: true });
 }
 
 // ─── CALIBRATION ───────────────────────────────────────────
