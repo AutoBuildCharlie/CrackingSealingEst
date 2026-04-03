@@ -266,6 +266,11 @@ async function mapStreetSearchEnter() {
   if (results) { results.style.display = 'none'; results.innerHTML = ''; }
   if (input) input.value = '';
   showToast(`Found: ${geo.formatted}`);
+  // Drop a temporary pin that disappears after 3 seconds
+  const pinEl = document.createElement('div');
+  pinEl.style.cssText = 'width:20px;height:20px;background:#f59e0b;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(245,158,11,0.4);transform:translateY(-10px);transition:opacity 0.4s';
+  const tempPin = new google.maps.marker.AdvancedMarkerElement({ position: { lat: geo.lat, lng: geo.lng }, map, content: pinEl, zIndex: 999 });
+  setTimeout(() => { pinEl.style.opacity = '0'; setTimeout(() => { tempPin.map = null; }, 400); }, 3000);
 }
 
 // ─── IMPORT STREET LIST ────────────────────────────────────
