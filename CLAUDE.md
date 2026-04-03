@@ -537,12 +537,24 @@ Worker holds API keys, routes to OpenAI or Google based on `provider` param.
 | Scan auto-retries once on failure | If first scan fails, retries automatically. If both fail, street stays PENDING and shows toast |
 | Street search bar at top center of map | Type to filter, Enter selects first match, Escape clears |
 | Miles shown as own stat card | Added to detail panel and header stats bar |
+| Scan results written to targetStreet not local copy | When pinning imported street, scan results were lost — fixed by using existingNeedsPin reference |
+| Pin.End button finishes draw when 2+ points placed | Previously called stopDrawingMode() which cancelled the draw |
+| Finish Line button shown after start point placed | Appears in highlight bar after first map click — easiest way to end a curved street |
+| drawAllHighlights() called after scan completes | Polyline color now updates immediately when scan finishes, not on next street click |
+| Map search Enter geocodes if no project match | Falls back to geocoding + panning map when typed street isn't in project list |
+| Amber dot appears after address search | Temporary marker fades out after 3 seconds |
+| Scan photo headings use local path segment | Curved streets now compute heading per segment — camera looks down the road not sideways |
+| PDF import prompt preserves abbreviations | "Copy text exactly as printed" instruction prevents AI from expanding COP → Corte etc |
+| Map image drop import | Drop a screenshot into import modal — AI reads street name labels and places gold dots |
+| Import skips already-pinned streets | Streets with a drawn path are never overwritten by import |
+| Delete confirm shows in right panel too | Always appears in detail panel in addition to left sidebar card |
+| Geocoder uses begin intersection for precision | "Elm Ave & Catalpa Ave, Mill Valley CA" instead of just street name — falls back to name-only if needed |
 
 ---
 
 ## 19. Current Version
 
-- **Desktop:** v256 (app.js v225, style.css v184)
+- **Desktop:** v268 (app.js v236, style.css v184)
 - **Mobile JS:** v49, mobile.css v4
 - **Service Worker:** v2
 
@@ -555,9 +567,10 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 
 ## 20. Pending / Next Steps
 
-- **GRSI Mill Valley project** — Cal is actively pinning streets for the Mill Valley 2026 Preventative Maintenance Project (~39 streets imported, 7 pinned as of this session). PDF had ~52 rows including duplicates.
-- **Pin workflow** — Click gold dot → select street → Pin.Start → click start → click end (or use Curve toggle for curved streets) → name prompt → dot disappears → polyline appears → AI scans automatically.
-- **Lightbox scan photos** — photos re-fetch from proxy on demand after refresh (no longer stored in localStorage). Works correctly now.
-- **Storage fix** — localStorage bloat from base64 scan photos was causing pins to disappear on refresh. Fixed in v255/v256 — both desktop and mobile now strip dataUrls before saving and auto-clean old bloat on load.
+- **GRSI Mill Valley project** — Cal finished marking streets for the Mill Valley 2026 Preventative Maintenance Project. All streets pinned.
+- **Pin workflow** — Click gold dot → select street → Pin.Start → click start → click curve points (Curve ON) → hit green Finish Line button → name prompt → dot disappears → polyline appears → AI scans automatically.
+- **Finish Line button** — appears in highlight bar after first map click, stays visible until street is saved. Easiest way to end a curved street without toggling Curve OFF.
+- **Map image import** — drop a screenshot of a pavement plan map into import modal → AI reads street name labels → geocodes them → places gold dots. Already-pinned streets are skipped.
+- **Geocoder + intersection** — import now uses begin intersection from PDF table for precise geocoding. Fallback to street name only if intersection query fails.
 - **Future: AI route suggestion** — after 5-10 projects of manual ordering + notes, build "Suggest Route" button that reads `order`, `orderNote`, `orderClickPt` data.
 - **Future: backend/cloud storage** — currently localStorage only, no cross-device sync. Export/Import is the workaround. Backend would enable desktop↔mobile sync.
