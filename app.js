@@ -477,14 +477,16 @@ async function runImportList() {
     progressBar.style.width = Math.round(((i + 1) / rows.length) * 100) + '%';
 
     try {
-      // Use begin intersection for a more precise location if available
-      const query = begin
-        ? `${streetName} & ${begin}, ${city}`
-        : `${streetName}, ${city}`;
+      // Use begin + end intersections for a more precise location if available
+      const query = (begin && end)
+        ? `${streetName} from ${begin} to ${end}, ${city}`
+        : begin
+          ? `${streetName} & ${begin}, ${city}`
+          : `${streetName}, ${city}`;
       let geo = await geocodeAddress(query);
 
       // If intersection query failed or was uncertain, fall back to street name only
-      if ((!geo || geo.partialMatch) && begin) {
+      if ((!geo || geo.partialMatch) && (begin || end)) {
         geo = await geocodeAddress(`${streetName}, ${city}`);
       }
 
