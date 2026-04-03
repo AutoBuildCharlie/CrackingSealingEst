@@ -209,38 +209,29 @@ function closeImportModal(e) {
   document.getElementById('import-overlay').classList.add('hidden');
 }
 
-function _isEndpoint(str) {
-  const s = (str || '').toLowerCase();
-  return s.includes('north end') || s.includes('south end') || s.includes('east end') ||
-    s.includes('west end') || s.includes('city limit') || s.includes('cul-de-sac') ||
-    s.includes('dead end') || s.includes('park') && s.length < 8;
-}
-
 function parseImportList(text) {
-  const rows = [];
+  const names = [];
   for (const line of text.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    let parts = trimmed.split('\t').map(s => s.trim()).filter(Boolean);
-    if (parts.length < 3) parts = trimmed.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
-    if (parts.length < 3) continue;
-    const [street, begin, end] = parts;
-    if (street.toLowerCase() === 'street') continue; // header row
-    rows.push({ street, begin, end });
+    // Accept tab-separated (Street | Begin | End) or plain street names — always take first column
+    const firstCol = trimmed.split('\t')[0].trim();
+    if (!firstCol) continue;
+    if (firstCol.toLowerCase() === 'street' || firstCol.toLowerCase() === 'street name') continue; // header row
+    names.push(firstCol);
   }
-  return rows;
+  return names;
 }
 
 async function runImportList() {
   const city = document.getElementById('import-city').value.trim();
   const text = document.getElementById('import-list').value.trim();
-  const scanAll = document.getElementById('import-scan-toggle').checked;
 
   if (!city) { showToast('Enter a city and state first'); return; }
   if (!text) { showToast('Paste the street list first'); return; }
 
-  const rows = parseImportList(text);
-  if (!rows.length) { showToast('Could not parse streets — check the format'); return; }
+  const names = parseImportList(text);
+  if (!names.length) { showToast('Could not find any street names — check the format'); return; }
 
   const progress = document.getElementById('import-progress');
   const progressText = document.getElementById('import-progress-text');
@@ -248,90 +239,69 @@ async function runImportList() {
   progress.classList.remove('hidden');
   document.getElementById('import-btn').disabled = true;
 
-  let added = 0, failed = 0;
+  let added = 0;
+  const skipped = [];
   const _delay = ms => new Promise(r => setTimeout(r, ms));
 
-  for (let i = 0; i < rows.length; i++) {
-    const { street, begin, end } = rows[i];
-    progressText.textContent = `Processing ${i + 1} of ${rows.length}: ${street}`;
-    progressBar.style.width = Math.round(((i + 1) / rows.length) * 100) + '%';
+  for (let i = 0; i < names.length; i++) {
+    const streetName = names[i];
+    progressText.textContent = `Locating ${i + 1} of ${names.length}: ${streetName}`;
+    progressBar.style.width = Math.round(((i + 1) / names.length) * 100) + '%';
 
     try {
-      const beginAddr = _isEndpoint(begin) ? `${street}, ${city}` : `${street} & ${begin}, ${city}`;
-      const beginGeo = await geocodeAddress(beginAddr);
-      if (!beginGeo) { failed++; await _delay(200); continue; }
+      const geo = await geocodeAddress(`${streetName}, ${city}`);
 
-      let endGeo = null;
-      if (!_isEndpoint(end)) {
-        endGeo = await geocodeAddress(`${street} & ${end}, ${city}`);
+      // Skip if geocoder couldn't find it or wasn't confident
+      if (!geo || geo.partialMatch) {
+        skipped.push(streetName);
+        await _delay(200);
+        continue;
       }
-
-      const midLat = endGeo ? (beginGeo.lat + endGeo.lat) / 2 : beginGeo.lat;
-      const midLng = endGeo ? (beginGeo.lng + endGeo.lng) / 2 : beginGeo.lng;
-      const path = endGeo
-        ? [{ lat: beginGeo.lat, lng: beginGeo.lng }, { lat: endGeo.lat, lng: endGeo.lng }]
-        : null;
-      const length = path ? Math.round(calcDistanceFt(path[0], path[1])) : 200;
-
-      const roadInfo = await detectRoadType(midLat, midLng);
 
       const streetObj = {
         id: (crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2)),
-        name: street,
-        lat: midLat, lng: midLng,
-        length, width: roadInfo.width,
-        sqft: length * roadInfo.width,
-        roadType: roadInfo.label,
+        name: streetName,
+        lat: geo.lat, lng: geo.lng,
+        length: 300, width: 32,
+        sqft: 300 * 32,
+        roadType: null,
         rating: null,
-        notes: `From ${begin} to ${end}`,
-        analysis: '', adminNotes: '',
+        notes: '', analysis: '', adminNotes: '',
         weedAlert: false, weedNotes: '',
         ravelingAlert: false, ravelingNotes: '',
         rrAlert: false, rrNotes: '',
-        path, svImage: getStreetViewUrl(midLat, midLng),
+        path: null, // no path — shows as Needs Pinning
+        svImage: null,
         photos: [], rrPhotos: [], scanPhotos: [],
         scannedAt: null, createdAt: new Date().toISOString()
       };
-
-      if (scanAll && activeProject.aiEnabled !== false) {
-        progressText.textContent = `Scanning ${i + 1} of ${rows.length}: ${street}`;
-        try {
-          const analysis = await analyzeStreetView(streetObj);
-          streetObj.analysis = analysis.text;
-          streetObj.rating = analysis.rating;
-          streetObj.aiRating = analysis.rating;
-          streetObj.weedAlert = analysis.weedAlert || false;
-          streetObj.weedNotes = analysis.weedNotes || '';
-          streetObj.ravelingAlert = analysis.ravelingAlert || false;
-          streetObj.ravelingNotes = analysis.ravelingNotes || '';
-          streetObj.rrAlert = analysis.rrAlert || false;
-          streetObj.rrNotes = analysis.rrNotes || '';
-          streetObj.scannedAt = new Date().toISOString();
-        } catch (e) { console.warn('Scan failed for', street, e); }
-      }
 
       streets.push(streetObj);
       saveStreets();
       added++;
 
-      if (added % 3 === 0 || i === rows.length - 1) {
-        renderStreetList(); placeAllMarkers(); drawAllHighlights(); updateStats();
+      if (added % 5 === 0 || i === names.length - 1) {
+        renderStreetList(); updateStats();
       }
     } catch (e) {
-      console.warn('Import error for', street, e);
-      failed++;
+      console.warn('Import error for', streetName, e);
+      skipped.push(streetName);
     }
-    await _delay(300);
+    await _delay(200);
   }
 
-  renderStreetList(); placeAllMarkers(); drawAllHighlights(); updateStats(); fitMapToMarkers();
+  renderStreetList(); updateStats();
   document.getElementById('import-btn').disabled = false;
-  progressText.textContent = `Done — ${added} streets imported${failed ? `, ${failed} could not be geocoded` : ''}.`;
+
+  let summary = `Done — ${added} streets added to your list.`;
+  if (skipped.length) summary += ` ${skipped.length} couldn't be located: ${skipped.join(', ')}.`;
+  progressText.textContent = summary;
   progressBar.style.width = '100%';
+
   setTimeout(() => {
     closeImportModal();
-    showToast(`${added} streets imported`);
-  }, 2500);
+    showToast(`${added} streets imported — pin them on the map to begin`);
+  }, 3000);
 }
 
 // ─── DUE DATE HELPERS ──────────────────────────────────────
@@ -1243,7 +1213,8 @@ function geocodeAddress(address) {
           lat: result.geometry.location.lat(),
           lng: result.geometry.location.lng(),
           formatted: result.formatted_address,
-          locationType: result.geometry.location_type // ROOFTOP | RANGE_INTERPOLATED | GEOMETRIC_CENTER | APPROXIMATE
+          locationType: result.geometry.location_type,
+          partialMatch: result.partial_match === true
         });
       } else {
         console.error('Geocoding failed:', status);
