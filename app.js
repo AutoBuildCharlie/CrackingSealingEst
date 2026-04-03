@@ -1467,9 +1467,31 @@ function isMainStreet(street) {
   return label.includes('arterial') || label.includes('highway') || label.includes('collector');
 }
 
+// Given a multi-point path, return the {lat,lng} and local heading at a given distance (ft) along it
+function getPointAlongPath(path, targetFt) {
+  let remaining = targetFt;
+  for (let i = 0; i < path.length - 1; i++) {
+    const segLen = calcDistanceFt(path[i], path[i + 1]);
+    if (remaining <= segLen || i === path.length - 2) {
+      const t = segLen > 0 ? Math.min(remaining / segLen, 1) : 0;
+      return {
+        lat: path[i].lat + (path[i + 1].lat - path[i].lat) * t,
+        lng: path[i].lng + (path[i + 1].lng - path[i].lng) * t,
+        heading: calcHeading(path[i], path[i + 1])
+      };
+    }
+    remaining -= segLen;
+  }
+  // Fallback: end of path
+  const last = path[path.length - 1];
+  const prev = path[path.length - 2];
+  return { lat: last.lat, lng: last.lng, heading: calcHeading(prev, last) };
+}
+
 // Calculate sample points — always looking INTO the street from each endpoint
-// Start/end points are offset 40ft inward so the camera sits on the street,
+// Start/end points are offset 80ft inward so the camera sits on the street,
 // not at the intersection corner where it would capture the cross street instead.
+// For curved streets, heading is computed from the local path segment at each point.
 const ENDPOINT_OFFSET_FT = 80;
 function getSamplePoints(street) {
   const path = street.path;
@@ -1477,30 +1499,28 @@ function getSamplePoints(street) {
 
   const startPt = path[0];
   const endPt   = path[path.length - 1];
-  const headingForward  = calcHeading(startPt, endPt);
-  const headingBackward = (headingForward + 180) % 360;
+  // Local heading at very start and very end of the path
+  const headingAtStart = calcHeading(path[0], path[1]);
+  const headingAtEnd   = calcHeading(path[path.length - 2], path[path.length - 1]);
+  const headingBackward = (headingAtEnd + 180) % 360;
   const length = street.length || 0;
 
-  // Offset start 40ft inward (toward end), offset end 40ft inward (toward start)
-  const startInset = offsetPoint(startPt.lat, startPt.lng, headingForward, ENDPOINT_OFFSET_FT);
+  // Offset start 80ft inward along actual first segment direction
+  const startInset = offsetPoint(startPt.lat, startPt.lng, headingAtStart, ENDPOINT_OFFSET_FT);
+  // Offset end 80ft inward along actual last segment direction (backward)
   const endInset   = offsetPoint(endPt.lat, endPt.lng, headingBackward, ENDPOINT_OFFSET_FT);
 
   const points = [];
-
   const interval = activeProject?.photoInterval || 200;
   const maxMid = Math.max(1, (activeProject?.maxPhotos || 6) - 2); // subtract start + end
 
-  points.push({ ...startInset, heading: headingForward, label: 'Start (looking in)' });
+  points.push({ ...startInset, heading: headingAtStart, label: 'Start (looking in)' });
 
   const midCount = Math.min(maxMid, Math.floor(length / interval));
   for (let i = 1; i <= midCount; i++) {
-    const t = i / (midCount + 1);
-    points.push({
-      lat: startPt.lat + (endPt.lat - startPt.lat) * t,
-      lng: startPt.lng + (endPt.lng - startPt.lng) * t,
-      heading: headingForward,
-      label: `Mid-point ${i}`
-    });
+    const targetDist = (length / (midCount + 1)) * i;
+    const { lat, lng, heading } = getPointAlongPath(path, targetDist);
+    points.push({ lat, lng, heading, label: `Mid-point ${i}` });
   }
 
   points.push({ ...endInset, heading: headingBackward, label: 'End (looking in)' });
