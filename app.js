@@ -1090,6 +1090,8 @@ function confirmStreetName() {
     } else {
       streets.push(street);
     }
+    // targetStreet points to the actual element in streets[] so scan results save correctly
+    const targetStreet = existingNeedsPin || street;
     saveStreets();
     window._drawStart = null;
     clearTempMarkers();
@@ -1104,30 +1106,30 @@ function confirmStreetName() {
     if (pinLabel) pinLabel.textContent = 'Pin.Start';
     setMapCursor('cursor-pin-start');
     showToast(`${formatNumber(roadLengthFt)} ft — ${formatNumber(street.sqft)} sq ft`);
-    if (activeProject.aiEnabled !== false) analyzeStreetView(street).then(async analysis => {
-      street.analysis = analysis.text; street.rating = analysis.rating; street.aiRating = analysis.rating;
-      street.weedAlert = analysis.weedAlert || false; street.weedNotes = analysis.weedNotes || '';
-      street.ravelingAlert = analysis.ravelingAlert || false; street.ravelingNotes = analysis.ravelingNotes || '';
-      street.rrAlert = analysis.rrAlert || false; street.rrNotes = analysis.rrNotes || '';
-      street.scannedAt = new Date().toISOString();
-      if (activeProject.detectLaneLayout && isArterialStreet(street)) {
-        const layout = await analyzeLaneLayout(street);
-        if (layout) street.laneLayout = layout;
+    if (activeProject.aiEnabled !== false) analyzeStreetView(targetStreet).then(async analysis => {
+      targetStreet.analysis = analysis.text; targetStreet.rating = analysis.rating; targetStreet.aiRating = analysis.rating;
+      targetStreet.weedAlert = analysis.weedAlert || false; targetStreet.weedNotes = analysis.weedNotes || '';
+      targetStreet.ravelingAlert = analysis.ravelingAlert || false; targetStreet.ravelingNotes = analysis.ravelingNotes || '';
+      targetStreet.rrAlert = analysis.rrAlert || false; targetStreet.rrNotes = analysis.rrNotes || '';
+      targetStreet.scannedAt = new Date().toISOString();
+      if (activeProject.detectLaneLayout && isArterialStreet(targetStreet)) {
+        const layout = await analyzeLaneLayout(targetStreet);
+        if (layout) targetStreet.laneLayout = layout;
       }
-      saveStreets(); renderStreetList(); selectStreet(street.id); placeAllMarkers(); updateStats();
+      saveStreets(); renderStreetList(); selectStreet(targetStreet.id); placeAllMarkers(); updateStats();
     }).catch(e => {
       console.warn('Scan failed, retrying once…', e);
-      analyzeStreetView(street).then(async analysis => {
-        street.analysis = analysis.text; street.rating = analysis.rating; street.aiRating = analysis.rating;
-        street.weedAlert = analysis.weedAlert || false; street.weedNotes = analysis.weedNotes || '';
-        street.ravelingAlert = analysis.ravelingAlert || false; street.ravelingNotes = analysis.ravelingNotes || '';
-        street.rrAlert = analysis.rrAlert || false; street.rrNotes = analysis.rrNotes || '';
-        street.scannedAt = new Date().toISOString();
-        saveStreets(); renderStreetList(); selectStreet(street.id); placeAllMarkers(); updateStats();
+      analyzeStreetView(targetStreet).then(async analysis => {
+        targetStreet.analysis = analysis.text; targetStreet.rating = analysis.rating; targetStreet.aiRating = analysis.rating;
+        targetStreet.weedAlert = analysis.weedAlert || false; targetStreet.weedNotes = analysis.weedNotes || '';
+        targetStreet.ravelingAlert = analysis.ravelingAlert || false; targetStreet.ravelingNotes = analysis.ravelingNotes || '';
+        targetStreet.rrAlert = analysis.rrAlert || false; targetStreet.rrNotes = analysis.rrNotes || '';
+        targetStreet.scannedAt = new Date().toISOString();
+        saveStreets(); renderStreetList(); selectStreet(targetStreet.id); placeAllMarkers(); updateStats();
       }).catch(e2 => {
-        street.rating = 'pending';
-        street.analysis = '';
-        saveStreets(); renderStreetList(); selectStreet(street.id);
+        targetStreet.rating = 'pending';
+        targetStreet.analysis = '';
+        saveStreets(); renderStreetList(); selectStreet(targetStreet.id);
         showToast('Scan failed — tap Rescan to try again', 5000);
       });
     });
