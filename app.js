@@ -226,21 +226,21 @@ function exportProject() {
   showToast('Project exported');
 }
 
-// ─── MAP STREET SEARCH ─────────────────────────────────────
-function mapStreetSearch(query) {
-  const results = document.getElementById('map-street-search-results');
+// ─── TOP BAR SEARCH (street filter + geocode) ──────────────
+function topBarSearch(query) {
+  const results = document.getElementById('top-search-results');
   if (!results) return;
   const q = query.trim().toLowerCase();
   if (!q) { results.style.display = 'none'; results.innerHTML = ''; return; }
   const matches = streets.filter(s => s.name.toLowerCase().includes(q)).slice(0, 8);
   if (matches.length === 0) { results.style.display = 'none'; results.innerHTML = ''; return; }
-  results.innerHTML = matches.map(s => `<div onclick="mapStreetSearchSelect('${s.id}')" style="padding:8px 12px;cursor:pointer;font-size:13px;color:#f1f5f9;border-bottom:1px solid rgba(255,255,255,0.06)" onmouseover="this.style.background='#334155'" onmouseout="this.style.background=''">${escHtml(s.name)}</div>`).join('');
+  results.innerHTML = matches.map(s => `<div onclick="topBarSearchSelect('${s.id}')" style="padding:8px 12px;cursor:pointer;font-size:13px;color:#f1f5f9;border-bottom:1px solid rgba(255,255,255,0.06)" onmouseover="this.style.background='#334155'" onmouseout="this.style.background=''">${escHtml(s.name)}</div>`).join('');
   results.style.display = 'block';
 }
 
-function mapStreetSearchSelect(id) {
-  const input = document.getElementById('map-street-search-input');
-  const results = document.getElementById('map-street-search-results');
+function topBarSearchSelect(id) {
+  const input = document.getElementById('search-input');
+  const results = document.getElementById('top-search-results');
   if (input) input.value = '';
   if (results) { results.style.display = 'none'; results.innerHTML = ''; }
   selectStreet(id);
@@ -248,16 +248,16 @@ function mapStreetSearchSelect(id) {
   if (street && street.lat && street.lng) map.panTo({ lat: street.lat, lng: street.lng });
 }
 
-async function mapStreetSearchEnter() {
-  const input = document.getElementById('map-street-search-input');
-  const results = document.getElementById('map-street-search-results');
-  // If a result row is visible, select the first one
+async function topBarSearchEnter() {
+  const input = document.getElementById('search-input');
+  const results = document.getElementById('top-search-results');
+  // If street results are visible, select the first one
   const firstResult = results && results.querySelector('div');
   if (firstResult) { firstResult.click(); return; }
   // Otherwise geocode the query and pan the map
   const query = input ? input.value.trim() : '';
   if (!query) return;
-  showToast('Searching map...');
+  showToast('Searching...');
   const geo = await geocodeAddress(query);
   if (!geo) { showToast('Location not found — try adding a city name'); return; }
   const zoom = (geo.locationType === 'ROOFTOP' || geo.locationType === 'RANGE_INTERPOLATED') ? 19 : 17;
@@ -266,7 +266,7 @@ async function mapStreetSearchEnter() {
   if (results) { results.style.display = 'none'; results.innerHTML = ''; }
   if (input) input.value = '';
   showToast(`Found: ${geo.formatted}`);
-  // Drop a temporary pin that disappears after 3 seconds
+  // Drop a temporary amber pin that fades after 3 seconds
   const pinEl = document.createElement('div');
   pinEl.style.cssText = 'width:20px;height:20px;background:#f59e0b;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(245,158,11,0.4);transform:translateY(-10px);transition:opacity 0.4s';
   const tempPin = new google.maps.marker.AdvancedMarkerElement({ position: { lat: geo.lat, lng: geo.lng }, map, content: pinEl, zIndex: 999 });
@@ -3427,26 +3427,6 @@ function showToast(msg, duration = 2500) {
   }, duration);
 }
 
-// ─── SEARCH LOCATION ───────────────────────────────────────
-async function searchLocation() {
-  const input = document.getElementById('search-input');
-  const query = input.value.trim();
-  if (!query) return;
-
-  showToast('Searching...');
-  const geo = await geocodeAddress(query);
-  if (!geo) {
-    showToast('Could not find that location — try adding a city name');
-    return;
-  }
-
-  // Zoom based on precision: rooftop/interpolated = street level, otherwise back out a bit
-  const zoom = (geo.locationType === 'ROOFTOP' || geo.locationType === 'RANGE_INTERPOLATED') ? 21 : 17;
-  map.setCenter({ lat: geo.lat, lng: geo.lng });
-  map.setZoom(zoom);
-  input.value = '';
-  showToast(`Found: ${geo.formatted}`);
-}
 
 // ─── NEAR ME (GPS) ─────────────────────────────────────────
 function goToMyLocation() {
