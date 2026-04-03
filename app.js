@@ -201,6 +201,8 @@ function openImportModal() {
   document.getElementById('import-city').value = '';
   document.getElementById('import-list').value = '';
   document.getElementById('import-progress').classList.add('hidden');
+  document.getElementById('import-review-notice').classList.add('hidden');
+  document.getElementById('import-list-label').textContent = 'Street Names';
   document.getElementById('import-btn').disabled = false;
 }
 
@@ -273,12 +275,15 @@ async function handleImportDrop(e) {
 
     if (!extracted) throw new Error('No street names found');
 
+    const count = extracted.split('\n').filter(Boolean).length;
     document.getElementById('import-list').value = extracted;
-    dropStatus.textContent = `Done — ${extracted.split('\n').filter(Boolean).length} streets found`;
+    document.getElementById('import-review-notice').classList.remove('hidden');
+    document.getElementById('import-list-label').textContent = `Review Street Names (${count} found) — edit if needed`;
+    dropStatus.textContent = `${count} streets found — review the list below`;
     setTimeout(() => {
       dropLoading.classList.add('hidden');
       dropContent.classList.remove('hidden');
-    }, 2000);
+    }, 1500);
 
   } catch (err) {
     console.error('PDF import error:', err);

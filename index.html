@@ -255,7 +255,11 @@
       </div>
       <div style="text-align:center;font-size:11px;color:var(--text-muted);margin:8px 0">— or paste manually —</div>
       <div class="form-group" style="margin-bottom:8px">
-        <textarea id="import-list" rows="6" placeholder="Elm Ave&#10;Catalpa Ave&#10;Walnut Ave&#10;Miller Ave&#10;..." style="font-size:12px;font-family:monospace"></textarea>
+        <label id="import-list-label" style="color:var(--text-muted)">Street Names</label>
+        <div id="import-review-notice" class="hidden" style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#f59e0b;">
+          ✓ AI found these streets. Review the list — delete any that look wrong — then hit <strong>Import Streets</strong>.
+        </div>
+        <textarea id="import-list" rows="8" placeholder="Elm Ave&#10;Catalpa Ave&#10;Walnut Ave&#10;Miller Ave&#10;..." style="font-size:12px;font-family:monospace"></textarea>
       </div>
       <div id="import-progress" class="hidden" style="margin-bottom:12px">
         <div style="background:var(--bg-dark);border-radius:4px;height:6px;overflow:hidden;margin-bottom:6px">
@@ -319,7 +323,7 @@
   </div>
 
   <!-- ─── SCRIPTS ─────────────────────────────────────────── -->
-  <script src="app.js?v=200"></script>
+  <script src="app.js?v=201"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async&libraries=marker">
   </script>
