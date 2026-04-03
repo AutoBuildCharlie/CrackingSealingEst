@@ -240,29 +240,25 @@ async function handleImportDrop(e) {
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
 
-    dropStatus.textContent = 'Rendering pages…';
+    dropStatus.textContent = 'Reading PDF text…';
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-    const images = [];
-    for (let p = 1; p <= Math.min(pdf.numPages, 4); p++) {
+    // Extract raw text from all pages (no image needed)
+    let rawText = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
       const page = await pdf.getPage(p);
-      const viewport = page.getViewport({ scale: 1.8 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-      images.push(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+      const content = await page.getTextContent();
+      rawText += content.items.map(item => item.str).join(' ') + '\n';
     }
 
-    dropStatus.textContent = 'AI reading street names…';
+    if (!rawText.trim()) throw new Error('No text found in PDF');
+
+    dropStatus.textContent = 'AI parsing street names…';
 
     const messages = [{
       role: 'user',
-      content: [
-        { type: 'text', text: 'This is a pavement work order or street list document. It has a table with Street, Begin, and End columns. Extract every row. Return one street per line in this exact format: STREET NAME | BEGIN | END\nExample: Elm Ave | Locust Ave | E Blithedale Ave\nIf begin or end is missing, write UNKNOWN. No extra text, no numbers, no headers.' },
-        ...images.map(img => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${img}` } }))
-      ]
+      content: `This is raw text extracted from a pavement work order. It contains a table of streets with Street, Begin, and End columns. Extract every street row. Return one per line in this exact format: STREET NAME | BEGIN | END\nExample: Elm Ave | Locust Ave | E Blithedale Ave\nIf begin or end is missing write UNKNOWN. Return only the data lines, no headers, no extra text.\n\nDocument text:\n${rawText}`
     }];
 
     const res = await fetch('https://cse-worker.aestheticcal22.workers.dev', {
@@ -273,7 +269,7 @@ async function handleImportDrop(e) {
     const data = await res.json();
     const extracted = data.choices?.[0]?.message?.content?.trim() || '';
 
-    if (!extracted) throw new Error('No street names found');
+    if (!extracted || extracted.toLowerCase().includes("i'm sorry")) throw new Error('AI could not parse the document');
 
     const count = extracted.split('\n').filter(Boolean).length;
     document.getElementById('import-list').value = extracted;
