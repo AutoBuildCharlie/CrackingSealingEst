@@ -549,12 +549,13 @@ Worker holds API keys, routes to OpenAI or Google based on `provider` param.
 | Import skips already-pinned streets | Streets with a drawn path are never overwritten by import |
 | Delete confirm shows in right panel too | Always appears in detail panel in addition to left sidebar card |
 | Geocoder uses begin intersection for precision | "Elm Ave & Catalpa Ave, Mill Valley CA" instead of just street name — falls back to name-only if needed |
+| Auto-pin from PDF table | Import geocodes begin + end intersections separately, stores as beginLatLng/endLatLng — green/red dots on map, Pin.Start auto-fills both endpoints |
 
 ---
 
 ## 19. Current Version
 
-- **Desktop:** v268 (app.js v236, style.css v184)
+- **Desktop:** v270 (app.js v238, style.css v184)
 - **Mobile JS:** v49, mobile.css v4
 - **Service Worker:** v2
 
@@ -571,6 +572,7 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 - **Pin workflow** — Click gold dot → select street → Pin.Start → click start → click curve points (Curve ON) → hit green Finish Line button → name prompt → dot disappears → polyline appears → AI scans automatically.
 - **Finish Line button** — appears in highlight bar after first map click, stays visible until street is saved. Easiest way to end a curved street without toggling Curve OFF.
 - **Map image import** — drop a screenshot of a pavement plan map into import modal → AI reads street name labels → geocodes them → places gold dots. Already-pinned streets are skipped.
-- **Geocoder + intersection** — import now uses begin intersection from PDF table for precise geocoding. Fallback to street name only if intersection query fails.
+- **Geocoder + intersection** — import geocodes begin and end intersections separately. Green dot = start, red dot = end. Pin.Start auto-fills both endpoints so Cal just hits Finish Line.
+- **Next to build: Retry chain** — when geocoder isn't confident, try: begin intersection → end intersection → street name only → skip. 300ms delay between calls. Fixes streets getting skipped too early. Street View verification was discussed but decided against — too slow, Cal already catches errors visually when pinning.
 - **Future: AI route suggestion** — after 5-10 projects of manual ordering + notes, build "Suggest Route" button that reads `order`, `orderNote`, `orderClickPt` data.
 - **Future: backend/cloud storage** — currently localStorage only, no cross-device sync. Export/Import is the workaround. Backend would enable desktop↔mobile sync.
