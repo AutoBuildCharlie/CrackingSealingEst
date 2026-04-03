@@ -294,18 +294,19 @@ async function handleImportDrop(e) {
 }
 
 function parseImportList(text) {
-  const names = [];
+  const rows = [];
   for (const line of text.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    // Accept "Street | Begin | End" format or plain street names
     const parts = trimmed.split('|').map(s => s.trim());
-    const firstCol = parts[0].split('\t')[0].trim();
-    if (!firstCol) continue;
-    if (firstCol.toLowerCase() === 'street' || firstCol.toLowerCase() === 'street name') continue;
-    names.push(firstCol);
+    const name = parts[0].split('\t')[0].trim();
+    if (!name) continue;
+    if (name.toLowerCase() === 'street' || name.toLowerCase() === 'street name') continue;
+    const begin = parts[1] && parts[1].toLowerCase() !== 'unknown' ? parts[1] : '';
+    const end = parts[2] && parts[2].toLowerCase() !== 'unknown' ? parts[2] : '';
+    rows.push({ name, begin, end });
   }
-  return names;
+  return rows;
 }
 
 async function runImportList() {
@@ -315,8 +316,8 @@ async function runImportList() {
   if (!city) { showToast('Enter a city and state first'); return; }
   if (!text) { showToast('Paste the street list first'); return; }
 
-  const names = parseImportList(text);
-  if (!names.length) { showToast('Could not find any street names — check the format'); return; }
+  const rows = parseImportList(text);
+  if (!rows.length) { showToast('Could not find any street names — check the format'); return; }
 
   const progress = document.getElementById('import-progress');
   const progressText = document.getElementById('import-progress-text');
@@ -328,10 +329,10 @@ async function runImportList() {
   const skipped = [];
   const _delay = ms => new Promise(r => setTimeout(r, ms));
 
-  for (let i = 0; i < names.length; i++) {
-    const streetName = names[i];
-    progressText.textContent = `Locating ${i + 1} of ${names.length}: ${streetName}`;
-    progressBar.style.width = Math.round(((i + 1) / names.length) * 100) + '%';
+  for (let i = 0; i < rows.length; i++) {
+    const { name: streetName, begin, end } = rows[i];
+    progressText.textContent = `Locating ${i + 1} of ${rows.length}: ${streetName}`;
+    progressBar.style.width = Math.round(((i + 1) / rows.length) * 100) + '%';
 
     try {
       const geo = await geocodeAddress(`${streetName}, ${city}`);
@@ -351,6 +352,7 @@ async function runImportList() {
         sqft: 300 * 32,
         roadType: null,
         rating: null,
+        beginAt: begin || '', endAt: end || '',
         notes: '', analysis: '', adminNotes: '',
         weedAlert: false, weedNotes: '',
         ravelingAlert: false, ravelingNotes: '',
@@ -2175,6 +2177,10 @@ function selectStreet(id) {
 
     <!-- ── OVERVIEW TAB ── -->
     <div data-tab-content="overview" ${activeTab!=='overview'?'class="hidden"':''}>
+      ${(street.beginAt || street.endAt) ? `<div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;line-height:1.6">
+        ${street.beginAt ? `<div><span style="color:var(--text-muted)">From:</span> <strong>${escHtml(street.beginAt)}</strong></div>` : ''}
+        ${street.endAt ? `<div><span style="color:var(--text-muted)">To:</span> <strong>${escHtml(street.endAt)}</strong></div>` : ''}
+      </div>` : ''}
       ${street.crossesBoundary ? `<div class="detail-boundary-warn">⚠ ${escHtml(street.boundaryNote)}</div>` : ''}
       ${street.weedAlert ? `<div class="detail-weed-warn">
         🌿 Weed/grass control may be needed
