@@ -106,6 +106,9 @@
         <button class="qa-btn qa-highlight" id="btn-pin" onclick="startFreeHighlight()" title="Draw a street — click start then end">
           <span class="qa-icon">&#128204;</span> <span id="btn-pin-label">Pin.Start</span>
         </button>
+        <button class="qa-btn" id="btn-curve-toggle" onclick="toggleCurveMode()" title="Curve mode — click multiple points along a curved street" style="font-size:11px;padding:4px 8px;">
+          〰 Curve: <span id="curve-mode-label">OFF</span>
+        </button>
         <div class="qa-btn qa-worker" id="sv-worker" title="Drag onto the map to open Street View">
           <svg width="22" height="32" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="11" cy="9" r="3.5" fill="#fde68a"/>
@@ -332,7 +335,7 @@
   </div>
 
   <!-- ─── SCRIPTS ─────────────────────────────────────────── -->
-  <script src="app.js?v=221"></script>
+  <script src="app.js?v=222"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async&libraries=marker">
   </script>

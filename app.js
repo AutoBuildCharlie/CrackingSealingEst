@@ -44,6 +44,7 @@ let _animInterval = null; // animation loop for selected street
 let tempPolyline = null; // live polyline while drawing
 let tempPath = []; // points being drawn
 let _multiPath = []; // accumulates clicked points for multi-point drawing
+let _curveMode = false; // when ON, clicks add intermediate points instead of finishing
 const PROJECTS_KEY = 'cse_projects';
 const ACTIVE_KEY = 'cse_active_project';
 const GLOBAL_SETTINGS_KEY = 'cse_global_settings';
@@ -3944,6 +3945,11 @@ function stopDrawingMode() {
   document.getElementById('highlight-bar').classList.add('hidden');
   const finishBtn = document.getElementById('btn-finish-line');
   if (finishBtn) finishBtn.style.display = 'none';
+  _curveMode = false;
+  const curveLabel = document.getElementById('curve-mode-label');
+  if (curveLabel) curveLabel.textContent = 'OFF';
+  const curveBtn = document.getElementById('btn-curve-toggle');
+  if (curveBtn) curveBtn.style.background = '';
   document.querySelector('.qa-highlight').classList.remove('qa-active');
   drawCount = 0;
   const pinLabel = document.getElementById('btn-pin-label');
@@ -4051,6 +4057,14 @@ function findNearestStreet(lat, lng) {
 }
 
 
+function toggleCurveMode() {
+  _curveMode = !_curveMode;
+  const label = document.getElementById('curve-mode-label');
+  const btn = document.getElementById('btn-curve-toggle');
+  if (label) label.textContent = _curveMode ? 'ON' : 'OFF';
+  if (btn) btn.style.background = _curveMode ? 'rgba(99,102,241,0.35)' : '';
+}
+
 function handleMapClick(latLng) {
   if (highlightMode !== 'drawing') return;
 
@@ -4063,12 +4077,13 @@ function handleMapClick(latLng) {
     clearTempMarkers();
     clearTempPolyline();
     addTempMarker(latLng, 'S', '#22c55e');
-    document.getElementById('highlight-bar-text').textContent = 'Click along the street — double-click to finish';
+    const msg = _curveMode ? 'Curve ON — click along the street, toggle Curve OFF then click end' : 'Now click the END of this street';
+    document.getElementById('highlight-bar-text').textContent = msg;
     const pinLabel = document.getElementById('btn-pin-label');
     if (pinLabel) pinLabel.textContent = 'Pin.End';
     setMapCursor('cursor-pin-end');
-  } else {
-    // 2+ points — update live preview polyline
+  } else if (_curveMode) {
+    // Curve mode — add intermediate point, update preview, don't finish yet
     clearTempPolyline();
     tempPolyline = new google.maps.Polyline({
       path: _multiPath,
@@ -4077,8 +4092,25 @@ function handleMapClick(latLng) {
       strokeWeight: 5,
       map: map
     });
-    document.getElementById('highlight-bar-text').textContent = `${_multiPath.length} points — keep clicking or hit Finish Line`;
-    document.getElementById('btn-finish-line').style.display = 'inline-block';
+    document.getElementById('highlight-bar-text').textContent = `${_multiPath.length} points — toggle Curve OFF then click end`;
+  } else {
+    // Normal mode — this click is the endpoint, finish immediately
+    const startPt = _multiPath[0];
+    const endPt = pt;
+    addTempMarker(latLng, 'E', '#ef4444');
+    clearTempPolyline();
+    tempPolyline = new google.maps.Polyline({
+      path: _multiPath,
+      strokeColor: '#3b82f6',
+      strokeOpacity: 0.8,
+      strokeWeight: 5,
+      map: map
+    });
+    if (_multiPath.length === 2) {
+      saveHighlightedStreet(startPt, endPt);
+    } else {
+      saveHighlightedStreet(startPt, endPt, [..._multiPath]);
+    }
   }
 }
 
@@ -4088,11 +4120,7 @@ function finishMultiPointDraw() {
   const endPt = _multiPath[_multiPath.length - 1];
   const path = [..._multiPath];
   addTempMarker(new google.maps.LatLng(endPt.lat, endPt.lng), 'E', '#ef4444');
-  if (path.length === 2) {
-    saveHighlightedStreet(startPt, endPt);
-  } else {
-    saveHighlightedStreet(startPt, endPt, path);
-  }
+  saveHighlightedStreet(startPt, endPt, path.length === 2 ? null : path);
 }
 
 async function saveHighlightedStreet(startPt, endPt, fixedPath) {
