@@ -1926,7 +1926,10 @@ ${detectRR && isSlurry ? '- R&R areas must be patched before slurry seal can be 
     // Store per-photo ratings from AI response
     const photoRatings = extractPhotoRatings(text, validPairs.length);
     photoRatings.forEach((r, i) => { if (street.scanPhotos[i] && r) street.scanPhotos[i].rating = r; });
-    return { text, rating, weedAlert, weedNotes, ravelingAlert, ravelingNotes, rrAlert, rrNotes };
+    // Overall rating = mode (most common) of photo ratings — falls back to AI's verdict if none
+    const validPhotoRatings = photoRatings.filter(Boolean);
+    const finalRating = validPhotoRatings.length ? ratingMode(validPhotoRatings) : rating;
+    return { text, rating: finalRating, weedAlert, weedNotes, ravelingAlert, ravelingNotes, rrAlert, rrNotes };
   } catch (e) {
     console.error('AI analysis error:', e);
     return analyzeWithPlaceholder(street);
@@ -2056,6 +2059,12 @@ function extractPhotoRatings(text, photoCount) {
     ratings.push((lvl >= 1 && lvl <= 4) ? `level-${lvl}` : null);
   }
   return ratings;
+}
+
+function ratingMode(ratings) {
+  const counts = {};
+  ratings.forEach(r => counts[r] = (counts[r] || 0) + 1);
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
 }
 
 function recalcRatingFromPhotos(streetId) {
