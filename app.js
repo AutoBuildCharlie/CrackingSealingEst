@@ -1976,8 +1976,10 @@ function placeAllMarkers() {
     el.title = street.name;
     el.style.cssText = 'width:18px;height:18px;background:#f59e0b;border:2px solid #fff;border-radius:50%;cursor:pointer;box-shadow:0 0 0 3px rgba(245,158,11,0.3);';
 
-    const marker = makeMarker({ position: { lat: street.lat, lng: street.lng }, map, title: street.name, content: el });
-    marker.addEventListener('gmp-click', () => _orderMode ? assignOrderToStreet(street.id, { lat: street.lat, lng: street.lng }) : selectStreet(street.id));
+    const handleClick = () => _orderMode ? assignOrderToStreet(street.id, { lat: street.lat, lng: street.lng }) : selectStreet(street.id);
+    const marker = makeMarker({ position: { lat: street.lat, lng: street.lng }, map, title: street.name, content: el, gmpClickable: true });
+    marker.addEventListener('gmp-click', handleClick);
+    el.addEventListener('click', handleClick);
     marker.addEventListener('contextmenu', (e) => { if (_orderMode) { e.preventDefault(); assignHalfOrderToStreet(street.id, { lat: street.lat, lng: street.lng }); } });
     markers.push(marker);
   });
