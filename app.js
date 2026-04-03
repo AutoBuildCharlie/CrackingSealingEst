@@ -248,6 +248,26 @@ function mapStreetSearchSelect(id) {
   if (street && street.lat && street.lng) map.panTo({ lat: street.lat, lng: street.lng });
 }
 
+async function mapStreetSearchEnter() {
+  const input = document.getElementById('map-street-search-input');
+  const results = document.getElementById('map-street-search-results');
+  // If a result row is visible, select the first one
+  const firstResult = results && results.querySelector('div');
+  if (firstResult) { firstResult.click(); return; }
+  // Otherwise geocode the query and pan the map
+  const query = input ? input.value.trim() : '';
+  if (!query) return;
+  showToast('Searching map...');
+  const geo = await geocodeAddress(query);
+  if (!geo) { showToast('Location not found — try adding a city name'); return; }
+  const zoom = (geo.locationType === 'ROOFTOP' || geo.locationType === 'RANGE_INTERPOLATED') ? 19 : 17;
+  map.setCenter({ lat: geo.lat, lng: geo.lng });
+  map.setZoom(zoom);
+  if (results) { results.style.display = 'none'; results.innerHTML = ''; }
+  if (input) input.value = '';
+  showToast(`Found: ${geo.formatted}`);
+}
+
 // ─── IMPORT STREET LIST ────────────────────────────────────
 
 function openImportModal() {
