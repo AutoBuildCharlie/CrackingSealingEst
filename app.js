@@ -1094,6 +1094,9 @@ function confirmStreetName() {
     const targetStreet = existingNeedsPin || street;
     saveStreets();
     window._drawStart = null;
+    _multiPath = [];
+    const finishBtnAfterSave = document.getElementById('btn-finish-line');
+    if (finishBtnAfterSave) finishBtnAfterSave.style.display = 'none';
     clearTempMarkers();
     clearTempPolyline();
     drawAllHighlights();
@@ -4104,11 +4107,13 @@ function handleMapClick(latLng) {
     clearTempMarkers();
     clearTempPolyline();
     addTempMarker(latLng, 'S', '#22c55e');
-    const msg = _curveMode ? 'Curve ON — click along the street, toggle Curve OFF then click end' : 'Now click the END of this street';
+    const msg = _curveMode ? 'Click curve points, then hit Finish Line' : 'Now click the END of this street';
     document.getElementById('highlight-bar-text').textContent = msg;
     const pinLabel = document.getElementById('btn-pin-label');
     if (pinLabel) pinLabel.textContent = 'Pin.End';
     setMapCursor('cursor-pin-end');
+    const finishBtn = document.getElementById('btn-finish-line');
+    if (finishBtn) finishBtn.style.display = '';
   } else if (_curveMode) {
     // Curve mode — add intermediate point, update preview, don't finish yet
     clearTempPolyline();
