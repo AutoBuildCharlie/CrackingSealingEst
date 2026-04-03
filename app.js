@@ -3927,6 +3927,8 @@ function stopDrawingMode() {
   clearTempMarkers();
   clearTempPolyline();
   document.getElementById('highlight-bar').classList.add('hidden');
+  const finishBtn = document.getElementById('btn-finish-line');
+  if (finishBtn) finishBtn.style.display = 'none';
   document.querySelector('.qa-highlight').classList.remove('qa-active');
   drawCount = 0;
   const pinLabel = document.getElementById('btn-pin-label');
@@ -4060,7 +4062,8 @@ function handleMapClick(latLng) {
       strokeWeight: 5,
       map: map
     });
-    document.getElementById('highlight-bar-text').textContent = `${_multiPath.length} points — keep clicking or double-click to finish`;
+    document.getElementById('highlight-bar-text').textContent = `${_multiPath.length} points — keep clicking or hit Finish Line`;
+    document.getElementById('btn-finish-line').style.display = 'inline-block';
   }
 }
 

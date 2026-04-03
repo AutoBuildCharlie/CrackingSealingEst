@@ -123,7 +123,8 @@
       </div>
       <div id="highlight-bar" class="highlight-bar hidden">
         <span id="highlight-bar-text">Click the START of a street</span>
-        <button class="btn-cancel-highlight" onclick="cancelHighlight()">Done</button>
+        <button id="btn-finish-line" class="btn-cancel-highlight" onclick="finishMultiPointDraw()" style="background:#22c55e;color:#fff;display:none">Finish Line</button>
+        <button class="btn-cancel-highlight" onclick="cancelHighlight()">Cancel</button>
       </div>
       <div id="order-bar" class="order-bar hidden">
         <div id="order-bar-main" style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:6px">
@@ -331,7 +332,7 @@
   </div>
 
   <!-- ─── SCRIPTS ─────────────────────────────────────────── -->
-  <script src="app.js?v=219"></script>
+  <script src="app.js?v=220"></script>
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async&libraries=marker">
   </script>
