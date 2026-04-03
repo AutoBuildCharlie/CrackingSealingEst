@@ -486,6 +486,13 @@ async function runImportList() {
         continue;
       }
 
+      // Skip if this street is already pinned (has a drawn path) — don't overwrite existing work
+      const alreadyPinned = streets.find(s => s.name.toLowerCase() === streetName.toLowerCase() && s.path && s.path.length >= 2);
+      if (alreadyPinned) {
+        await _delay(100);
+        continue;
+      }
+
       const streetObj = {
         id: (crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2)),
         name: streetName,
