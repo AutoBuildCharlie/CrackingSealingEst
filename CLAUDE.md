@@ -550,6 +550,13 @@ Worker holds API keys, routes to OpenAI or Google based on `provider` param.
 | Delete confirm shows in right panel too | Always appears in detail panel in addition to left sidebar card |
 | Geocoder uses begin intersection for precision | "Elm Ave & Catalpa Ave, Mill Valley CA" instead of just street name — falls back to name-only if needed |
 | Auto-pin from PDF table | Import geocodes begin + end intersections separately, stores as beginLatLng/endLatLng — green/red dots on map, Pin.Start auto-fills both endpoints |
+| Geocoder retry chain | begin intersection → end intersection → street name only → skip. 300ms between calls. Streets skipped only after all 3 fail |
+| Skipped streets modal stays open | If any streets skipped during import, modal doesn't auto-close — shows amber list, user dismisses manually |
+| Overall rating = mode of photo ratings | Most common photo rating wins. Falls back to AI verdict if no photo ratings returned. Already-scanned streets need rescan to update |
+| Street count splits comma-names | Multi-name entries like "Plymouth Ave, Valley Cir, Surrey Ave" count as 3 in stat bar — sq ft is not multiplied, only the count |
+| Onsite Photo button removed from desktop | Office-only context — SV snap covers photo capture. `startFreePhoto()` still in app.js but no button wired to it |
+| Top search bar handles both street filter + geocode | Single input: typing filters project streets with dropdown; Enter geocodes if no project match |
+| NB/SB badge computed from path heading | Not stored in name — calculated live from polyline direction. Miller NB and Miller SB are two separate street entries, each counts as 1 |
 
 ---
 
@@ -574,5 +581,17 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 - **Map image import** — drop a screenshot of a pavement plan map into import modal → AI reads street name labels → geocodes them → places gold dots. Already-pinned streets are skipped.
 - **Geocoder + intersection** — import geocodes begin and end intersections separately. Green dot = start, red dot = end. Pin.Start auto-fills both endpoints so Cal just hits Finish Line.
 - **Built (v271): Retry chain** — geocoder now tries: begin intersection → end intersection → street name only → skip. 300ms delay between each call. Streets are skipped only after all 3 options fail. If only one intersection resolves, that point is used as the gold dot instead of falling back to a redundant street name geocode.
+- **Built (v272): Skipped streets stay visible** — if any streets are skipped during import, modal stays open with amber warning listing each skipped name. User closes manually with OK button. Auto-closes only if zero skipped.
+- **Built (v273): Curve toggle compact** — small pill with stacked "Curve / ON-OFF" label, flex:0 so it doesn't expand to match Pin.Start width.
+- **Built (v274): Onsite Photo button removed from desktop** — not needed in office context, SV snap handles photo capture.
+- **Built (v275): Merged search bars** — "Find street…" map overlay removed. Top search bar now does both: type to filter project streets (dropdown), Enter to geocode address + drop amber pin.
+- **Built (v276): Overall rating uses mode of photo ratings** — most common photo rating wins instead of AI's single verdict. 5× LVL1 + 1× LVL2 = LVL1. Falls back to AI verdict if no photo ratings returned.
+- **Built (v277): Street count splits comma-names** — "Plymouth Ave, Valley Cir, Surrey Ave" counts as 3 in the stat bar and project dropdown. Single-name streets count as 1.
+- **Next: "Recalculate All Ratings" button** — apply new mode logic to already-scanned streets without rescanning. One button in project bar.
+- **Next: Remove "Take Photo" button from right panel detail view on desktop** — same issue as Onsite Photo button, useless in office context.
+- **Next: Mobile search bar merge** — mobile still has separate "Find street" overlay, needs same merge as desktop v275.
+- **Next: CSV export** — dump all streets, ratings, sq ft, lengths into a spreadsheet for city/client handoff.
+- **Next: Rescan all PENDING** — button to kick off scans on every pinned street with no rating yet.
+- **Next: Calibration rules viewer** — show active AI rules, allow deleting bad ones.
 - **Future: AI route suggestion** — after 5-10 projects of manual ordering + notes, build "Suggest Route" button that reads `order`, `orderNote`, `orderClickPt` data.
 - **Future: backend/cloud storage** — currently localStorage only, no cross-device sync. Export/Import is the workaround. Backend would enable desktop↔mobile sync.
