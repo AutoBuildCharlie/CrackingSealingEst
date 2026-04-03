@@ -1019,7 +1019,23 @@ function confirmStreetName() {
     const { street, roadLengthFt } = window._pendingStreet;
     window._pendingStreet = null;
     street.name = val;
-    streets.push(street);
+
+    // If an imported (needs-pinning) street is selected, update it instead of creating a new one
+    const existingNeedsPin = activeStreetId ? streets.find(s => s.id === activeStreetId && (!s.path || s.path.length < 2)) : null;
+    if (existingNeedsPin) {
+      existingNeedsPin.name = val;
+      existingNeedsPin.path = street.path;
+      existingNeedsPin.length = street.length;
+      existingNeedsPin.width = street.width;
+      existingNeedsPin.sqft = street.sqft;
+      existingNeedsPin.roadType = street.roadType;
+      existingNeedsPin.lat = street.lat;
+      existingNeedsPin.lng = street.lng;
+      existingNeedsPin.rating = 'pending';
+      Object.assign(street, existingNeedsPin); // point scan/select calls at the existing street
+    } else {
+      streets.push(street);
+    }
     saveStreets();
     window._drawStart = null;
     clearTempMarkers();
