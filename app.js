@@ -2273,7 +2273,11 @@ function selectStreet(id) {
         </div>` : ''}
         <div class="detail-stat">
           <div class="detail-stat-label">Length</div>
-          <div class="detail-stat-value">${street.length ? formatNumber(street.length) + ' ft' : '—'}${street.length >= 528 ? '<div style="font-size:11px;color:var(--text-dim);margin-top:1px">' + (street.length / 5280).toFixed(2) + ' mi</div>' : ''}</div>
+          <div class="detail-stat-value">${street.length ? formatNumber(street.length) + ' ft' : '—'}</div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-label">Miles</div>
+          <div class="detail-stat-value">${street.length ? (street.length / 5280).toFixed(2) + ' mi' : '—'}</div>
         </div>
         <div class="detail-stat">
           <div class="detail-stat-label">Width</div>
