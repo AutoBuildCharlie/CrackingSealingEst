@@ -477,16 +477,22 @@ async function runImportList() {
     progressBar.style.width = Math.round(((i + 1) / rows.length) * 100) + '%';
 
     try {
-      // Use begin + end intersections for a more precise location if available
-      const query = (begin && end)
-        ? `${streetName} from ${begin} to ${end}, ${city}`
-        : begin
-          ? `${streetName} & ${begin}, ${city}`
-          : `${streetName}, ${city}`;
-      let geo = await geocodeAddress(query);
+      // Geocode begin and end intersections separately for precise endpoints
+      let beginLatLng = null, endLatLng = null;
+      if (begin) {
+        const g = await geocodeAddress(`${streetName} & ${begin}, ${city}`);
+        if (g && !g.partialMatch) beginLatLng = { lat: g.lat, lng: g.lng };
+      }
+      if (end) {
+        const g = await geocodeAddress(`${streetName} & ${end}, ${city}`);
+        if (g && !g.partialMatch) endLatLng = { lat: g.lat, lng: g.lng };
+      }
 
-      // If intersection query failed or was uncertain, fall back to street name only
-      if ((!geo || geo.partialMatch) && (begin || end)) {
+      // Midpoint for the gold dot — average of begin/end if both found, else geocode street name
+      let geo = null;
+      if (beginLatLng && endLatLng) {
+        geo = { lat: (beginLatLng.lat + endLatLng.lat) / 2, lng: (beginLatLng.lng + endLatLng.lng) / 2, partialMatch: false };
+      } else {
         geo = await geocodeAddress(`${streetName}, ${city}`);
       }
 
@@ -508,6 +514,8 @@ async function runImportList() {
         id: (crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2)),
         name: streetName,
         lat: geo.lat, lng: geo.lng,
+        beginLatLng: beginLatLng || null,  // pre-geocoded start point
+        endLatLng: endLatLng || null,      // pre-geocoded end point
         length: 300, width: 32,
         sqft: 300 * 32,
         roadType: null,
@@ -2185,17 +2193,32 @@ function placeAllMarkers() {
     if (hasLine) return; // streets with polylines are clickable directly — no dot needed
     if (!street.lat || !street.lng) return; // no location — list only
 
-    // Needs-pinning marker: gold pin dot
-    const el = document.createElement('div');
-    el.title = street.name;
-    el.style.cssText = 'width:18px;height:18px;background:#f59e0b;border:2px solid #fff;border-radius:50%;cursor:pointer;box-shadow:0 0 0 3px rgba(245,158,11,0.3);';
-
     const handleClick = () => _orderMode ? assignOrderToStreet(street.id, { lat: street.lat, lng: street.lng }) : selectStreet(street.id);
-    const marker = makeMarker({ position: { lat: street.lat, lng: street.lng }, map, title: street.name, content: el, gmpClickable: true });
-    marker.addEventListener('gmp-click', handleClick);
-    el.addEventListener('click', handleClick);
-    marker.addEventListener('contextmenu', (e) => { if (_orderMode) { e.preventDefault(); assignHalfOrderToStreet(street.id, { lat: street.lat, lng: street.lng }); } });
-    markers.push(marker);
+
+    if (street.beginLatLng && street.endLatLng) {
+      // Show green (begin) + red (end) endpoint dots
+      const makeEndpointMarker = (pos, color, label) => {
+        const el = document.createElement('div');
+        el.title = `${street.name} — ${label}`;
+        el.style.cssText = `width:14px;height:14px;background:${color};border:2px solid #fff;border-radius:50%;cursor:pointer;box-shadow:0 0 0 2px ${color}55;`;
+        const m = makeMarker({ position: pos, map, title: el.title, content: el, gmpClickable: true });
+        m.addEventListener('gmp-click', handleClick);
+        el.addEventListener('click', handleClick);
+        markers.push(m);
+      };
+      makeEndpointMarker(street.beginLatLng, '#22c55e', 'Start');
+      makeEndpointMarker(street.endLatLng, '#ef4444', 'End');
+    } else {
+      // Fallback: single gold dot
+      const el = document.createElement('div');
+      el.title = street.name;
+      el.style.cssText = 'width:18px;height:18px;background:#f59e0b;border:2px solid #fff;border-radius:50%;cursor:pointer;box-shadow:0 0 0 3px rgba(245,158,11,0.3);';
+      const marker = makeMarker({ position: { lat: street.lat, lng: street.lng }, map, title: street.name, content: el, gmpClickable: true });
+      marker.addEventListener('gmp-click', handleClick);
+      el.addEventListener('click', handleClick);
+      marker.addEventListener('contextmenu', (e) => { if (_orderMode) { e.preventDefault(); assignHalfOrderToStreet(street.id, { lat: street.lat, lng: street.lng }); } });
+      markers.push(marker);
+    }
   });
 }
 
@@ -4090,8 +4113,28 @@ function startFreeHighlight() {
   clearTempPolyline();
   window._drawStart = null;
   document.getElementById('highlight-bar').classList.remove('hidden');
-  document.getElementById('highlight-bar-text').textContent = 'Click the START of a street';
   document.getElementById('detail-panel').classList.add('hidden');
+
+  // If selected street has pre-geocoded endpoints, auto-fill start + end
+  const selectedStreet = activeStreetId ? streets.find(s => s.id === activeStreetId && (!s.path || s.path.length < 2)) : null;
+  if (selectedStreet && selectedStreet.beginLatLng && selectedStreet.endLatLng) {
+    const startPt = selectedStreet.beginLatLng;
+    const endPt = selectedStreet.endLatLng;
+    _multiPath = [startPt, endPt];
+    window._drawStart = startPt;
+    addTempMarker(new google.maps.LatLng(startPt.lat, startPt.lng), 'S', '#22c55e');
+    addTempMarker(new google.maps.LatLng(endPt.lat, endPt.lng), 'E', '#ef4444');
+    tempPolyline = new google.maps.Polyline({ path: _multiPath, strokeColor: '#3b82f6', strokeOpacity: 0.8, strokeWeight: 5, map });
+    document.getElementById('highlight-bar-text').textContent = 'Endpoints pre-mapped — hit Finish Line to confirm or use Curve to adjust';
+    const finishBtn = document.getElementById('btn-finish-line');
+    if (finishBtn) finishBtn.style.display = '';
+    const pinLabel = document.getElementById('btn-pin-label');
+    if (pinLabel) pinLabel.textContent = 'Pin.End';
+    setMapCursor('cursor-pin-end');
+    return;
+  }
+
+  document.getElementById('highlight-bar-text').textContent = 'Click the START of a street';
   document.querySelector('.qa-highlight').classList.add('qa-active');
   setMapCursor('cursor-pin-start');
 }
