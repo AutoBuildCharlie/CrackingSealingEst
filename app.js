@@ -103,13 +103,21 @@ function initMap() {
   // Map click listener
   map.addListener('click', (e) => handleMapClick(e.latLng));
 
-  // Right-click: finish drawing (2+ points) or cancel (0-1 points)
+  // Right-click cancels drawing (keep original behavior)
   map.addListener('rightclick', () => {
-    if (drawingMode) { _multiPath.length >= 2 ? finishMultiPointDraw() : (stopDrawingMode(), showToast('Pin cancelled')); }
+    if (drawingMode) { stopDrawingMode(); showToast('Pin cancelled'); }
   });
   document.getElementById('map').addEventListener('contextmenu', (e) => {
-    if (drawingMode) { e.preventDefault(); _multiPath.length >= 2 ? finishMultiPointDraw() : (stopDrawingMode(), showToast('Pin cancelled')); }
+    if (drawingMode) { e.preventDefault(); stopDrawingMode(); showToast('Pin cancelled'); }
     if (_orderMode) { e.preventDefault(); }
+  });
+
+  // Double-click finishes multi-point drawing
+  map.addListener('dblclick', (e) => {
+    if (drawingMode && _multiPath.length >= 2) {
+      e.stop();
+      finishMultiPointDraw();
+    }
   });
 
   initWorkerDrag();
@@ -4038,7 +4046,7 @@ function handleMapClick(latLng) {
     clearTempMarkers();
     clearTempPolyline();
     addTempMarker(latLng, 'S', '#22c55e');
-    document.getElementById('highlight-bar-text').textContent = 'Click along the street — right-click to finish';
+    document.getElementById('highlight-bar-text').textContent = 'Click along the street — double-click to finish';
     const pinLabel = document.getElementById('btn-pin-label');
     if (pinLabel) pinLabel.textContent = 'Pin.End';
     setMapCursor('cursor-pin-end');
@@ -4052,7 +4060,7 @@ function handleMapClick(latLng) {
       strokeWeight: 5,
       map: map
     });
-    document.getElementById('highlight-bar-text').textContent = `${_multiPath.length} points — keep clicking or right-click to finish`;
+    document.getElementById('highlight-bar-text').textContent = `${_multiPath.length} points — keep clicking or double-click to finish`;
   }
 }
 
