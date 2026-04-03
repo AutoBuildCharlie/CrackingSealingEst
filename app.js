@@ -1092,7 +1092,22 @@ function confirmStreetName() {
         if (layout) street.laneLayout = layout;
       }
       saveStreets(); renderStreetList(); selectStreet(street.id); placeAllMarkers(); updateStats();
-    }).catch(e => { street.rating = 'level-1'; street.analysis = 'Scan failed.'; saveStreets(); selectStreet(street.id); });
+    }).catch(e => {
+      console.warn('Scan failed, retrying once…', e);
+      analyzeStreetView(street).then(async analysis => {
+        street.analysis = analysis.text; street.rating = analysis.rating; street.aiRating = analysis.rating;
+        street.weedAlert = analysis.weedAlert || false; street.weedNotes = analysis.weedNotes || '';
+        street.ravelingAlert = analysis.ravelingAlert || false; street.ravelingNotes = analysis.ravelingNotes || '';
+        street.rrAlert = analysis.rrAlert || false; street.rrNotes = analysis.rrNotes || '';
+        street.scannedAt = new Date().toISOString();
+        saveStreets(); renderStreetList(); selectStreet(street.id); placeAllMarkers(); updateStats();
+      }).catch(e2 => {
+        street.rating = 'pending';
+        street.analysis = '';
+        saveStreets(); renderStreetList(); selectStreet(street.id);
+        showToast('Scan failed — tap Rescan to try again', 5000);
+      });
+    });
     selectStreet(street.id);
     return;
   }
