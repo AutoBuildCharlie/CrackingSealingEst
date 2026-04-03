@@ -43,6 +43,7 @@ let polylines = []; // drawn street lines + markers
 let _animInterval = null; // animation loop for selected street
 let tempPolyline = null; // live polyline while drawing
 let tempPath = []; // points being drawn
+let _multiPath = []; // accumulates clicked points for multi-point drawing
 const PROJECTS_KEY = 'cse_projects';
 const ACTIVE_KEY = 'cse_active_project';
 const GLOBAL_SETTINGS_KEY = 'cse_global_settings';
@@ -102,12 +103,12 @@ function initMap() {
   // Map click listener
   map.addListener('click', (e) => handleMapClick(e.latLng));
 
-  // Right-click cancels drawing mode
+  // Right-click: finish drawing (2+ points) or cancel (0-1 points)
   map.addListener('rightclick', () => {
-    if (drawingMode) { stopDrawingMode(); showToast('Pin cancelled'); }
+    if (drawingMode) { _multiPath.length >= 2 ? finishMultiPointDraw() : (stopDrawingMode(), showToast('Pin cancelled')); }
   });
   document.getElementById('map').addEventListener('contextmenu', (e) => {
-    if (drawingMode) { e.preventDefault(); stopDrawingMode(); showToast('Pin cancelled'); }
+    if (drawingMode) { e.preventDefault(); _multiPath.length >= 2 ? finishMultiPointDraw() : (stopDrawingMode(), showToast('Pin cancelled')); }
     if (_orderMode) { e.preventDefault(); }
   });
 
@@ -3893,6 +3894,7 @@ function startFreeHighlight() {
   drawingMode = true;
   highlightMode = 'drawing';
   tempPath = [];
+  _multiPath = [];
   clearTempMarkers();
   clearTempPolyline();
   window._drawStart = null;
@@ -3912,6 +3914,7 @@ function stopDrawingMode() {
   highlightMode = null;
   highlightStreetId = null;
   tempPath = [];
+  _multiPath = [];
   window._drawStart = null;
   clearTempMarkers();
   clearTempPolyline();
@@ -4026,43 +4029,58 @@ function findNearestStreet(lat, lng) {
 function handleMapClick(latLng) {
   if (highlightMode !== 'drawing') return;
 
-  if (!window._drawStart) {
-    // Click 1 = START of street
-    window._drawStart = { lat: latLng.lat(), lng: latLng.lng() };
+  const pt = { lat: latLng.lat(), lng: latLng.lng() };
+  _multiPath.push(pt);
+
+  if (_multiPath.length === 1) {
+    // First point — start marker
+    window._drawStart = pt;
     clearTempMarkers();
     clearTempPolyline();
     addTempMarker(latLng, 'S', '#22c55e');
-    document.getElementById('highlight-bar-text').textContent = 'Now click the END of this street';
+    document.getElementById('highlight-bar-text').textContent = 'Click along the street — right-click to finish';
     const pinLabel = document.getElementById('btn-pin-label');
     if (pinLabel) pinLabel.textContent = 'Pin.End';
     setMapCursor('cursor-pin-end');
   } else {
-    // Click 2 = END of street → auto-save
-    const startPt = window._drawStart;
-    const endPt = { lat: latLng.lat(), lng: latLng.lng() };
-    addTempMarker(latLng, 'E', '#ef4444');
-
-    // Draw preview line
+    // 2+ points — update live preview polyline
+    clearTempPolyline();
     tempPolyline = new google.maps.Polyline({
-      path: [startPt, endPt],
+      path: _multiPath,
       strokeColor: '#3b82f6',
       strokeOpacity: 0.8,
       strokeWeight: 5,
       map: map
     });
-
-    // Save street
-    saveHighlightedStreet(startPt, endPt);
+    document.getElementById('highlight-bar-text').textContent = `${_multiPath.length} points — keep clicking or right-click to finish`;
   }
 }
 
-async function saveHighlightedStreet(startPt, endPt) {
+function finishMultiPointDraw() {
+  if (_multiPath.length < 2) { stopDrawingMode(); showToast('Pin cancelled'); return; }
+  const startPt = _multiPath[0];
+  const endPt = _multiPath[_multiPath.length - 1];
+  const path = [..._multiPath];
+  addTempMarker(new google.maps.LatLng(endPt.lat, endPt.lng), 'E', '#ef4444');
+  if (path.length === 2) {
+    saveHighlightedStreet(startPt, endPt);
+  } else {
+    saveHighlightedStreet(startPt, endPt, path);
+  }
+}
+
+async function saveHighlightedStreet(startPt, endPt, fixedPath) {
   showScanModal('Saving street...');
-  // Get actual road path from Directions API
   let roadPath = [startPt, endPt];
   let roadLengthFt = Math.round(calcDistanceFt(startPt, endPt));
 
-  try {
+  if (fixedPath) {
+    // Multi-point path — use clicked points directly, sum distances for length
+    roadPath = fixedPath;
+    roadLengthFt = 0;
+    for (let i = 1; i < roadPath.length; i++) roadLengthFt += calcDistanceFt(roadPath[i-1], roadPath[i]);
+    roadLengthFt = Math.round(roadLengthFt);
+  } else try {
     const directions = new google.maps.DirectionsService();
     const result = await new Promise((resolve, reject) => {
       directions.route({
@@ -4095,7 +4113,7 @@ async function saveHighlightedStreet(startPt, endPt) {
     }
   } catch (e) {
     console.warn('Directions API fallback to straight line:', e);
-  }
+  } // end else (Directions API block)
 
   const midIdx = Math.floor(roadPath.length / 2);
   const midPt = roadPath[midIdx] || startPt;
