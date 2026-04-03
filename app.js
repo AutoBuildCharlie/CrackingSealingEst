@@ -186,8 +186,22 @@ function saveProjects() {
   try {
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
   } catch (e) {
-    showToast('Storage full — delete old photos or projects to free space');
-    console.error('localStorage save failed:', e);
+    // Storage full — retry without embedded base64 scan photo data
+    console.warn('localStorage full, retrying without scan photo dataUrls:', e);
+    try {
+      const stripped = projects.map(proj => ({
+        ...proj,
+        streets: (proj.streets || []).map(s => ({
+          ...s,
+          scanPhotos: (s.scanPhotos || []).map(p => ({ ...p, dataUrl: null }))
+        }))
+      }));
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(stripped));
+      showToast('Storage nearly full — scan photos will reload on demand', 4000);
+    } catch (e2) {
+      showToast('Storage full — delete old projects to free space', 5000);
+      console.error('localStorage save failed even after stripping photos:', e2);
+    }
   }
 }
 
