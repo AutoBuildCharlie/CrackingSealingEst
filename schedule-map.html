@@ -314,7 +314,7 @@
     /* ─── PRINT STYLES ───────────────────────────────────── */
     @media print {
       body {
-        background: #1d2535;
+        background: white;
         margin: 0;
         padding: 0;
         height: 100vh;
@@ -340,9 +340,10 @@
         height: 100% !important;
       }
       .map-label {
-        box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        font-size: 10px;
       }
     }
   </style>
@@ -991,6 +992,14 @@ function setupDropZone(zoneId, onDrop) {
 }
 
 setupDropZone('sched-zone', files => handleScheduleUpload(files));
+
+// ─── Light map for print, dark map for screen ────────────
+window.addEventListener('beforeprint', () => {
+  if (map) map.setOptions({ styles: [] }); // default Google light map
+});
+window.addEventListener('afterprint', () => {
+  if (map) map.setOptions({ styles: MAP_STYLES }); // restore dark
+});
 
 renderAll();
 </script>
