@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Newark 2025 Slurry Seal — Schedule Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #111827;
+      color: #e0e0e0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ─── HEADER ─────────────────────────────────────────── */
+    #header {
+      background: #1f2937;
+      border-bottom: 1px solid #374151;
+      padding: 0 20px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    #header h1 { font-size: 15px; font-weight: 700; color: #fff; white-space: nowrap; }
+    #header h1 em { color: #f97316; font-style: normal; }
+    #header .subtitle { font-size: 11px; color: #6b7280; white-space: nowrap; }
+    .hdr-spacer { flex: 1; }
+
+    .btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-export { background: #22c55e; color: #000; }
+    .btn-back { background: #374151; color: #d1d5db; }
+    .btn-clear { background: transparent; color: #6b7280; border: 1px solid #374151; }
+
+    /* ─── MAIN LAYOUT ────────────────────────────────────── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ─── MAP AREA ───────────────────────────────────────── */
+    #map-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #0f172a;
+    }
+
+    #map-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      cursor: grab;
+    }
+    #map-container.placing { cursor: crosshair; }
+    #map-container.dragging { cursor: grabbing; }
+
+    #map-img {
+      display: block;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    #label-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+
+    .map-label {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      padding: 3px 7px;
+      border-radius: 4px;
+      pointer-events: all;
+      cursor: move;
+      user-select: none;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      letter-spacing: 0.3px;
+    }
+    .map-label .split-star {
+      font-size: 8px;
+      opacity: 0.8;
+      margin-left: 2px;
+    }
+
+    /* Placeholder when no map loaded */
+    #map-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: #374151;
+      pointer-events: none;
+    }
+    #map-placeholder svg { width: 64px; height: 64px; opacity: 0.3; }
+    #map-placeholder p { font-size: 13px; color: #4b5563; }
+
+    /* Zoom controls */
+    #zoom-controls {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 5;
+    }
+    .zoom-btn {
+      width: 32px;
+      height: 32px;
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: #d1d5db;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: monospace;
+    }
+    .zoom-btn:hover { background: #374151; }
+
+    /* Active street banner */
+    #place-banner {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1d4ed8;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      display: none;
+      z-index: 10;
+    }
+    #place-banner.show { display: flex; align-items: center; gap: 8px; }
+    #place-banner .banner-dot { width: 10px; height: 10px; border-radius: 50%; }
+    #place-banner .cancel-x { margin-left: 8px; cursor: pointer; opacity: 0.7; font-size: 14px; }
+    #place-banner .cancel-x:hover { opacity: 1; }
+
+    /* ─── RIGHT PANEL ────────────────────────────────────── */
+    #right-panel {
+      width: 290px;
+      flex-shrink: 0;
+      background: #1f2937;
+      border-left: 1px solid #374151;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #panel-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+    }
+    #panel-scroll::-webkit-scrollbar { width: 4px; }
+    #panel-scroll::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+
+    .section {
+      margin-bottom: 18px;
+    }
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #6b7280;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .section-label .step-badge {
+      background: #374151;
+      color: #9ca3af;
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    .upload-zone {
+      border: 2px dashed #374151;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      color: #6b7280;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+    .upload-zone:hover { border-color: #3b82f6; color: #93c5fd; background: rgba(59,130,246,0.05); }
+    .upload-zone .upload-icon { font-size: 20px; margin-bottom: 4px; }
+
+    /* Day groups */
+    .day-group { margin-bottom: 10px; }
+
+    .day-header {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 4px;
+      padding: 2px 0;
+    }
+    .day-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .day-title { font-size: 12px; font-weight: 700; }
+    .day-count { font-size: 10px; color: #4b5563; margin-left: auto; }
+
+    .street-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 6px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 11px;
+      margin-bottom: 1px;
+      border: 1px solid transparent;
+      transition: background 0.12s;
+    }
+    .street-row:hover { background: rgba(255,255,255,0.04); }
+    .street-row.active { background: rgba(59,130,246,0.15); border-color: #3b82f6; }
+    .street-row.placed { opacity: 0.45; }
+    .street-row .s-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .street-row .s-name { flex: 1; color: #d1d5db; }
+    .street-row .split-badge {
+      font-size: 8px;
+      background: #374151;
+      color: #9ca3af;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .street-row .del-btn {
+      color: #4b5563;
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0;
+      padding: 0 2px;
+    }
+    .street-row:hover .del-btn { opacity: 1; }
+    .street-row .del-btn:hover { color: #ef4444; }
+
+    /* Manual add */
+    .manual-row { display: flex; flex-direction: column; gap: 5px; }
+    .manual-row input,
+    .manual-row select {
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 5px;
+      padding: 6px 9px;
+      color: #e0e0e0;
+      font-size: 11px;
+      font-family: 'Inter', sans-serif;
+      width: 100%;
+    }
+    .manual-row input::placeholder { color: #4b5563; }
+    .btn-add {
+      background: #374151;
+      color: #d1d5db;
+      border: none;
+      border-radius: 5px;
+      padding: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      width: 100%;
+    }
+    .btn-add:hover { background: #4b5563; }
+
+    /* Status bar */
+    #status-bar {
+      padding: 8px 14px;
+      border-top: 1px solid #374151;
+      font-size: 11px;
+      color: #4b5563;
+      background: #111827;
+      flex-shrink: 0;
+    }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: #e0e0e0;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ─── PRINT STYLES ───────────────────────────────────── */
+    @media print {
+      body {
+        background: white;
+        color: black;
+        height: auto;
+        overflow: visible;
+        font-size: 11px;
+      }
+      #header { display: none !important; }
+      #main { overflow: visible; height: auto; }
+      #map-area {
+        overflow: visible;
+        background: white;
+        width: 68vw;
+      }
+      #map-placeholder { display: none !important; }
+      #map-container {
+        position: relative !important;
+        transform: none !important;
+      }
+      #map-img { width: 100%; height: auto; }
+      #label-layer { width: 100% !important; height: 100% !important; }
+      #zoom-controls { display: none !important; }
+      #place-banner { display: none !important; }
+      #right-panel {
+        width: 32vw;
+        background: white;
+        border-left: 1px solid #ccc;
+      }
+      .upload-zone { display: none !important; }
+      .del-btn { display: none !important; }
+      .btn-add { display: none !important; }
+      .manual-row input, .manual-row select { display: none !important; }
+      .section-label .step-badge { display: none; }
+      #status-bar { border-top: 1px solid #ccc; color: #666; background: white; }
+      .day-title { color: black !important; }
+      .s-name { color: black !important; }
+      .day-count { color: #666; }
+      .section-label { color: #666; }
+      .street-row { opacity: 1 !important; }
+      .street-row.placed { opacity: 0.7 !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div>
+    <h1>Newark 2025 Slurry <em>Seal</em></h1>
+    <div class="subtitle">City of Newark, Alameda County, California — Schedule Map</div>
+  </div>
+  <div class="hdr-spacer"></div>
+  <button class="btn btn-clear" onclick="clearAll()">Clear All</button>
+  <button class="btn btn-export" onclick="window.print()">Export PDF</button>
+  <a href="index.html" class="btn btn-back">← PavementScan</a>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- MAP AREA -->
+  <div id="map-area">
+    <div id="map-placeholder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+        <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+      </svg>
+      <p>Upload the clean GRSI map (Step 2) to begin</p>
+    </div>
+    <div id="map-container">
+      <img id="map-img" src="" alt="Map" draggable="false">
+      <div id="label-layer"></div>
+    </div>
+    <!-- Zoom controls -->
+    <div id="zoom-controls">
+      <button class="zoom-btn" onclick="adjustZoom(1.25)" title="Zoom in">+</button>
+      <button class="zoom-btn" onclick="adjustZoom(0.8)" title="Zoom out">−</button>
+      <button class="zoom-btn" onclick="resetZoom()" title="Reset zoom" style="font-size:11px">⊡</button>
+    </div>
+    <!-- Active street banner -->
+    <div id="place-banner">
+      <span>Click map to place:</span>
+      <div id="banner-dot" class="banner-dot"></div>
+      <strong id="banner-name"></strong>
+      <span class="cancel-x" onclick="cancelActive()">✕</span>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right-panel">
+    <div id="panel-scroll">
+
+      <!-- Step 1 -->
+      <div class="section">
+        <div class="section-label"><span class="step-badge">1</span> Upload Schedule Maps</div>
+        <div class="upload-zone" onclick="document.getElementById('sched-input').click()">
+          <div class="upload-icon">📋</div>
+          <div>Upload color-coded schedule images</div>
+          <div style="font-size:10px;margin-top:2px;color:#4b5563">AI reads street names + dates</div>
+        </div>
+        <input type="file" id="sched-input" accept="image/*" multiple style="display:none" onchange="handleScheduleUpload(this.files)">
+        <div id="extract-status" style="margin-top:6px;font-size:11px;color:#6b7280;min-height:16px"></div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="section">
+        <div class="section-label"><span class="step-badge">2</span> Upload Clean Map</div>
+        <div class="upload-zone" onclick="document.getElementById('map-input').click()">
+          <div class="upload-icon">🗺️</div>
+          <div>Upload the clean GRSI map</div>
+          <div style="font-size:10px;margin-top:2px;color:#4b5563">Used as background</div>
+        </div>
+        <input type="file" id="map-input" accept="image/*" style="display:none" onchange="handleMapUpload(this.files[0])">
+      </div>
+
+      <!-- Step 3 hint -->
+      <div class="section">
+        <div class="section-label"><span class="step-badge">3</span> Place Labels</div>
+        <div style="font-size:11px;color:#4b5563;line-height:1.5">Click a street name below → then click on the map to place its label. Drag labels to reposition. Double-click a label to remove it.</div>
+      </div>
+
+      <!-- Schedule list -->
+      <div class="section">
+        <div class="section-label">Schedule</div>
+        <div id="street-list">
+          <div style="font-size:11px;color:#374151;text-align:center;padding:16px 0">No streets yet — upload schedule images</div>
+        </div>
+      </div>
+
+      <!-- Manual add -->
+      <div class="section">
+        <div class="section-label">Add Manually</div>
+        <div class="manual-row">
+          <input type="text" id="manual-name" placeholder="Street name (e.g. Sycamore Ave)">
+          <select id="manual-day">
+            <option value="">Select day...</option>
+          </select>
+          <button class="btn-add" onclick="addManual()">+ Add Street</button>
+        </div>
+      </div>
+
+    </div><!-- end panel-scroll -->
+
+    <div id="status-bar">0 streets · 0 placed on map</div>
+  </div>
+
+</div><!-- end main -->
+
+<div id="toast"></div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────
+const PROXY = 'https://cse-worker.aestheticcal22.workers.dev';
+
+const COLOR_HEX = {
+  green:  '#22c55e',
+  blue:   '#3b82f6',
+  orange: '#f97316',
+  yellow: '#eab308',
+  red:    '#ef4444',
+  pink:   '#ec4899',
+  purple: '#a855f7',
+  teal:   '#14b8a6',
+  maroon: '#991b1b',
+  navy:   '#1e3a5f',
+};
+
+const DARK_TEXT = new Set(['yellow', 'teal', 'green']);
+
+// ─── State ───────────────────────────────────────────────
+let streets    = [];   // [{id, name, date, day, color, split, placed, x, y}]
+let days       = [];   // [{key, label, date, day, color}] sorted
+let activeId   = null; // street id currently being placed
+let mapLoaded  = false;
+
+// Map pan/zoom
+let scale      = 1;
+let ox         = 0;   // offset x
+let oy         = 0;   // offset y
+let imgW       = 0;
+let imgH       = 0;
+
+// Drag state
+let isPanning  = false;
+let panStart   = null;
+let isDraggingLabel = false;
+let dragEl     = null;
+let dragStreet = null;
+let dragOrig   = null;
+
+// ─── AI Extraction ───────────────────────────────────────
+async function handleScheduleUpload(files) {
+  if (!files || !files.length) return;
+  const statusEl = document.getElementById('extract-status');
+  statusEl.innerHTML = `<span class="spinner"></span>Reading ${files.length} image(s)...`;
+
+  let total = 0;
+  for (let i = 0; i < files.length; i++) {
+    statusEl.innerHTML = `<span class="spinner"></span>Image ${i+1} of ${files.length}...`;
+    try {
+      const b64 = await fileToBase64(files[i]);
+      const extracted = await callAI(b64, files[i].type);
+      for (const s of extracted) {
+        const key = `${s.name}|${s.date}|${s.color}`.toLowerCase();
+        if (!streets.find(e => `${e.name}|${e.date}|${e.color}`.toLowerCase() === key)) {
+          pushStreet(s);
+          total++;
+        }
+      }
+    } catch (err) {
+      console.error('Extraction error', err);
+    }
+  }
+
+  // Reset file input so same files can be re-uploaded if needed
+  document.getElementById('sched-input').value = '';
+
+  statusEl.innerHTML = total
+    ? `✓ Added ${total} street${total !== 1 ? 's' : ''}`
+    : `⚠ No new streets found`;
+
+  renderAll();
+  showToast(`${total} streets extracted`);
+}
+
+async function callAI(b64, mimeType) {
+  const prompt = `You are reading a color-coded street work schedule map for Newark, California.
+
+The map has a legend in the corner: each color = a different work day (e.g. Green = 4/13 Mon, Blue = 4/14 Tue, Orange = 4/15 Wed, Yellow = 4/16 Thu, Red = 4/17 Fri, Pink = 4/25 Sat, etc.).
+
+For EVERY colored street segment visible on the map:
+1. Read the street name from map labels (read exactly as printed, do not abbreviate or expand)
+2. Note the highlight color
+3. Match to the legend date and day of week
+4. If a single street has TWO different colors on it, list it twice with split: true for both
+
+Return ONLY valid JSON array, no other text:
+[
+  {"name":"Sycamore Ave","date":"4/21","day":"Tuesday","color":"green","split":false},
+  {"name":"Jarvis Ave","date":"4/29","day":"Wednesday","color":"blue","split":true},
+  {"name":"Jarvis Ave","date":"4/30","day":"Thursday","color":"orange","split":true}
+]
+
+Allowed color values: green, blue, orange, yellow, red, pink, purple, teal, maroon, navy
+City is Newark CA — read names exactly as shown, preserve abbreviations.`;
+
+  const body = {
+    provider: 'openai',
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${b64}` } }
+      ]
+    }],
+    max_tokens: 2000
+  };
+
+  const res = await fetch(PROXY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(60000),
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json();
+  const text = (data.choices?.[0]?.message?.content || '').trim();
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) return [];
+  try { return JSON.parse(match[0]); } catch { return []; }
+}
+
+// ─── Street Management ───────────────────────────────────
+function pushStreet(s) {
+  const id = 'st_' + Math.random().toString(36).slice(2, 11);
+  streets.push({
+    id,
+    name:  s.name  || 'Unknown St',
+    date:  s.date  || '?',
+    day:   s.day   || '',
+    color: s.color || 'green',
+    split: !!s.split,
+    placed: false,
+    x: null,
+    y: null
+  });
+
+  // Register day if new
+  const dayKey = `${s.date}|${s.color}`;
+  if (!days.find(d => d.key === dayKey)) {
+    days.push({
+      key:   dayKey,
+      label: `${s.date}${s.day ? ' ' + s.day : ''}`,
+      date:  s.date,
+      day:   s.day || '',
+      color: s.color || 'green'
+    });
+    // Sort days chronologically by M/D
+    days.sort((a, b) => {
+      const toNum = str => {
+        const [m, d] = (str || '0/0').split('/').map(Number);
+        return m * 100 + d;
+      };
+      return toNum(a.date) - toNum(b.date);
+    });
+    rebuildDaySelect();
+  }
+}
+
+function removeStreet(id) {
+  streets = streets.filter(s => s.id !== id);
+  const el = document.querySelector(`#label-layer [data-id="${id}"]`);
+  if (el) el.remove();
+  if (activeId === id) cancelActive();
+  renderAll();
+}
+
+function addManual() {
+  const name = document.getElementById('manual-name').value.trim();
+  const dayVal = document.getElementById('manual-day').value;
+  if (!name || !dayVal) { showToast('Enter a name and select a day'); return; }
+  const [date, color] = dayVal.split('|');
+  const d = days.find(x => x.key === dayVal);
+  pushStreet({ name, date, day: d?.day || '', color, split: false });
+  document.getElementById('manual-name').value = '';
+  renderAll();
+}
+
+// ─── Map Upload ──────────────────────────────────────────
+function handleMapUpload(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('map-img');
+    img.src = e.target.result;
+    img.onload = () => {
+      imgW = img.naturalWidth;
+      imgH = img.naturalHeight;
+      document.getElementById('map-placeholder').style.display = 'none';
+      document.getElementById('map-container').style.display = 'block';
+      document.getElementById('label-layer').style.width  = imgW + 'px';
+      document.getElementById('label-layer').style.height = imgH + 'px';
+      mapLoaded = true;
+      resetZoom();
+      showToast('Map loaded — ready to place labels');
+    };
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── Zoom / Pan ──────────────────────────────────────────
+const mapArea = document.getElementById('map-area');
+const mapCont = document.getElementById('map-container');
+
+mapArea.addEventListener('mousedown', e => {
+  if (isDraggingLabel) return;
+  if (e.target.classList.contains('map-label')) return;
+  if (activeId) return; // placing mode — handled by click
+  isPanning = true;
+  panStart = { x: e.clientX - ox, y: e.clientY - oy };
+  mapCont.classList.add('dragging');
+});
+
+window.addEventListener('mousemove', e => {
+  if (isPanning) {
+    ox = e.clientX - panStart.x;
+    oy = e.clientY - panStart.y;
+    applyTransform();
+  }
+  if (isDraggingLabel && dragEl) {
+    const rect = mapArea.getBoundingClientRect();
+    const nx = (e.clientX - rect.left - ox) / scale;
+    const ny = (e.clientY - rect.top  - oy) / scale;
+    dragEl.style.left = nx + 'px';
+    dragEl.style.top  = ny + 'px';
+    if (dragStreet) { dragStreet.x = nx; dragStreet.y = ny; }
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  isPanning = false;
+  isDraggingLabel = false;
+  dragEl = null;
+  dragStreet = null;
+  mapCont.classList.remove('dragging');
+});
+
+mapArea.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = mapArea.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  const ns = Math.min(10, Math.max(0.05, scale * factor));
+  ox = mx - (mx - ox) * (ns / scale);
+  oy = my - (my - oy) * (ns / scale);
+  scale = ns;
+  applyTransform();
+}, { passive: false });
+
+mapArea.addEventListener('click', e => {
+  if (isPanning) return;
+  if (!activeId) return;
+  if (!mapLoaded) { showToast('Upload the clean map first (Step 2)'); return; }
+  if (e.target.classList.contains('map-label')) return;
+
+  const rect = mapArea.getBoundingClientRect();
+  const x = (e.clientX - rect.left  - ox) / scale;
+  const y = (e.clientY - rect.top   - oy) / scale;
+
+  placeLabel(activeId, x, y);
+  cancelActive();
+});
+
+function applyTransform() {
+  mapCont.style.transform = `translate(${ox}px, ${oy}px) scale(${scale})`;
+}
+
+function adjustZoom(factor) {
+  const rect = mapArea.getBoundingClientRect();
+  const cx = rect.width  / 2;
+  const cy = rect.height / 2;
+  const ns = Math.min(10, Math.max(0.05, scale * factor));
+  ox = cx - (cx - ox) * (ns / scale);
+  oy = cy - (cy - oy) * (ns / scale);
+  scale = ns;
+  applyTransform();
+}
+
+function resetZoom() {
+  if (!mapLoaded) return;
+  const rect = mapArea.getBoundingClientRect();
+  const fitScale = Math.min(rect.width / imgW, rect.height / imgH, 1);
+  scale = fitScale;
+  ox = (rect.width  - imgW * scale) / 2;
+  oy = (rect.height - imgH * scale) / 2;
+  applyTransform();
+}
+
+// ─── Label Placement ─────────────────────────────────────
+function selectStreet(id) {
+  activeId = id;
+  const st = streets.find(s => s.id === id);
+  if (!st) return;
+
+  // Highlight row
+  document.querySelectorAll('.street-row').forEach(r => r.classList.remove('active'));
+  const row = document.querySelector(`[data-sid="${id}"]`);
+  if (row) row.classList.add('active');
+
+  // Show banner
+  const hex = COLOR_HEX[st.color] || '#888';
+  document.getElementById('banner-dot').style.background = hex;
+  document.getElementById('banner-name').textContent = st.name;
+  document.getElementById('place-banner').classList.add('show');
+
+  mapCont.classList.add('placing');
+}
+
+function cancelActive() {
+  activeId = null;
+  document.getElementById('place-banner').classList.remove('show');
+  document.querySelectorAll('.street-row.active').forEach(r => r.classList.remove('active'));
+  mapCont.classList.remove('placing');
+}
+
+function placeLabel(id, x, y) {
+  const st = streets.find(s => s.id === id);
+  if (!st) return;
+
+  // Remove old label if any
+  const old = document.querySelector(`#label-layer [data-id="${id}"]`);
+  if (old) old.remove();
+
+  st.placed = true;
+  st.x = x;
+  st.y = y;
+
+  const layer = document.getElementById('label-layer');
+  const el = document.createElement('div');
+  el.className = 'map-label';
+  el.dataset.id = id;
+
+  const hex  = COLOR_HEX[st.color] || '#888';
+  const dark = DARK_TEXT.has(st.color);
+  el.style.left       = x + 'px';
+  el.style.top        = y + 'px';
+  el.style.background = hex;
+  el.style.color      = dark ? '#000' : '#fff';
+
+  el.innerHTML = escHtml(st.name) + (st.split ? '<span class="split-star">★</span>' : '');
+
+  // Drag
+  el.addEventListener('mousedown', ev => {
+    ev.stopPropagation();
+    isDraggingLabel = true;
+    dragEl     = el;
+    dragStreet = st;
+  });
+
+  // Double-click to remove
+  el.addEventListener('dblclick', ev => {
+    ev.stopPropagation();
+    st.placed = false;
+    el.remove();
+    renderList();
+    updateStatus();
+  });
+
+  layer.appendChild(el);
+  renderList();
+  updateStatus();
+}
+
+// ─── Render ──────────────────────────────────────────────
+function renderAll() {
+  renderList();
+  updateStatus();
+}
+
+function renderList() {
+  const container = document.getElementById('street-list');
+  if (!streets.length) {
+    container.innerHTML = '<div style="font-size:11px;color:#374151;text-align:center;padding:16px 0">No streets yet — upload schedule images</div>';
+    return;
+  }
+
+  // Group by day
+  const grouped = {};
+  for (const s of streets) {
+    const key = `${s.date}|${s.color}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(s);
+  }
+
+  let html = '';
+  for (const d of days) {
+    const group = grouped[d.key] || [];
+    if (!group.length) continue;
+    const hex    = COLOR_HEX[d.color] || '#888';
+    const placed = group.filter(s => s.placed).length;
+
+    html += `<div class="day-group">
+      <div class="day-header">
+        <div class="day-dot" style="background:${hex}"></div>
+        <span class="day-title" style="color:${hex}">${escHtml(d.label)}</span>
+        <span class="day-count">${placed}/${group.length}</span>
+      </div>`;
+
+    for (const s of group) {
+      const cls = [s.placed ? 'placed' : '', activeId === s.id ? 'active' : ''].filter(Boolean).join(' ');
+      html += `<div class="street-row ${cls}" data-sid="${s.id}" onclick="selectStreet('${s.id}')">
+        <div class="s-dot" style="background:${hex}"></div>
+        <span class="s-name">${escHtml(s.name)}</span>
+        ${s.split ? '<span class="split-badge">split</span>' : ''}
+        <span class="del-btn" onclick="event.stopPropagation();removeStreet('${s.id}')">×</span>
+      </div>`;
+    }
+
+    html += `</div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function rebuildDaySelect() {
+  const sel = document.getElementById('manual-day');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Select day...</option>';
+  for (const d of days) {
+    sel.innerHTML += `<option value="${d.key}">${escHtml(d.label)}</option>`;
+  }
+  sel.value = cur;
+}
+
+function updateStatus() {
+  const placed = streets.filter(s => s.placed).length;
+  document.getElementById('status-bar').textContent =
+    `${streets.length} street${streets.length !== 1 ? 's' : ''} · ${placed} placed on map`;
+}
+
+// ─── Clear All ───────────────────────────────────────────
+function clearAll() {
+  if (!confirm('Clear all streets and labels?')) return;
+  streets = [];
+  days    = [];
+  activeId = null;
+  document.getElementById('label-layer').innerHTML = '';
+  document.getElementById('extract-status').textContent = '';
+  document.getElementById('place-banner').classList.remove('show');
+  rebuildDaySelect();
+  renderAll();
+}
+
+// ─── Keyboard ────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') cancelActive();
+});
+
+// ─── Toast ───────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, dur = 2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// ─── Utils ───────────────────────────────────────────────
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload  = () => res(reader.result.split(',')[1]);
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ─── Init ────────────────────────────────────────────────
+document.getElementById('map-container').style.display = 'none';
+renderAll();
+</script>
+</body>
+</html>

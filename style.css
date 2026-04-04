@@ -1854,6 +1854,23 @@ body {
   letter-spacing: 0.5px;
 }
 .btn-report:hover { box-shadow: 0 0 12px var(--accent-glow); }
+.btn-schedule-map {
+  background: #1e3a5f;
+  color: #93c5fd;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.3px;
+  font-family: 'Inter', sans-serif;
+}
+.btn-schedule-map:hover { background: #2563eb; color: #fff; }
 .btn-global-settings {
   background: none;
   color: var(--text-muted);
