@@ -226,6 +226,7 @@
       transition: all 0.2s;
     }
     .upload-zone:hover { border-color: #3b82f6; color: #93c5fd; background: rgba(59,130,246,0.05); }
+    .upload-zone.drag-over { border-color: #22c55e; color: #86efac; background: rgba(34,197,94,0.08); }
     .upload-zone .upload-icon { font-size: 20px; margin-bottom: 4px; }
 
     /* Day groups */
@@ -449,24 +450,24 @@
       <!-- Step 1 -->
       <div class="section">
         <div class="section-label"><span class="step-badge">1</span> Upload Schedule Maps</div>
-        <div class="upload-zone" onclick="document.getElementById('sched-input').click()">
+        <div class="upload-zone" id="sched-zone" onclick="document.getElementById('sched-input').click()">
           <div class="upload-icon">📋</div>
-          <div>Upload color-coded schedule images</div>
-          <div style="font-size:10px;margin-top:2px;color:#4b5563">AI reads street names + dates</div>
+          <div>Drag &amp; drop or click to upload</div>
+          <div style="font-size:10px;margin-top:2px;color:#4b5563">Images or PDF — AI reads street names + dates</div>
         </div>
-        <input type="file" id="sched-input" accept="image/*" multiple style="display:none" onchange="handleScheduleUpload(this.files)">
+        <input type="file" id="sched-input" accept="image/*,application/pdf" multiple style="display:none" onchange="handleScheduleUpload(this.files)">
         <div id="extract-status" style="margin-top:6px;font-size:11px;color:#6b7280;min-height:16px"></div>
       </div>
 
       <!-- Step 2 -->
       <div class="section">
         <div class="section-label"><span class="step-badge">2</span> Upload Clean Map</div>
-        <div class="upload-zone" onclick="document.getElementById('map-input').click()">
+        <div class="upload-zone" id="map-zone" onclick="document.getElementById('map-input').click()">
           <div class="upload-icon">🗺️</div>
-          <div>Upload the clean GRSI map</div>
-          <div style="font-size:10px;margin-top:2px;color:#4b5563">Used as background</div>
+          <div>Drag &amp; drop or click to upload</div>
+          <div style="font-size:10px;margin-top:2px;color:#4b5563">Image or PDF — used as background</div>
         </div>
-        <input type="file" id="map-input" accept="image/*" style="display:none" onchange="handleMapUpload(this.files[0])">
+        <input type="file" id="map-input" accept="image/*,application/pdf" style="display:none" onchange="handleMapUpload(this.files[0])">
       </div>
 
       <!-- Step 3 hint -->
@@ -544,18 +545,64 @@ let dragEl     = null;
 let dragStreet = null;
 let dragOrig   = null;
 
+// ─── PDF.js loader ───────────────────────────────────────
+async function loadPdfJs() {
+  if (window.pdfjsLib) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+// Render every page of a PDF → array of base64 JPEG strings
+async function pdfToImages(file) {
+  await loadPdfJs();
+  const ab  = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  const images = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page     = await pdf.getPage(p);
+    const viewport = page.getViewport({ scale: 2.0 });
+    const canvas   = document.createElement('canvas');
+    canvas.width   = viewport.width;
+    canvas.height  = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    images.push(canvas.toDataURL('image/jpeg', 0.9).split(',')[1]);
+  }
+  return images;
+}
+
 // ─── AI Extraction ───────────────────────────────────────
 async function handleScheduleUpload(files) {
   if (!files || !files.length) return;
   const statusEl = document.getElementById('extract-status');
-  statusEl.innerHTML = `<span class="spinner"></span>Reading ${files.length} image(s)...`;
+
+  // Expand PDFs into page images
+  let pages = []; // [{b64, mimeType}]
+  for (const file of files) {
+    if (file.type === 'application/pdf') {
+      statusEl.innerHTML = `<span class="spinner"></span>Rendering PDF pages...`;
+      try {
+        const images = await pdfToImages(file);
+        for (const b64 of images) pages.push({ b64, mimeType: 'image/jpeg' });
+      } catch(e) { console.error('PDF render error', e); }
+    } else {
+      const b64 = await fileToBase64(file);
+      pages.push({ b64, mimeType: file.type });
+    }
+  }
+
+  statusEl.innerHTML = `<span class="spinner"></span>Reading ${pages.length} page(s) with AI...`;
 
   let total = 0;
-  for (let i = 0; i < files.length; i++) {
-    statusEl.innerHTML = `<span class="spinner"></span>Image ${i+1} of ${files.length}...`;
+  for (let i = 0; i < pages.length; i++) {
+    statusEl.innerHTML = `<span class="spinner"></span>Page ${i+1} of ${pages.length}...`;
     try {
-      const b64 = await fileToBase64(files[i]);
-      const extracted = await callAI(b64, files[i].type);
+      const extracted = await callAI(pages[i].b64, pages[i].mimeType);
       for (const s of extracted) {
         const key = `${s.name}|${s.date}|${s.color}`.toLowerCase();
         if (!streets.find(e => `${e.name}|${e.date}|${e.color}`.toLowerCase() === key)) {
@@ -568,7 +615,6 @@ async function handleScheduleUpload(files) {
     }
   }
 
-  // Reset file input so same files can be re-uploaded if needed
   document.getElementById('sched-input').value = '';
 
   statusEl.innerHTML = total
@@ -684,25 +730,37 @@ function addManual() {
 }
 
 // ─── Map Upload ──────────────────────────────────────────
-function handleMapUpload(file) {
+async function handleMapUpload(file) {
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = document.getElementById('map-img');
-    img.src = e.target.result;
-    img.onload = () => {
-      imgW = img.naturalWidth;
-      imgH = img.naturalHeight;
-      document.getElementById('map-placeholder').style.display = 'none';
-      document.getElementById('map-container').style.display = 'block';
-      document.getElementById('label-layer').style.width  = imgW + 'px';
-      document.getElementById('label-layer').style.height = imgH + 'px';
-      mapLoaded = true;
-      resetZoom();
-      showToast('Map loaded — ready to place labels');
-    };
+  let dataUrl;
+  if (file.type === 'application/pdf') {
+    showToast('Rendering PDF map...');
+    try {
+      const images = await pdfToImages(file);
+      if (!images.length) { showToast('Could not render PDF'); return; }
+      dataUrl = 'data:image/jpeg;base64,' + images[0];
+    } catch(e) { showToast('PDF render failed'); return; }
+  } else {
+    dataUrl = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload  = () => res(reader.result);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+  }
+  const img = document.getElementById('map-img');
+  img.src = dataUrl;
+  img.onload = () => {
+    imgW = img.naturalWidth;
+    imgH = img.naturalHeight;
+    document.getElementById('map-placeholder').style.display = 'none';
+    document.getElementById('map-container').style.display = 'block';
+    document.getElementById('label-layer').style.width  = imgW + 'px';
+    document.getElementById('label-layer').style.height = imgH + 'px';
+    mapLoaded = true;
+    resetZoom();
+    showToast('Map loaded — ready to place labels');
   };
-  reader.readAsDataURL(file);
 }
 
 // ─── Zoom / Pan ──────────────────────────────────────────
@@ -982,8 +1040,28 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// ─── Drag & Drop on upload zones ─────────────────────────
+function setupDropZone(zoneId, onDrop) {
+  const zone = document.getElementById(zoneId);
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files && files.length) onDrop(files);
+  });
+}
+
 // ─── Init ────────────────────────────────────────────────
 document.getElementById('map-container').style.display = 'none';
+
+setupDropZone('sched-zone', files => handleScheduleUpload(files));
+setupDropZone('map-zone',   files => handleMapUpload(files[0]));
+
 renderAll();
 </script>
 </body>
