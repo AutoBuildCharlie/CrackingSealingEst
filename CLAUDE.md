@@ -565,7 +565,7 @@ Worker holds API keys, routes to OpenAI or Google based on `provider` param.
 - **Desktop:** v280 (app.js v245, style.css v185)
 - **Mobile JS:** v49, mobile.css v4
 - **Service Worker:** v2
-- **Schedule Map:** v280 (schedule-map.html)
+- **Schedule Map:** v293 (schedule-map.html)
 
 Check `index.html` for `?v=XXX` on stylesheet + app.js script.
 Check `mobile.html` for `?v=XXX` on mobile.js script.
@@ -612,7 +612,39 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 | Split streets show ★ badge | Half-street work days noted without duplicate entries |
 | All pages sent to AI individually | Multi-page PDFs — each page is a separate schedule week |
 
+### Schedule Map — Current Architecture (v293)
+- **Background:** Real Google Map centered on Newark, CA (no image upload needed)
+- **Extraction:** Upload color-coded schedule images/PDF → GPT-4o reads colors + street names → builds list
+- **Placement:** Overpass API draws colored polylines along actual road geometry (hard Newark bbox — no out-of-city results)
+- **Fallback:** If Overpass can't find a street → geocoder with Newark bounds check → pill label
+- **Save state:** All placed streets saved to localStorage — survives browser close
+- **Week filter:** All | Week 1 | Week 2 etc — auto-detected from dates, hides/shows polylines
+- **Color key:** Small overlay on map showing color → date
+- **Print:** Full page map + legend panel (color swatches, dates, street list per day)
+- **Not-found:** Amber banner shows any streets Overpass/geocoder couldn't place — click to retry
+- **Double-click polyline** to remove it from map
+
+### Schedule Map — GRSI Newark 2025 Status
+- **Terri sent the full 60-page plan PDF** (250708- Newark 2025 Citywide Slurry Seal Plans.pdf) — it contains zoomed-in map images of each street segment, highlighted in color. No data table.
+- **Color info lives in the schedule images** (the ones Cal screenshotted from the color-coded overview map)
+- **Workflow:** Screenshot zoomed sections of color-coded map → upload to tool → AI extracts streets → polylines draw on Google Map
+- **3 screenshots tested:** AI extracted 30 streets, colors matched correctly (green=4/13, blue=4/14, orange=4/15 etc)
+- **23 streets not found** from those 3 shots — need more zoomed screenshots to cover full city
+- **60-page PDF:** Pages are Google Maps-style zoomed street views — useful for visual reference but color data still comes from schedule screenshots
+
 ### Built This Session
 - **v278:** Created `schedule-map.html` — full Schedule Map tool. Added "📋 Schedule Map" button to PavementScan header. Added `.btn-schedule-map` style to style.css.
 - **v279:** Added PDF drag-and-drop support, PDF.js rendering for both Step 1 (all pages → AI) and Step 2 (selected page → background).
 - **v280:** Added PDF page number selector to Step 2 so user can load any page as background (not just page 1).
+- **v281:** Replaced image background with real Google Map, auto-geocode after extraction.
+- **v282:** Amber not-found banner, Newark bounding box for geocoder.
+- **v283-284:** Print exports full map only, light map style for paper handoff.
+- **v285:** Print legend panel with dates, colors, street list.
+- **v286:** Save state to localStorage, color key overlay, Fit All button.
+- **v287:** Switched to Maps JS Geocoder (REST API was being blocked).
+- **v288:** DEMO_MAP_ID fix attempt for AdvancedMarkerElement.
+- **v289:** Replaced AdvancedMarkerElement with custom OverlayView (ScheduleLabel).
+- **v290:** Fixed "google is not defined" — define ScheduleLabel inside initMap callback.
+- **v291:** Hide POI/transit icons from map.
+- **v292:** Overpass API polylines for exact street highlighting, hard Newark bounds, geocoder fallback with bounds check, paths saved to localStorage for restore.
+- **v293:** Week filter buttons (All/Week 1/Week 2 etc), filters polylines and street list.
