@@ -203,6 +203,23 @@
     .street-row:hover { background: rgba(255,255,255,0.04); }
     .street-row.active { background: rgba(59,130,246,0.15); border-color: #3b82f6; }
     .street-row.placed { opacity: 0.45; }
+    .street-row.not-found {
+      background: rgba(245,158,11,0.08);
+      border-color: #92400e;
+    }
+    .street-row.not-found .s-name { color: #fbbf24; }
+
+    #not-found-banner {
+      background: rgba(245,158,11,0.1);
+      border: 1px solid #92400e;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 11px;
+      color: #fbbf24;
+      margin-bottom: 8px;
+      display: none;
+    }
+    #not-found-banner.show { display: block; }
     .street-row .s-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .street-row .s-name { flex: 1; color: #d1d5db; }
     .street-row .split-badge {
@@ -386,6 +403,7 @@
       <!-- Schedule list -->
       <div class="section">
         <div class="section-label">Schedule</div>
+        <div id="not-found-banner"></div>
         <div id="street-list">
           <div style="font-size:11px;color:#374151;text-align:center;padding:16px 0">No streets yet — upload schedule images</div>
         </div>
@@ -620,9 +638,11 @@ async function geocodeAll(batch) {
     try {
       const result = await geocodeStreet(st.name);
       if (result) {
+        st.geocodeFailed = false;
         placeMarker(st, result.lat, result.lng);
         placed++;
       } else {
+        st.geocodeFailed = true;
         failed++;
       }
     } catch (e) {
@@ -645,10 +665,12 @@ async function geocodeAll(batch) {
 }
 
 async function geocodeStreet(name) {
-  const addr = `${name}, Newark, CA`;
-  const url  = `${GEOCODE_BASE}?address=${encodeURIComponent(addr)}&key=${API_KEY}`;
-  const res  = await fetch(url);
-  const data = await res.json();
+  const addr   = `${name}, Newark, CA`;
+  // Bounding box for Newark, CA — keeps results within city limits
+  const bounds = '37.505,-122.065|37.560,-122.005';
+  const url    = `${GEOCODE_BASE}?address=${encodeURIComponent(addr)}&bounds=${bounds}&key=${API_KEY}`;
+  const res    = await fetch(url);
+  const data   = await res.json();
   if (data.status === 'OK' && data.results.length) {
     const loc = data.results[0].geometry.location;
     return { lat: loc.lat, lng: loc.lng };
@@ -803,13 +825,16 @@ function selectStreet(id) {
     showToast(`Looking up "${st.name}"...`);
     geocodeStreet(st.name).then(result => {
       if (result) {
+        st.geocodeFailed = false;
         placeMarker(st, result.lat, result.lng);
         renderList();
         updateStatus();
         map.panTo({ lat: result.lat, lng: result.lng });
         map.setZoom(16);
       } else {
-        showToast(`Could not find "${st.name}" in Newark, CA`);
+        st.geocodeFailed = true;
+        showToast(`Still can't find "${st.name}" — try editing the name`);
+        renderList();
       }
     });
   }
@@ -823,9 +848,23 @@ function renderAll() {
 
 function renderList() {
   const container = document.getElementById('street-list');
+  const banner    = document.getElementById('not-found-banner');
+
   if (!streets.length) {
     container.innerHTML = '<div style="font-size:11px;color:#374151;text-align:center;padding:16px 0">No streets yet — upload schedule images</div>';
+    banner.classList.remove('show');
     return;
+  }
+
+  // Separate not-found (geocoded attempted but failed) from unprocessed
+  const notFound = streets.filter(s => s.geocodeFailed);
+
+  // Update not-found banner
+  if (notFound.length) {
+    banner.classList.add('show');
+    banner.innerHTML = `⚠ ${notFound.length} street${notFound.length !== 1 ? 's' : ''} not found on map — click to retry`;
+  } else {
+    banner.classList.remove('show');
   }
 
   // Group by day
@@ -851,11 +890,12 @@ function renderList() {
       </div>`;
 
     for (const s of group) {
-      const cls = s.placed ? 'placed' : '';
+      const cls = s.placed ? 'placed' : s.geocodeFailed ? 'not-found' : '';
       html += `<div class="street-row ${cls}" data-sid="${s.id}" onclick="selectStreet('${s.id}')">
-        <div class="s-dot" style="background:${hex}"></div>
+        <div class="s-dot" style="background:${s.geocodeFailed ? '#f59e0b' : hex}"></div>
         <span class="s-name">${escHtml(s.name)}</span>
         ${s.split ? '<span class="split-badge">split</span>' : ''}
+        ${s.geocodeFailed ? '<span style="font-size:9px;color:#f59e0b;margin-left:2px">?</span>' : ''}
         <span class="del-btn" onclick="event.stopPropagation();removeStreet('${s.id}')">×</span>
       </div>`;
     }
@@ -877,9 +917,11 @@ function rebuildDaySelect() {
 }
 
 function updateStatus() {
-  const placed = streets.filter(s => s.placed).length;
-  document.getElementById('status-bar').textContent =
-    `${streets.length} street${streets.length !== 1 ? 's' : ''} · ${placed} placed on map`;
+  const placed   = streets.filter(s => s.placed).length;
+  const missing  = streets.filter(s => s.geocodeFailed).length;
+  let text = `${streets.length} street${streets.length !== 1 ? 's' : ''} · ${placed} placed`;
+  if (missing) text += ` · ⚠ ${missing} not found`;
+  document.getElementById('status-bar').textContent = text;
 }
 
 // ─── Clear All ───────────────────────────────────────────
