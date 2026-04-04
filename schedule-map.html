@@ -462,6 +462,11 @@
       <!-- Step 2 -->
       <div class="section">
         <div class="section-label"><span class="step-badge">2</span> Upload Clean Map</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:11px;color:#6b7280;">PDF page:</span>
+          <input type="number" id="map-page" value="1" min="1" style="background:#111827;border:1px solid #374151;border-radius:5px;padding:4px 8px;color:#e0e0e0;font-size:11px;width:60px;font-family:'Inter',sans-serif;">
+          <span style="font-size:10px;color:#4b5563;">Change if cover sheet loads</span>
+        </div>
         <div class="upload-zone" id="map-zone" onclick="document.getElementById('map-input').click()">
           <div class="upload-icon">🗺️</div>
           <div>Drag &amp; drop or click to upload</div>
@@ -734,11 +739,13 @@ async function handleMapUpload(file) {
   if (!file) return;
   let dataUrl;
   if (file.type === 'application/pdf') {
-    showToast('Rendering PDF map...');
+    const pageNum = parseInt(document.getElementById('map-page').value) || 1;
+    showToast(`Rendering PDF page ${pageNum}...`);
     try {
       const images = await pdfToImages(file);
       if (!images.length) { showToast('Could not render PDF'); return; }
-      dataUrl = 'data:image/jpeg;base64,' + images[0];
+      const idx = Math.min(pageNum - 1, images.length - 1);
+      dataUrl = 'data:image/jpeg;base64,' + images[idx];
     } catch(e) { showToast('PDF render failed'); return; }
   } else {
     dataUrl = await new Promise((res, rej) => {
