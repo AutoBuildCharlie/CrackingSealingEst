@@ -67,43 +67,24 @@
       background: #0f172a;
     }
 
-    #map-container {
+    #gmap {
       position: absolute;
-      top: 0;
-      left: 0;
-      transform-origin: 0 0;
-      cursor: grab;
-    }
-    #map-container.placing { cursor: crosshair; }
-    #map-container.dragging { cursor: grabbing; }
-
-    #map-img {
-      display: block;
-      user-select: none;
-      pointer-events: none;
+      inset: 0;
     }
 
-    #label-layer {
-      position: absolute;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-    }
-
+    /* Colored pill labels on the map */
     .map-label {
-      position: absolute;
-      transform: translate(-50%, -50%);
       white-space: nowrap;
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
       font-family: 'Inter', sans-serif;
-      padding: 3px 7px;
+      padding: 3px 8px;
       border-radius: 4px;
-      pointer-events: all;
       cursor: move;
       user-select: none;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
       letter-spacing: 0.3px;
+      border: 1px solid rgba(0,0,0,0.2);
     }
     .map-label .split-star {
       font-size: 8px;
@@ -111,55 +92,15 @@
       margin-left: 2px;
     }
 
-    /* Placeholder when no map loaded */
-    #map-placeholder {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      color: #374151;
-      pointer-events: none;
-    }
-    #map-placeholder svg { width: 64px; height: 64px; opacity: 0.3; }
-    #map-placeholder p { font-size: 13px; color: #4b5563; }
-
-    /* Zoom controls */
-    #zoom-controls {
-      position: absolute;
-      bottom: 16px;
-      left: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      z-index: 5;
-    }
-    .zoom-btn {
-      width: 32px;
-      height: 32px;
-      background: #1f2937;
-      border: 1px solid #374151;
-      color: #d1d5db;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: monospace;
-    }
-    .zoom-btn:hover { background: #374151; }
-
-    /* Active street banner */
-    #place-banner {
+    /* Geocode progress bar */
+    #geocode-bar {
       position: absolute;
       top: 12px;
       left: 50%;
       transform: translateX(-50%);
-      background: #1d4ed8;
-      color: #fff;
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: #e0e0e0;
       padding: 8px 16px;
       border-radius: 8px;
       font-size: 12px;
@@ -168,11 +109,10 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.4);
       display: none;
       z-index: 10;
+      gap: 8px;
+      align-items: center;
     }
-    #place-banner.show { display: flex; align-items: center; gap: 8px; }
-    #place-banner .banner-dot { width: 10px; height: 10px; border-radius: 50%; }
-    #place-banner .cancel-x { margin-left: 8px; cursor: pointer; opacity: 0.7; font-size: 14px; }
-    #place-banner .cancel-x:hover { opacity: 1; }
+    #geocode-bar.show { display: flex; }
 
     /* ─── RIGHT PANEL ────────────────────────────────────── */
     #right-panel {
@@ -364,21 +304,15 @@
         font-size: 11px;
       }
       #header { display: none !important; }
-      #main { overflow: visible; height: auto; }
+      #main { overflow: visible; height: auto; display: flex; }
       #map-area {
-        overflow: visible;
-        background: white;
         width: 68vw;
+        height: 90vh;
+        overflow: visible;
+        flex-shrink: 0;
       }
-      #map-placeholder { display: none !important; }
-      #map-container {
-        position: relative !important;
-        transform: none !important;
-      }
-      #map-img { width: 100%; height: auto; }
-      #label-layer { width: 100% !important; height: 100% !important; }
-      #zoom-controls { display: none !important; }
-      #place-banner { display: none !important; }
+      #gmap { position: relative !important; width: 100%; height: 100%; }
+      #geocode-bar { display: none !important; }
       #right-panel {
         width: 32vw;
         background: white;
@@ -396,6 +330,7 @@
       .section-label { color: #666; }
       .street-row { opacity: 1 !important; }
       .street-row.placed { opacity: 0.7 !important; }
+      .map-label { box-shadow: none; }
     }
   </style>
 </head>
@@ -418,28 +353,11 @@
 
   <!-- MAP AREA -->
   <div id="map-area">
-    <div id="map-placeholder">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-        <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
-      </svg>
-      <p>Upload the clean GRSI map (Step 2) to begin</p>
-    </div>
-    <div id="map-container">
-      <img id="map-img" src="" alt="Map" draggable="false">
-      <div id="label-layer"></div>
-    </div>
-    <!-- Zoom controls -->
-    <div id="zoom-controls">
-      <button class="zoom-btn" onclick="adjustZoom(1.25)" title="Zoom in">+</button>
-      <button class="zoom-btn" onclick="adjustZoom(0.8)" title="Zoom out">−</button>
-      <button class="zoom-btn" onclick="resetZoom()" title="Reset zoom" style="font-size:11px">⊡</button>
-    </div>
-    <!-- Active street banner -->
-    <div id="place-banner">
-      <span>Click map to place:</span>
-      <div id="banner-dot" class="banner-dot"></div>
-      <strong id="banner-name"></strong>
-      <span class="cancel-x" onclick="cancelActive()">✕</span>
+    <div id="gmap"></div>
+    <!-- Geocode progress indicator -->
+    <div id="geocode-bar">
+      <span class="spinner"></span>
+      <span id="geocode-msg">Placing streets on map...</span>
     </div>
   </div>
 
@@ -459,26 +377,10 @@
         <div id="extract-status" style="margin-top:6px;font-size:11px;color:#6b7280;min-height:16px"></div>
       </div>
 
-      <!-- Step 2 -->
+      <!-- Step 2 hint -->
       <div class="section">
-        <div class="section-label"><span class="step-badge">2</span> Upload Clean Map</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <span style="font-size:11px;color:#6b7280;">PDF page:</span>
-          <input type="number" id="map-page" value="1" min="1" style="background:#111827;border:1px solid #374151;border-radius:5px;padding:4px 8px;color:#e0e0e0;font-size:11px;width:60px;font-family:'Inter',sans-serif;">
-          <span style="font-size:10px;color:#4b5563;">Change if cover sheet loads</span>
-        </div>
-        <div class="upload-zone" id="map-zone" onclick="document.getElementById('map-input').click()">
-          <div class="upload-icon">🗺️</div>
-          <div>Drag &amp; drop or click to upload</div>
-          <div style="font-size:10px;margin-top:2px;color:#4b5563">Image or PDF — used as background</div>
-        </div>
-        <input type="file" id="map-input" accept="image/*,application/pdf" style="display:none" onchange="handleMapUpload(this.files[0])">
-      </div>
-
-      <!-- Step 3 hint -->
-      <div class="section">
-        <div class="section-label"><span class="step-badge">3</span> Place Labels</div>
-        <div style="font-size:11px;color:#4b5563;line-height:1.5">Click a street name below → then click on the map to place its label. Drag labels to reposition. Double-click a label to remove it.</div>
+        <div class="section-label"><span class="step-badge">2</span> Review &amp; Place</div>
+        <div style="font-size:11px;color:#4b5563;line-height:1.5">Streets auto-place on the map after extraction. Click a street name to pan to it. Drag labels to reposition. Double-click a label to remove it.</div>
       </div>
 
       <!-- Schedule list -->
@@ -512,7 +414,10 @@
 
 <script>
 // ─── Constants ───────────────────────────────────────────
-const PROXY = 'https://cse-worker.aestheticcal22.workers.dev';
+const API_KEY   = 'AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8';
+const PROXY     = 'https://cse-worker.aestheticcal22.workers.dev';
+const GEOCODE_BASE = 'https://maps.googleapis.com/maps/api/geocode/json';
+const NEWARK_CENTER = { lat: 37.5297, lng: -122.0402 };
 
 const COLOR_HEX = {
   green:  '#22c55e',
@@ -529,26 +434,43 @@ const COLOR_HEX = {
 
 const DARK_TEXT = new Set(['yellow', 'teal', 'green']);
 
+const MAP_STYLES = [
+  { elementType: 'geometry',             stylers: [{ color: '#1d2535' }] },
+  { elementType: 'labels.text.fill',     stylers: [{ color: '#8a9ab0' }] },
+  { elementType: 'labels.text.stroke',   stylers: [{ color: '#1d2535' }] },
+  { featureType: 'administrative',       elementType: 'geometry', stylers: [{ color: '#2d3a50' }] },
+  { featureType: 'road',                 elementType: 'geometry', stylers: [{ color: '#2e3d54' }] },
+  { featureType: 'road',                 elementType: 'geometry.stroke', stylers: [{ color: '#1a2538' }] },
+  { featureType: 'road',                 elementType: 'labels.text.fill', stylers: [{ color: '#c0cce0' }] },
+  { featureType: 'road.arterial',        elementType: 'geometry', stylers: [{ color: '#384d6e' }] },
+  { featureType: 'road.highway',         elementType: 'geometry', stylers: [{ color: '#4a6080' }] },
+  { featureType: 'road.highway',         elementType: 'geometry.stroke', stylers: [{ color: '#273650' }] },
+  { featureType: 'road.highway',         elementType: 'labels.text.fill', stylers: [{ color: '#d0dce8' }] },
+  { featureType: 'water',                elementType: 'geometry', stylers: [{ color: '#0e1724' }] },
+  { featureType: 'water',                elementType: 'labels.text.fill', stylers: [{ color: '#3a6080' }] },
+  { featureType: 'poi',                  stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit',              stylers: [{ visibility: 'off' }] },
+  { featureType: 'landscape',            elementType: 'geometry', stylers: [{ color: '#1a2535' }] },
+];
+
 // ─── State ───────────────────────────────────────────────
-let streets    = [];   // [{id, name, date, day, color, split, placed, x, y}]
-let days       = [];   // [{key, label, date, day, color}] sorted
-let activeId   = null; // street id currently being placed
-let mapLoaded  = false;
+let streets  = [];   // [{id, name, date, day, color, split, placed, lat, lng}]
+let days     = [];   // [{key, label, date, day, color}] sorted
+let markers  = {};   // id → AdvancedMarkerElement
+let map      = null;
 
-// Map pan/zoom
-let scale      = 1;
-let ox         = 0;   // offset x
-let oy         = 0;   // offset y
-let imgW       = 0;
-let imgH       = 0;
-
-// Drag state
-let isPanning  = false;
-let panStart   = null;
-let isDraggingLabel = false;
-let dragEl     = null;
-let dragStreet = null;
-let dragOrig   = null;
+// ─── Map Init ────────────────────────────────────────────
+function initMap() {
+  map = new google.maps.Map(document.getElementById('gmap'), {
+    center: NEWARK_CENTER,
+    zoom: 13,
+    styles: MAP_STYLES,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
+    zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
+  });
+}
 
 // ─── PDF.js loader ───────────────────────────────────────
 async function loadPdfJs() {
@@ -603,7 +525,7 @@ async function handleScheduleUpload(files) {
 
   statusEl.innerHTML = `<span class="spinner"></span>Reading ${pages.length} page(s) with AI...`;
 
-  let total = 0;
+  const newStreets = [];
   for (let i = 0; i < pages.length; i++) {
     statusEl.innerHTML = `<span class="spinner"></span>Page ${i+1} of ${pages.length}...`;
     try {
@@ -611,8 +533,8 @@ async function handleScheduleUpload(files) {
       for (const s of extracted) {
         const key = `${s.name}|${s.date}|${s.color}`.toLowerCase();
         if (!streets.find(e => `${e.name}|${e.date}|${e.color}`.toLowerCase() === key)) {
-          pushStreet(s);
-          total++;
+          const street = pushStreet(s);
+          newStreets.push(street);
         }
       }
     } catch (err) {
@@ -622,12 +544,17 @@ async function handleScheduleUpload(files) {
 
   document.getElementById('sched-input').value = '';
 
-  statusEl.innerHTML = total
-    ? `✓ Added ${total} street${total !== 1 ? 's' : ''}`
+  statusEl.innerHTML = newStreets.length
+    ? `✓ Added ${newStreets.length} street${newStreets.length !== 1 ? 's' : ''}`
     : `⚠ No new streets found`;
 
   renderAll();
-  showToast(`${total} streets extracted`);
+  showToast(`${newStreets.length} streets extracted — placing on map...`);
+
+  // Auto-geocode all newly extracted streets
+  if (newStreets.length) {
+    await geocodeAll(newStreets);
+  }
 }
 
 async function callAI(b64, mimeType) {
@@ -678,20 +605,85 @@ City is Newark CA — read names exactly as shown, preserve abbreviations.`;
   try { return JSON.parse(match[0]); } catch { return []; }
 }
 
+// ─── Geocode All (batch, rate-limited) ───────────────────
+async function geocodeAll(batch) {
+  const bar    = document.getElementById('geocode-bar');
+  const msgEl  = document.getElementById('geocode-msg');
+  bar.classList.add('show');
+
+  let placed = 0;
+  let failed = 0;
+
+  for (let i = 0; i < batch.length; i++) {
+    const st = batch[i];
+    msgEl.textContent = `Placing ${i + 1} of ${batch.length}: ${st.name}`;
+    try {
+      const result = await geocodeStreet(st.name);
+      if (result) {
+        placeMarker(st, result.lat, result.lng);
+        placed++;
+      } else {
+        failed++;
+      }
+    } catch (e) {
+      failed++;
+    }
+    // 200ms delay to avoid hitting rate limit
+    if (i < batch.length - 1) await delay(200);
+  }
+
+  bar.classList.remove('show');
+  renderAll();
+
+  const msg = failed
+    ? `${placed} placed, ${failed} not found — click those in the list to retry`
+    : `All ${placed} streets placed on map`;
+  showToast(msg, 4000);
+
+  // Fit map to all markers
+  if (placed > 0) fitMapToMarkers();
+}
+
+async function geocodeStreet(name) {
+  const addr = `${name}, Newark, CA`;
+  const url  = `${GEOCODE_BASE}?address=${encodeURIComponent(addr)}&key=${API_KEY}`;
+  const res  = await fetch(url);
+  const data = await res.json();
+  if (data.status === 'OK' && data.results.length) {
+    const loc = data.results[0].geometry.location;
+    return { lat: loc.lat, lng: loc.lng };
+  }
+  return null;
+}
+
+function fitMapToMarkers() {
+  if (!map) return;
+  const bounds = new google.maps.LatLngBounds();
+  let count = 0;
+  for (const st of streets) {
+    if (st.placed && st.lat && st.lng) {
+      bounds.extend({ lat: st.lat, lng: st.lng });
+      count++;
+    }
+  }
+  if (count > 0) map.fitBounds(bounds, 60);
+}
+
 // ─── Street Management ───────────────────────────────────
 function pushStreet(s) {
   const id = 'st_' + Math.random().toString(36).slice(2, 11);
-  streets.push({
+  const street = {
     id,
-    name:  s.name  || 'Unknown St',
-    date:  s.date  || '?',
-    day:   s.day   || '',
-    color: s.color || 'green',
-    split: !!s.split,
+    name:   s.name  || 'Unknown St',
+    date:   s.date  || '?',
+    day:    s.day   || '',
+    color:  s.color || 'green',
+    split:  !!s.split,
     placed: false,
-    x: null,
-    y: null
-  });
+    lat:    null,
+    lng:    null,
+  };
+  streets.push(street);
 
   // Register day if new
   const dayKey = `${s.date}|${s.color}`;
@@ -703,7 +695,6 @@ function pushStreet(s) {
       day:   s.day || '',
       color: s.color || 'green'
     });
-    // Sort days chronologically by M/D
     days.sort((a, b) => {
       const toNum = str => {
         const [m, d] = (str || '0/0').split('/').map(Number);
@@ -713,13 +704,16 @@ function pushStreet(s) {
     });
     rebuildDaySelect();
   }
+
+  return street;
 }
 
 function removeStreet(id) {
+  if (markers[id]) {
+    markers[id].map = null;
+    delete markers[id];
+  }
   streets = streets.filter(s => s.id !== id);
-  const el = document.querySelector(`#label-layer [data-id="${id}"]`);
-  if (el) el.remove();
-  if (activeId === id) cancelActive();
   renderAll();
 }
 
@@ -729,209 +723,96 @@ function addManual() {
   if (!name || !dayVal) { showToast('Enter a name and select a day'); return; }
   const [date, color] = dayVal.split('|');
   const d = days.find(x => x.key === dayVal);
-  pushStreet({ name, date, day: d?.day || '', color, split: false });
+  const street = pushStreet({ name, date, day: d?.day || '', color, split: false });
   document.getElementById('manual-name').value = '';
   renderAll();
+  // Auto-geocode the manual entry too
+  showToast(`Placing ${name} on map...`);
+  geocodeStreet(name).then(result => {
+    if (result) {
+      placeMarker(street, result.lat, result.lng);
+      renderAll();
+      map.panTo({ lat: result.lat, lng: result.lng });
+      map.setZoom(15);
+    } else {
+      showToast(`Could not find "${name}" in Newark, CA`);
+    }
+  });
 }
 
-// ─── Map Upload ──────────────────────────────────────────
-async function handleMapUpload(file) {
-  if (!file) return;
-  let dataUrl;
-  if (file.type === 'application/pdf') {
-    const pageNum = parseInt(document.getElementById('map-page').value) || 1;
-    showToast(`Rendering PDF page ${pageNum}...`);
-    try {
-      const images = await pdfToImages(file);
-      if (!images.length) { showToast('Could not render PDF'); return; }
-      const idx = Math.min(pageNum - 1, images.length - 1);
-      dataUrl = 'data:image/jpeg;base64,' + images[idx];
-    } catch(e) { showToast('PDF render failed'); return; }
-  } else {
-    dataUrl = await new Promise((res, rej) => {
-      const reader = new FileReader();
-      reader.onload  = () => res(reader.result);
-      reader.onerror = rej;
-      reader.readAsDataURL(file);
-    });
+// ─── Marker Placement ────────────────────────────────────
+function placeMarker(street, lat, lng) {
+  // Remove old marker if any
+  if (markers[street.id]) {
+    markers[street.id].map = null;
+    delete markers[street.id];
   }
-  const img = document.getElementById('map-img');
-  img.src = dataUrl;
-  img.onload = () => {
-    imgW = img.naturalWidth;
-    imgH = img.naturalHeight;
-    document.getElementById('map-placeholder').style.display = 'none';
-    document.getElementById('map-container').style.display = 'block';
-    document.getElementById('label-layer').style.width  = imgW + 'px';
-    document.getElementById('label-layer').style.height = imgH + 'px';
-    mapLoaded = true;
-    resetZoom();
-    showToast('Map loaded — ready to place labels');
-  };
-}
 
-// ─── Zoom / Pan ──────────────────────────────────────────
-const mapArea = document.getElementById('map-area');
-const mapCont = document.getElementById('map-container');
+  street.lat    = lat;
+  street.lng    = lng;
+  street.placed = true;
 
-mapArea.addEventListener('mousedown', e => {
-  if (isDraggingLabel) return;
-  if (e.target.classList.contains('map-label')) return;
-  if (activeId) return; // placing mode — handled by click
-  isPanning = true;
-  panStart = { x: e.clientX - ox, y: e.clientY - oy };
-  mapCont.classList.add('dragging');
-});
+  const hex  = COLOR_HEX[street.color] || '#888';
+  const dark = DARK_TEXT.has(street.color);
 
-window.addEventListener('mousemove', e => {
-  if (isPanning) {
-    ox = e.clientX - panStart.x;
-    oy = e.clientY - panStart.y;
-    applyTransform();
-  }
-  if (isDraggingLabel && dragEl) {
-    const rect = mapArea.getBoundingClientRect();
-    const nx = (e.clientX - rect.left - ox) / scale;
-    const ny = (e.clientY - rect.top  - oy) / scale;
-    dragEl.style.left = nx + 'px';
-    dragEl.style.top  = ny + 'px';
-    if (dragStreet) { dragStreet.x = nx; dragStreet.y = ny; }
-  }
-});
-
-window.addEventListener('mouseup', () => {
-  isPanning = false;
-  isDraggingLabel = false;
-  dragEl = null;
-  dragStreet = null;
-  mapCont.classList.remove('dragging');
-});
-
-mapArea.addEventListener('wheel', e => {
-  e.preventDefault();
-  const rect = mapArea.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  const factor = e.deltaY < 0 ? 1.12 : 0.89;
-  const ns = Math.min(10, Math.max(0.05, scale * factor));
-  ox = mx - (mx - ox) * (ns / scale);
-  oy = my - (my - oy) * (ns / scale);
-  scale = ns;
-  applyTransform();
-}, { passive: false });
-
-mapArea.addEventListener('click', e => {
-  if (isPanning) return;
-  if (!activeId) return;
-  if (!mapLoaded) { showToast('Upload the clean map first (Step 2)'); return; }
-  if (e.target.classList.contains('map-label')) return;
-
-  const rect = mapArea.getBoundingClientRect();
-  const x = (e.clientX - rect.left  - ox) / scale;
-  const y = (e.clientY - rect.top   - oy) / scale;
-
-  placeLabel(activeId, x, y);
-  cancelActive();
-});
-
-function applyTransform() {
-  mapCont.style.transform = `translate(${ox}px, ${oy}px) scale(${scale})`;
-}
-
-function adjustZoom(factor) {
-  const rect = mapArea.getBoundingClientRect();
-  const cx = rect.width  / 2;
-  const cy = rect.height / 2;
-  const ns = Math.min(10, Math.max(0.05, scale * factor));
-  ox = cx - (cx - ox) * (ns / scale);
-  oy = cy - (cy - oy) * (ns / scale);
-  scale = ns;
-  applyTransform();
-}
-
-function resetZoom() {
-  if (!mapLoaded) return;
-  const rect = mapArea.getBoundingClientRect();
-  const fitScale = Math.min(rect.width / imgW, rect.height / imgH, 1);
-  scale = fitScale;
-  ox = (rect.width  - imgW * scale) / 2;
-  oy = (rect.height - imgH * scale) / 2;
-  applyTransform();
-}
-
-// ─── Label Placement ─────────────────────────────────────
-function selectStreet(id) {
-  activeId = id;
-  const st = streets.find(s => s.id === id);
-  if (!st) return;
-
-  // Highlight row
-  document.querySelectorAll('.street-row').forEach(r => r.classList.remove('active'));
-  const row = document.querySelector(`[data-sid="${id}"]`);
-  if (row) row.classList.add('active');
-
-  // Show banner
-  const hex = COLOR_HEX[st.color] || '#888';
-  document.getElementById('banner-dot').style.background = hex;
-  document.getElementById('banner-name').textContent = st.name;
-  document.getElementById('place-banner').classList.add('show');
-
-  mapCont.classList.add('placing');
-}
-
-function cancelActive() {
-  activeId = null;
-  document.getElementById('place-banner').classList.remove('show');
-  document.querySelectorAll('.street-row.active').forEach(r => r.classList.remove('active'));
-  mapCont.classList.remove('placing');
-}
-
-function placeLabel(id, x, y) {
-  const st = streets.find(s => s.id === id);
-  if (!st) return;
-
-  // Remove old label if any
-  const old = document.querySelector(`#label-layer [data-id="${id}"]`);
-  if (old) old.remove();
-
-  st.placed = true;
-  st.x = x;
-  st.y = y;
-
-  const layer = document.getElementById('label-layer');
   const el = document.createElement('div');
   el.className = 'map-label';
-  el.dataset.id = id;
-
-  const hex  = COLOR_HEX[st.color] || '#888';
-  const dark = DARK_TEXT.has(st.color);
-  el.style.left       = x + 'px';
-  el.style.top        = y + 'px';
   el.style.background = hex;
   el.style.color      = dark ? '#000' : '#fff';
+  el.dataset.id       = street.id;
+  el.innerHTML = escHtml(street.name) + (street.split ? '<span class="split-star">★</span>' : '');
 
-  el.innerHTML = escHtml(st.name) + (st.split ? '<span class="split-star">★</span>' : '');
-
-  // Drag
-  el.addEventListener('mousedown', ev => {
-    ev.stopPropagation();
-    isDraggingLabel = true;
-    dragEl     = el;
-    dragStreet = st;
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    map,
+    position: { lat, lng },
+    content: el,
+    gmpDraggable: true,
+    title: street.name,
   });
 
-  // Double-click to remove
+  marker.addListener('dragend', () => {
+    const pos = marker.position;
+    street.lat = typeof pos.lat === 'function' ? pos.lat() : pos.lat;
+    street.lng = typeof pos.lng === 'function' ? pos.lng() : pos.lng;
+  });
+
   el.addEventListener('dblclick', ev => {
     ev.stopPropagation();
-    st.placed = false;
-    el.remove();
+    marker.map = null;
+    delete markers[street.id];
+    street.placed = false;
+    street.lat    = null;
+    street.lng    = null;
     renderList();
     updateStatus();
   });
 
-  layer.appendChild(el);
-  renderList();
-  updateStatus();
+  markers[street.id] = marker;
+}
+
+// ─── Select Street (pan to it, retry geocode if not placed) ──
+function selectStreet(id) {
+  const st = streets.find(s => s.id === id);
+  if (!st) return;
+
+  if (st.placed && st.lat && st.lng) {
+    map.panTo({ lat: st.lat, lng: st.lng });
+    map.setZoom(16);
+  } else {
+    // Retry geocode
+    showToast(`Looking up "${st.name}"...`);
+    geocodeStreet(st.name).then(result => {
+      if (result) {
+        placeMarker(st, result.lat, result.lng);
+        renderList();
+        updateStatus();
+        map.panTo({ lat: result.lat, lng: result.lng });
+        map.setZoom(16);
+      } else {
+        showToast(`Could not find "${st.name}" in Newark, CA`);
+      }
+    });
+  }
 }
 
 // ─── Render ──────────────────────────────────────────────
@@ -970,7 +851,7 @@ function renderList() {
       </div>`;
 
     for (const s of group) {
-      const cls = [s.placed ? 'placed' : '', activeId === s.id ? 'active' : ''].filter(Boolean).join(' ');
+      const cls = s.placed ? 'placed' : '';
       html += `<div class="street-row ${cls}" data-sid="${s.id}" onclick="selectStreet('${s.id}')">
         <div class="s-dot" style="background:${hex}"></div>
         <span class="s-name">${escHtml(s.name)}</span>
@@ -1004,19 +885,23 @@ function updateStatus() {
 // ─── Clear All ───────────────────────────────────────────
 function clearAll() {
   if (!confirm('Clear all streets and labels?')) return;
-  streets = [];
-  days    = [];
-  activeId = null;
-  document.getElementById('label-layer').innerHTML = '';
+  for (const id in markers) {
+    markers[id].map = null;
+  }
+  markers  = {};
+  streets  = [];
+  days     = [];
   document.getElementById('extract-status').textContent = '';
-  document.getElementById('place-banner').classList.remove('show');
+  document.getElementById('geocode-bar').classList.remove('show');
   rebuildDaySelect();
   renderAll();
 }
 
 // ─── Keyboard ────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') cancelActive();
+  if (e.key === 'Escape') {
+    document.getElementById('geocode-bar').classList.remove('show');
+  }
 });
 
 // ─── Toast ───────────────────────────────────────────────
@@ -1047,7 +932,11 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// ─── Drag & Drop on upload zones ─────────────────────────
+function delay(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// ─── Drag & Drop on upload zone ──────────────────────────
 function setupDropZone(zoneId, onDrop) {
   const zone = document.getElementById(zoneId);
   zone.addEventListener('dragover', e => {
@@ -1063,13 +952,16 @@ function setupDropZone(zoneId, onDrop) {
   });
 }
 
-// ─── Init ────────────────────────────────────────────────
-document.getElementById('map-container').style.display = 'none';
-
 setupDropZone('sched-zone', files => handleScheduleUpload(files));
-setupDropZone('map-zone',   files => handleMapUpload(files[0]));
 
 renderAll();
 </script>
+
+<!-- Google Maps JS API with marker library -->
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8&callback=initMap&loading=async&libraries=marker"
+  async defer>
+</script>
+
 </body>
 </html>
