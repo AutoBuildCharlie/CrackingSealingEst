@@ -58,21 +58,22 @@
       position: absolute;
       bottom: 40px;
       left: 10px;
-      background: rgba(15,23,42,0.88);
-      border: 1px solid #374151;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid #ccc;
       border-radius: 6px;
       padding: 8px 10px;
       z-index: 5;
       font-family: 'Inter', sans-serif;
       min-width: 140px;
       pointer-events: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     }
     #map-key .key-title {
       font-size: 9px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.6px;
-      color: #6b7280;
+      color: #666;
       margin-bottom: 6px;
     }
     #map-key .key-row {
@@ -91,17 +92,7 @@
     }
     #map-key .key-label {
       font-size: 10px;
-      color: #d1d5db;
-    }
-
-    /* Print: key stays on map, light bg */
-    @media print {
-      #map-key {
-        background: rgba(255,255,255,0.92) !important;
-        border-color: #ccc !important;
-      }
-      #map-key .key-title { color: #666 !important; }
-      #map-key .key-label { color: #111 !important; }
+      color: #111;
     }
 
     /* ─── MAIN LAYOUT ────────────────────────────────────── */
@@ -603,7 +594,7 @@ function initMap() {
   map = new google.maps.Map(document.getElementById('gmap'), {
     center: NEWARK_CENTER,
     zoom: 13,
-    styles: MAP_STYLES,
+    mapId: 'DEMO_MAP_ID',
     mapTypeControl: false,
     streetViewControl: false,
     fullscreenControl: false,
@@ -1177,11 +1168,7 @@ setupDropZone('sched-zone', files => handleScheduleUpload(files));
 
 // ─── Light map for print, dark map for screen ────────────
 window.addEventListener('beforeprint', () => {
-  if (map) map.setOptions({ styles: [] });
   buildPrintLegend();
-});
-window.addEventListener('afterprint', () => {
-  if (map) map.setOptions({ styles: MAP_STYLES });
 });
 
 function buildPrintLegend() {
