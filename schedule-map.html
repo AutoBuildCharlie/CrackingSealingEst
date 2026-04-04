@@ -599,12 +599,14 @@ function initMap() {
     fullscreenControl: false,
     zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
   });
+  // Define ScheduleLabel here so google.maps is guaranteed to be loaded
+  _defineScheduleLabel();
   loadState();
 }
 
 // ─── ScheduleLabel Overlay ───────────────────────────────
-// Custom OverlayView — positions a colored pill div on the map.
-// No mapId or AdvancedMarkerElement needed.
+// Defined inside a function so google.maps is loaded before the class is evaluated.
+function _defineScheduleLabel() {
 class ScheduleLabel extends google.maps.OverlayView {
   constructor(latLng, street) {
     super();
@@ -687,6 +689,9 @@ class ScheduleLabel extends google.maps.OverlayView {
     document.addEventListener('mouseup', onUp);
   }
 }
+// Expose to outer scope so placeMarker can use it
+window.ScheduleLabel = ScheduleLabel;
+} // end _defineScheduleLabel
 
 // ─── PDF.js loader ───────────────────────────────────────
 async function loadPdfJs() {
@@ -983,7 +988,7 @@ function placeMarker(street, lat, lng) {
   street.lng    = lng;
   street.placed = true;
 
-  const label = new ScheduleLabel(new google.maps.LatLng(lat, lng), street);
+  const label = new window.ScheduleLabel(new google.maps.LatLng(lat, lng), street);
   label.setMap(map);
   markers[street.id] = label;
 }
