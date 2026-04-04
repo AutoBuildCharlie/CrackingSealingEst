@@ -527,6 +527,17 @@
         <div style="font-size:11px;color:#4b5563;line-height:1.5">Streets auto-place on the map after extraction. Click a street name to pan to it. Drag labels to reposition. Double-click a label to remove it.</div>
       </div>
 
+      <!-- Step 3: Plan PDF for exact segments -->
+      <div class="section">
+        <div class="section-label"><span class="step-badge">3</span> Upload Plan PDF — Exact Segments</div>
+        <div style="font-size:11px;color:#4b5563;line-height:1.5;margin-bottom:8px">Upload the 60-page plan PDF. AI reads each page and extracts exact begin/end intersections — then redraws streets as precise segments.</div>
+        <div id="plan-zone" class="upload-zone" onclick="document.getElementById('plan-input').click()" ondrop="handlePlanDrop(event)" ondragover="event.preventDefault()">
+          <div style="font-size:12px;color:#6b7280">Drag &amp; drop plan PDF or click to upload</div>
+        </div>
+        <input type="file" id="plan-input" accept=".pdf,image/*" multiple style="display:none" onchange="handlePlanUpload(this.files)">
+        <div id="plan-status" style="margin-top:6px;font-size:11px;color:#6b7280;min-height:16px"></div>
+      </div>
+
       <!-- Week filter -->
       <div class="section" id="filter-section" style="display:none">
         <div class="section-label">Filter by Week</div>
@@ -997,6 +1008,171 @@ City is Newark CA — read names exactly as shown, preserve abbreviations.`;
   try { return JSON.parse(match[0]); } catch { return []; }
 }
 
+// ─── Phase 2: Plan PDF — Exact Segment Extraction ────────
+
+function handlePlanDrop(e) {
+  e.preventDefault();
+  handlePlanUpload(e.dataTransfer.files);
+}
+
+async function handlePlanUpload(files) {
+  if (!files || !files.length) return;
+  const statusEl = document.getElementById('plan-status');
+  statusEl.innerHTML = '<span class="spinner"></span>Rendering plan pages...';
+
+  let pages = [];
+  for (const file of files) {
+    if (file.type === 'application/pdf') {
+      try {
+        const images = await pdfToImages(file);
+        for (const b64 of images) pages.push({ b64, mimeType: 'image/jpeg' });
+      } catch(e) { console.error('Plan PDF render error', e); }
+    } else {
+      const b64 = await fileToBase64(file);
+      pages.push({ b64, mimeType: file.type });
+    }
+  }
+
+  statusEl.innerHTML = `<span class="spinner"></span>Reading ${pages.length} plan pages...`;
+
+  const allSegments = [];
+  // Send 3 pages at a time to reduce API calls
+  for (let i = 0; i < pages.length; i += 3) {
+    const batch = pages.slice(i, i + 3);
+    statusEl.innerHTML = `<span class="spinner"></span>Page ${i + 1}–${Math.min(i + 3, pages.length)} of ${pages.length}...`;
+    try {
+      const segs = await callPlanAI(batch);
+      allSegments.push(...segs);
+    } catch(e) { console.error('Plan AI error', e); }
+    if (i + 3 < pages.length) await delay(1000);
+  }
+
+  statusEl.innerHTML = `<span class="spinner"></span>Applying segment data to ${allSegments.length} entries...`;
+  const matched = applySegmentData(allSegments);
+  statusEl.innerHTML = `✓ Matched ${matched} streets — redrawing exact segments...`;
+
+  // Redraw matched streets with exact segment clipping
+  const toRedraw = streets.filter(s => s.beginAt && s.endAt);
+  for (let i = 0; i < toRedraw.length; i++) {
+    const st = toRedraw[i];
+    if (markers[st.id]) { markers[st.id].setMap(null); delete markers[st.id]; }
+    st.placed = false; st.lat = null; st.lng = null; st.paths = null;
+    await drawStreetFromOverpass(st);
+    if (i < toRedraw.length - 1) await delay(1500);
+  }
+
+  renderAll();
+  saveState();
+  statusEl.innerHTML = `✓ Done — ${matched} streets redrawn with exact segments`;
+}
+
+async function callPlanAI(pages) {
+  const prompt = `These are engineering plan sheets for Newark's 2025 Citywide Slurry Seal Project.
+The gray-shaded areas show the exact pavement to be treated with slurry seal.
+
+For EVERY gray-shaded street segment visible on ANY of these pages:
+1. Street name — read exactly as labeled on the map
+2. Beginning cross street — where the gray shading starts (the first intersecting street)
+3. Ending cross street — where the gray shading ends, OR "dead end" for cul-de-sacs
+
+Return ONLY a JSON array, no other text:
+[{"name": "Elm St", "from": "Cedar Blvd", "to": "Thornton Ave"}, ...]
+
+Rules:
+- Include ALL gray-shaded streets from ALL pages
+- For cul-de-sacs, use "dead end" as the "to" value
+- If a segment continues to the next sheet (matchline), use the last visible cross street
+- Read names exactly as printed — do not expand abbreviations`;
+
+  const content = [{ type: 'text', text: prompt }];
+  for (const p of pages) {
+    content.push({ type: 'image_url', image_url: { url: `data:${p.mimeType};base64,${p.b64}` } });
+  }
+
+  const body = {
+    provider: 'openai',
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content }],
+    max_tokens: 3000
+  };
+
+  const res = await fetch(PROXY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(90000),
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  const text = (data.choices?.[0]?.message?.content || '').trim();
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) return [];
+  try { return JSON.parse(match[0]); } catch { return []; }
+}
+
+// Match extracted segment data to existing streets
+function applySegmentData(segments) {
+  let matched = 0;
+  for (const seg of segments) {
+    if (!seg.name || !seg.from) continue;
+    const normSeg = normalizeName(seg.name);
+    // Find matching street(s) in list
+    const matches = streets.filter(s => {
+      const score = wordOverlap(normalizeName(s.name), normSeg);
+      return score >= 0.67;
+    });
+    for (const st of matches) {
+      if (!st.beginAt) { // don't overwrite if already set
+        st.beginAt = seg.from;
+        st.endAt   = seg.to || 'dead end';
+        matched++;
+      }
+    }
+  }
+  return matched;
+}
+
+// Geocode a street intersection
+function geocodeIntersection(street, cross) {
+  if (!geocoder) geocoder = new google.maps.Geocoder();
+  if (!cross || cross.toLowerCase() === 'dead end') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    geocoder.geocode({
+      address: `${street} & ${cross}, Newark, CA`,
+      bounds: new google.maps.LatLngBounds(
+        { lat: 37.493, lng: -122.068 },
+        { lat: 37.552, lng: -122.005 }
+      )
+    }, (results, status) => {
+      if (status === 'OK' && results.length) {
+        const loc = results[0].geometry.location;
+        const lat = loc.lat(), lng = loc.lng();
+        resolve(isInNewark(lat, lng) ? { lat, lng } : null);
+      } else resolve(null);
+    });
+  });
+}
+
+// Clip a polyline path to just the segment between two lat/lng points
+function clipPathToSegment(points, startPt, endPt) {
+  if (!startPt && !endPt) return points;
+
+  function nearestIdx(target) {
+    let best = 0, bestDist = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      const d = Math.hypot(points[i].lat - target.lat, points[i].lng - target.lng);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+  }
+
+  let startIdx = startPt ? nearestIdx(startPt) : 0;
+  let endIdx   = endPt   ? nearestIdx(endPt)   : points.length - 1;
+  if (startIdx > endIdx) [startIdx, endIdx] = [endIdx, startIdx];
+  // Add some buffer — at least 2 points
+  if (startIdx === endIdx) endIdx = Math.min(endIdx + 1, points.length - 1);
+  return points.slice(startIdx, endIdx + 1);
+}
+
 // ─── Geocode All (batch, rate-limited) ───────────────────
 async function geocodeAll(batch) {
   const bar   = document.getElementById('geocode-bar');
@@ -1103,12 +1279,25 @@ async function drawStreetFromOverpass(street) {
 
   if (!data || !data.elements || !data.elements.length) return false;
 
-  const hex   = COLOR_HEX[street.color] || '#888';
-  const paths = data.elements
+  const hex        = COLOR_HEX[street.color] || '#888';
+  let rawPaths     = data.elements
     .filter(e => e.geometry && e.geometry.length > 1)
     .map(e => e.geometry.map(p => ({ lat: p.lat, lng: p.lon })));
 
-  if (!paths.length) return false;
+  if (!rawPaths.length) return false;
+
+  // If we have intersection data, clip each path to the exact segment
+  let paths = rawPaths;
+  if (street.beginAt || street.endAt) {
+    const [startPt, endPt] = await Promise.all([
+      street.beginAt ? geocodeIntersection(street.name, street.beginAt) : Promise.resolve(null),
+      street.endAt && street.endAt !== 'dead end' ? geocodeIntersection(street.name, street.endAt) : Promise.resolve(null),
+    ]);
+    // Flatten all segments, clip, rebuild as single path
+    const allPts = rawPaths.flat();
+    const clipped = clipPathToSegment(allPts, startPt, endPt);
+    paths = clipped.length >= 2 ? [clipped] : rawPaths;
+  }
 
   const polylines = paths.map(path => new google.maps.Polyline({
     path,
