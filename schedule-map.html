@@ -770,6 +770,8 @@ function initMap() {
   });
   // Define ScheduleLabel here so google.maps is guaranteed to be loaded
   _defineScheduleLabel();
+  // Close info popup when clicking anywhere on the map
+  map.addListener('click', () => { if (infoWindow) infoWindow.close(); });
   loadState();
 }
 
