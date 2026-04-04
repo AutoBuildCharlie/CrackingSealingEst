@@ -598,6 +598,10 @@ function initMap() {
     streetViewControl: false,
     fullscreenControl: false,
     zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
+    styles: [
+      { featureType: 'poi',     stylers: [{ visibility: 'off' }] },
+      { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    ],
   });
   // Define ScheduleLabel here so google.maps is guaranteed to be loaded
   _defineScheduleLabel();
