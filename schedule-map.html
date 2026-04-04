@@ -564,6 +564,16 @@ const COLOR_HEX = {
 
 const DARK_TEXT = new Set(['yellow', 'teal', 'green']);
 
+// Hard bounding box for Newark, CA — rejects results outside city
+const NEWARK_BBOX = { minLat: 37.497, maxLat: 37.547, minLng: -122.063, maxLng: -122.010 };
+// Overpass bbox string (lat_min,lon_min,lat_max,lon_max)
+const OVERPASS_BBOX = `${NEWARK_BBOX.minLat},${NEWARK_BBOX.minLng},${NEWARK_BBOX.maxLat},${NEWARK_BBOX.maxLng}`;
+
+function isInNewark(lat, lng) {
+  return lat  >= NEWARK_BBOX.minLat && lat  <= NEWARK_BBOX.maxLat &&
+         lng >= NEWARK_BBOX.minLng && lng <= NEWARK_BBOX.maxLng;
+}
+
 const MAP_STYLES = [
   { elementType: 'geometry',             stylers: [{ color: '#1d2535' }] },
   { elementType: 'labels.text.fill',     stylers: [{ color: '#8a9ab0' }] },
@@ -832,8 +842,8 @@ City is Newark CA — read names exactly as shown, preserve abbreviations.`;
 
 // ─── Geocode All (batch, rate-limited) ───────────────────
 async function geocodeAll(batch) {
-  const bar    = document.getElementById('geocode-bar');
-  const msgEl  = document.getElementById('geocode-msg');
+  const bar   = document.getElementById('geocode-bar');
+  const msgEl = document.getElementById('geocode-msg');
   bar.classList.add('show');
 
   let placed = 0;
@@ -841,22 +851,29 @@ async function geocodeAll(batch) {
 
   for (let i = 0; i < batch.length; i++) {
     const st = batch[i];
-    msgEl.textContent = `Placing ${i + 1} of ${batch.length}: ${st.name}`;
+    msgEl.textContent = `Drawing ${i + 1} of ${batch.length}: ${st.name}`;
     try {
-      const result = await geocodeStreet(st.name);
-      if (result) {
-        st.geocodeFailed = false;
-        placeMarker(st, result.lat, result.lng);
+      // Try Overpass road geometry first (hard Newark bounds — no out-of-city results)
+      const drawn = await drawStreetFromOverpass(st);
+      if (drawn) {
         placed++;
       } else {
-        st.geocodeFailed = true;
-        failed++;
+        // Fallback: geocoder with bounds check
+        const result = await geocodeStreet(st.name);
+        if (result) {
+          st.geocodeFailed = false;
+          placeMarker(st, result.lat, result.lng);
+          placed++;
+        } else {
+          st.geocodeFailed = true;
+          failed++;
+        }
       }
     } catch (e) {
+      st.geocodeFailed = true;
       failed++;
     }
-    // 200ms delay to avoid hitting rate limit
-    if (i < batch.length - 1) await delay(200);
+    if (i < batch.length - 1) await delay(300);
   }
 
   bar.classList.remove('show');
@@ -864,12 +881,74 @@ async function geocodeAll(batch) {
   saveState();
 
   const msg = failed
-    ? `${placed} placed, ${failed} not found — click those in the list to retry`
-    : `All ${placed} streets placed on map`;
+    ? `${placed} drawn, ${failed} not found — click those in the list to retry`
+    : `All ${placed} streets drawn on map`;
   showToast(msg, 4000);
 
-  // Fit map to all markers
   if (placed > 0) fitMapToMarkers();
+}
+
+// ─── Overpass Street Drawing ──────────────────────────────
+async function drawStreetFromOverpass(street) {
+  // Remove any existing drawing
+  if (markers[street.id]) {
+    markers[street.id].setMap(null);
+    delete markers[street.id];
+  }
+
+  const name  = street.name.replace(/['"\\]/g, '');
+  const query = `[out:json][timeout:10];way["name"="${name}"](${OVERPASS_BBOX});out geom;`;
+
+  const res = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    body: 'data=' + encodeURIComponent(query),
+    signal: AbortSignal.timeout(12000),
+  });
+  const data = await res.json();
+
+  if (!data.elements || !data.elements.length) return false;
+
+  const hex   = COLOR_HEX[street.color] || '#888';
+  const paths = data.elements
+    .filter(e => e.geometry && e.geometry.length > 1)
+    .map(e => e.geometry.map(p => ({ lat: p.lat, lng: p.lon })));
+
+  if (!paths.length) return false;
+
+  const polylines = paths.map(path => new google.maps.Polyline({
+    path,
+    strokeColor: hex,
+    strokeOpacity: 0.85,
+    strokeWeight: 6,
+    map,
+    zIndex: 2,
+    clickable: true,
+  }));
+
+  // Double-click any segment to remove
+  polylines.forEach(poly => {
+    poly.addListener('dblclick', () => {
+      polylines.forEach(p => p.setMap(null));
+      delete markers[street.id];
+      street.placed = false;
+      street.lat    = null;
+      street.lng    = null;
+      street.paths  = null;
+      renderAll();
+      saveState();
+    });
+  });
+
+  // Compute center from all points
+  const allPts   = paths.flat();
+  street.lat     = allPts.reduce((s, p) => s + p.lat, 0) / allPts.length;
+  street.lng     = allPts.reduce((s, p) => s + p.lng, 0) / allPts.length;
+  street.placed  = true;
+  street.paths   = paths;  // stored for localStorage restore
+  street.geocodeFailed = false;
+
+  markers[street.id] = { setMap: (m) => polylines.forEach(p => p.setMap(m)) };
+  return true;
 }
 
 let geocoder = null;
@@ -886,7 +965,9 @@ function geocodeStreet(name) {
     }, (results, status) => {
       if (status === 'OK' && results.length) {
         const loc = results[0].geometry.location;
-        resolve({ lat: loc.lat(), lng: loc.lng() });
+        const lat = loc.lat(), lng = loc.lng();
+        // Reject results outside Newark city limits
+        resolve(isInNewark(lat, lng) ? { lat, lng } : null);
       } else {
         resolve(null);
       }
@@ -1006,20 +1087,23 @@ function selectStreet(id) {
     map.panTo({ lat: st.lat, lng: st.lng });
     map.setZoom(16);
   } else {
-    // Retry geocode
     showToast(`Looking up "${st.name}"...`);
-    geocodeStreet(st.name).then(result => {
-      if (result) {
-        st.geocodeFailed = false;
-        placeMarker(st, result.lat, result.lng);
-        renderAll();
-        saveState();
-        map.panTo({ lat: result.lat, lng: result.lng });
+    drawStreetFromOverpass(st).then(async drawn => {
+      if (!drawn) {
+        const result = await geocodeStreet(st.name);
+        if (result) {
+          st.geocodeFailed = false;
+          placeMarker(st, result.lat, result.lng);
+        } else {
+          st.geocodeFailed = true;
+          showToast(`Still can't find "${st.name}" in Newark`);
+        }
+      }
+      renderAll();
+      saveState();
+      if (st.lat && st.lng) {
+        map.panTo({ lat: st.lat, lng: st.lng });
         map.setZoom(16);
-      } else {
-        st.geocodeFailed = true;
-        showToast(`Still can't find "${st.name}" — try editing the name`);
-        renderList();
       }
     });
   }
@@ -1047,7 +1131,29 @@ function loadState() {
     streets = data.streets || [];
     days    = data.days    || [];
     for (const st of streets) {
-      if (st.placed && st.lat && st.lng) {
+      if (!st.placed) continue;
+      if (st.paths && st.paths.length) {
+        // Restore polylines from saved geometry
+        const hex = COLOR_HEX[st.color] || '#888';
+        const polylines = st.paths.map(path => new google.maps.Polyline({
+          path,
+          strokeColor: hex,
+          strokeOpacity: 0.85,
+          strokeWeight: 6,
+          map,
+          zIndex: 2,
+          clickable: true,
+        }));
+        polylines.forEach(poly => {
+          poly.addListener('dblclick', () => {
+            polylines.forEach(p => p.setMap(null));
+            delete markers[st.id];
+            st.placed = false; st.lat = null; st.lng = null; st.paths = null;
+            renderAll(); saveState();
+          });
+        });
+        markers[st.id] = { setMap: (m) => polylines.forEach(p => p.setMap(m)) };
+      } else if (st.lat && st.lng) {
         placeMarker(st, st.lat, st.lng);
       }
     }
