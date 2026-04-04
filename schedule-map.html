@@ -1017,7 +1017,7 @@ async function geocodeAll(batch) {
       st.geocodeFailed = true;
       failed++;
     }
-    if (i < batch.length - 1) await delay(300);
+    if (i < batch.length - 1) await delay(800);
   }
 
   bar.classList.remove('show');
@@ -1055,7 +1055,7 @@ async function drawStreetFromOverpass(street) {
     });
     const d = await res.json();
     if (d.elements && d.elements.length) { data = d; break; }
-    if (i < namesToTry.length - 1) await delay(300);
+    if (i < namesToTry.length - 1) await delay(600);
   }
 
   if (!data || !data.elements || !data.elements.length) return false;
@@ -1514,7 +1514,7 @@ async function upgradePillsToPolylines() {
         }
       }
     } catch(e) { /* keep going */ }
-    if (i < pills.length - 1) await delay(400);
+    if (i < pills.length - 1) await delay(800);
   }
   bar.classList.remove('show');
   renderAll();
