@@ -556,7 +556,6 @@
 // ─── Constants ───────────────────────────────────────────
 const API_KEY   = 'AIzaSyALUzyaUCMmtVah_gcnoe-g2VGeezsPkZ8';
 const PROXY     = 'https://cse-worker.aestheticcal22.workers.dev';
-const GEOCODE_BASE = 'https://maps.googleapis.com/maps/api/geocode/json';
 const NEWARK_CENTER = { lat: 37.5297, lng: -122.0402 };
 
 const COLOR_HEX = {
@@ -788,18 +787,26 @@ async function geocodeAll(batch) {
   if (placed > 0) fitMapToMarkers();
 }
 
-async function geocodeStreet(name) {
-  const addr   = `${name}, Newark, CA`;
-  // Bounding box for Newark, CA — keeps results within city limits
-  const bounds = '37.505,-122.065|37.560,-122.005';
-  const url    = `${GEOCODE_BASE}?address=${encodeURIComponent(addr)}&bounds=${bounds}&key=${API_KEY}`;
-  const res    = await fetch(url);
-  const data   = await res.json();
-  if (data.status === 'OK' && data.results.length) {
-    const loc = data.results[0].geometry.location;
-    return { lat: loc.lat, lng: loc.lng };
-  }
-  return null;
+let geocoder = null;
+
+function geocodeStreet(name) {
+  if (!geocoder) geocoder = new google.maps.Geocoder();
+  return new Promise((resolve) => {
+    geocoder.geocode({
+      address: `${name}, Newark, CA`,
+      bounds: new google.maps.LatLngBounds(
+        { lat: 37.505, lng: -122.065 },
+        { lat: 37.560, lng: -122.005 }
+      )
+    }, (results, status) => {
+      if (status === 'OK' && results.length) {
+        const loc = results[0].geometry.location;
+        resolve({ lat: loc.lat(), lng: loc.lng() });
+      } else {
+        resolve(null);
+      }
+    });
+  });
 }
 
 function fitMapToMarkers() {
