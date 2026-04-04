@@ -311,6 +311,27 @@
     }
     .btn-add:hover { background: #4b5563; }
 
+    /* Week filter buttons */
+    #week-filter-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .filter-btn {
+      padding: 4px 10px;
+      border-radius: 5px;
+      border: 1px solid #374151;
+      background: #111827;
+      color: #9ca3af;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: #4b5563; color: #e0e0e0; }
+    .filter-btn.active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+
     /* Status bar */
     #status-bar {
       padding: 8px 14px;
@@ -506,6 +527,12 @@
         <div style="font-size:11px;color:#4b5563;line-height:1.5">Streets auto-place on the map after extraction. Click a street name to pan to it. Drag labels to reposition. Double-click a label to remove it.</div>
       </div>
 
+      <!-- Week filter -->
+      <div class="section" id="filter-section" style="display:none">
+        <div class="section-label">Filter by Week</div>
+        <div id="week-filter-btns"></div>
+      </div>
+
       <!-- Schedule list -->
       <div class="section">
         <div class="section-label">Schedule</div>
@@ -594,10 +621,11 @@ const MAP_STYLES = [
 ];
 
 // ─── State ───────────────────────────────────────────────
-let streets  = [];   // [{id, name, date, day, color, split, placed, lat, lng}]
-let days     = [];   // [{key, label, date, day, color}] sorted
-let markers  = {};   // id → ScheduleLabel overlay
-let map      = null;
+let streets          = [];   // [{id, name, date, day, color, split, placed, lat, lng}]
+let days             = [];   // [{key, label, date, day, color}] sorted
+let markers          = {};   // id → { setMap } or ScheduleLabel
+let map              = null;
+let activeWeekFilter = null; // null = All, 1/2/3... = specific week
 
 // ─── Map Init ────────────────────────────────────────────
 function initMap() {
@@ -1109,11 +1137,60 @@ function selectStreet(id) {
   }
 }
 
+// ─── Week Filter ─────────────────────────────────────────
+function parseScheduleDate(str) {
+  const [m, d] = (str || '1/1').split('/').map(Number);
+  return new Date(2025, m - 1, d);
+}
+
+function getStreetWeek(street) {
+  if (!days.length) return 1;
+  const base = parseScheduleDate(days[0].date); // days sorted earliest first
+  const d    = parseScheduleDate(street.date);
+  return Math.floor((d - base) / (7 * 24 * 60 * 60 * 1000)) + 1;
+}
+
+function setWeekFilter(week) {
+  activeWeekFilter = week;
+  applyFilter();
+  buildWeekFilters();
+  renderList();
+  updateStatus();
+}
+
+function applyFilter() {
+  for (const st of streets) {
+    if (!markers[st.id]) continue;
+    const show = activeWeekFilter === null || getStreetWeek(st) === activeWeekFilter;
+    markers[st.id].setMap(show ? map : null);
+  }
+}
+
+function buildWeekFilters() {
+  const section = document.getElementById('filter-section');
+  const btnArea = document.getElementById('week-filter-btns');
+  if (!section || !btnArea) return;
+
+  if (!streets.length) { section.style.display = 'none'; return; }
+
+  const weekNums = [...new Set(streets.map(s => getStreetWeek(s)))].sort((a,b) => a - b);
+  if (weekNums.length < 2) { section.style.display = 'none'; return; }
+
+  section.style.display = 'block';
+  let html = `<button class="filter-btn ${activeWeekFilter === null ? 'active' : ''}" onclick="setWeekFilter(null)">All</button>`;
+  for (const w of weekNums) {
+    html += `<button class="filter-btn ${activeWeekFilter === w ? 'active' : ''}" onclick="setWeekFilter(${w})">Week ${w}</button>`;
+  }
+  btnArea.innerHTML = html;
+}
+
 // ─── Render ──────────────────────────────────────────────
 function renderAll() {
   renderList();
   updateStatus();
   renderMapKey();
+  buildWeekFilters();
+  applyFilter();
 }
 
 // ─── Save / Load State ───────────────────────────────────
@@ -1214,17 +1291,22 @@ function renderList() {
   for (const d of days) {
     const group = grouped[d.key] || [];
     if (!group.length) continue;
+    // Filter by active week
+    const filtered = activeWeekFilter === null
+      ? group
+      : group.filter(s => getStreetWeek(s) === activeWeekFilter);
+    if (!filtered.length) continue;
     const hex    = COLOR_HEX[d.color] || '#888';
-    const placed = group.filter(s => s.placed).length;
+    const placed = filtered.filter(s => s.placed).length;
 
     html += `<div class="day-group">
       <div class="day-header">
         <div class="day-dot" style="background:${hex}"></div>
         <span class="day-title" style="color:${hex}">${escHtml(d.label)}</span>
-        <span class="day-count">${placed}/${group.length}</span>
+        <span class="day-count">${placed}/${filtered.length}</span>
       </div>`;
 
-    for (const s of group) {
+    for (const s of filtered) {
       const cls = s.placed ? 'placed' : s.geocodeFailed ? 'not-found' : '';
       html += `<div class="street-row ${cls}" data-sid="${s.id}" onclick="selectStreet('${s.id}')">
         <div class="s-dot" style="background:${s.geocodeFailed ? '#f59e0b' : hex}"></div>
@@ -1265,9 +1347,10 @@ function clearAll() {
   for (const id in markers) {
     markers[id].setMap(null);
   }
-  markers  = {};
-  streets  = [];
-  days     = [];
+  markers          = {};
+  streets          = [];
+  days             = [];
+  activeWeekFilter = null;
   document.getElementById('extract-status').textContent = '';
   document.getElementById('geocode-bar').classList.remove('show');
   rebuildDaySelect();
