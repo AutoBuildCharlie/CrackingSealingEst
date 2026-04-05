@@ -2685,29 +2685,38 @@ const NO_LABEL_STYLES = [
 function printSection(withLegend) {
   const center = map.getCenter();
   const zoom   = map.getZoom();
-
   map.setOptions({ styles: NO_LABEL_STYLES });
 
   if (withLegend) {
-    // 1. Expand map first (hide sidebar) so bounds match what will actually print
     document.body.classList.add('print-with-legend');
     google.maps.event.trigger(map, 'resize');
     setTimeout(() => {
       map.setCenter(center);
       map.setZoom(zoom);
-      // 2. Now capture bounds of the expanded map view
-      setTimeout(() => {
-        const bounds = map.getBounds();
-        const visibleIds = new Set(
-          streets
-            .filter(s => s.placed && s.mapNum && s.lat && s.lng && bounds && bounds.contains(new google.maps.LatLng(s.lat, s.lng)))
-            .map(s => s.id)
-        );
-        buildPrintLegend(visibleIds);
+      // Wait for map to fully render then check which circles are on screen
+      google.maps.event.addListenerOnce(map, 'idle', () => {
         refreshStreetLabels();
-        // 3. Print
-        setTimeout(() => window.print(), 300);
-      }, 300);
+        setTimeout(() => {
+          const mapArea = document.getElementById('map-area');
+          const mapRect = mapArea ? mapArea.getBoundingClientRect() : null;
+          const visibleIds = new Set();
+          if (mapRect) {
+            document.querySelectorAll('.map-label').forEach(div => {
+              const id = div.dataset.id;
+              if (!id) return;
+              const r = div.getBoundingClientRect();
+              const cx = (r.left + r.right) / 2;
+              const cy = (r.top  + r.bottom) / 2;
+              if (cx >= mapRect.left && cx <= mapRect.right &&
+                  cy >= mapRect.top  && cy <= mapRect.bottom) {
+                visibleIds.add(id);
+              }
+            });
+          }
+          buildPrintLegend(visibleIds);
+          setTimeout(() => window.print(), 200);
+        }, 400); // give circles time to reposition after idle
+      });
     }, 150);
   } else {
     document.body.classList.remove('print-with-legend');
