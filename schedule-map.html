@@ -119,16 +119,23 @@
     /* Colored pill labels on the map */
     .map-label {
       white-space: nowrap;
-      font-size: 11px;
-      font-weight: 700;
+      font-size: 13px;
+      font-weight: 800;
       font-family: 'Inter', sans-serif;
-      padding: 3px 8px;
-      border-radius: 4px;
       cursor: move;
       user-select: none;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
-      letter-spacing: 0.3px;
-      border: 1px solid rgba(0,0,0,0.2);
+      letter-spacing: 0.4px;
+      text-shadow:
+        -1px -1px 0 #fff,
+         1px -1px 0 #fff,
+        -1px  1px 0 #fff,
+         1px  1px 0 #fff,
+         0 0 6px #fff,
+         0 0 3px #fff;
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0;
     }
     .map-label .split-star {
       font-size: 8px;
@@ -442,10 +449,10 @@
         height: 100% !important;
       }
       .map-label {
-        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
-        font-size: 10px;
+        font-size: 11px;
+        font-weight: 800;
       }
       #pin-bar, #upgrade-bar, #status-bar { display: none !important; }
       /* Print legend panel — hidden by default for section prints */
@@ -873,14 +880,12 @@ class ScheduleLabel extends google.maps.OverlayView {
   }
 
   onAdd() {
-    const hex  = COLOR_HEX[this.street.color] || '#888';
-    const dark = DARK_TEXT.has(this.street.color);
+    const hex  = COLOR_HEX[this.street.color] || '#555';
 
     const div = document.createElement('div');
     div.className        = 'map-label';
     div.style.position   = 'absolute';
-    div.style.background = hex;
-    div.style.color      = dark ? '#000' : '#fff';
+    div.style.color      = hex;
     div.dataset.id       = this.street.id;
     div.innerHTML = escHtml(this.street.name) +
       (this.street.split ? '<span class="split-star">★</span>' : '');
