@@ -991,7 +991,7 @@ function initMap() {
     if (pinMode.active) { handlePinClick(e.latLng); return; }
     if (infoWindow) infoWindow.close();
   });
-  map.addListener('zoom_changed', () => setTimeout(refreshStreetLabels, 300));
+  map.addListener('zoom_changed', () => { setTimeout(refreshStreetLabels, 300); setTimeout(resolveCollisions, 600); });
   loadState();
 }
 
@@ -1905,29 +1905,44 @@ function refreshStreetLabels() {
     label.setMap(map);
     streetLabels[st.id] = label;
   }
+  setTimeout(resolveCollisions, 300);
 }
 
-// Push overlapping labels apart so they don't cross each other
+// Push overlapping circles apart so they don't stack
 function resolveCollisions() {
   requestAnimationFrame(() => {
     const divs = Array.from(document.querySelectorAll('.map-label'));
-    // Reset visibility first
-    divs.forEach(d => d.style.opacity = '1');
     if (divs.length < 2) return;
-    // Hide overlapping labels (keep first, hide second) — Google Maps style
-    for (let i = 0; i < divs.length; i++) {
-      if (divs[i].style.opacity === '0') continue;
-      const a = divs[i].getBoundingClientRect();
-      for (let j = i + 1; j < divs.length; j++) {
-        if (divs[j].style.opacity === '0') continue;
-        const b = divs[j].getBoundingClientRect();
-        const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-        const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-        if (overlapX > 0 && overlapY > 0) {
-          divs[j].style.opacity = '0'; // hide the later one
+
+    // Nudge overlapping circles apart — up to 20 passes, max 30px from original position
+    for (let pass = 0; pass < 20; pass++) {
+      let moved = false;
+      for (let i = 0; i < divs.length; i++) {
+        for (let j = i + 1; j < divs.length; j++) {
+          const a = divs[i].getBoundingClientRect();
+          const b = divs[j].getBoundingClientRect();
+          const pad = 2;
+          const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left) + pad;
+          const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) + pad;
+          if (overlapX <= 0 || overlapY <= 0) continue;
+          moved = true;
+          const pushX = overlapX < overlapY ? overlapX / 2 : 0;
+          const pushY = overlapY <= overlapX ? overlapY / 2 : 0;
+          const liA = parseFloat(divs[i].style.left), tiA = parseFloat(divs[i].style.top);
+          const liB = parseFloat(divs[j].style.left), tiB = parseFloat(divs[j].style.top);
+          // Determine direction to push based on relative positions
+          const dx = (a.left + a.width/2) - (b.left + b.width/2);
+          const dy = (a.top + a.height/2) - (b.top + b.height/2);
+          const sx = dx >= 0 ? 1 : -1, sy = dy >= 0 ? 1 : -1;
+          divs[i].style.left = (liA + pushX * sx) + 'px';
+          divs[i].style.top  = (tiA + pushY * sy) + 'px';
+          divs[j].style.left = (liB - pushX * sx) + 'px';
+          divs[j].style.top  = (tiB - pushY * sy) + 'px';
         }
       }
+      if (!moved) break;
     }
+
   });
 }
 
