@@ -462,8 +462,15 @@
       .map-label {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
-        font-size: 11px;
-        font-weight: 800;
+        font-size: 11px !important;
+        font-weight: 900 !important;
+        color: #000 !important;
+        text-shadow: none !important;
+        background: rgba(255,255,255,0.85) !important;
+        border: 1.5px solid #333 !important;
+        padding: 1px 5px !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
       }
       #pin-bar, #upgrade-bar, #status-bar { display: none !important; }
       /* Print legend panel — hidden by default for section prints */
@@ -2572,6 +2579,7 @@ function printFromPreview() {
 
 // ─── Section Print ───────────────────────────────────────
 function printSection(withLegend) {
+  refreshStreetLabels(); // make sure all labels are current before printing
   if (withLegend) document.body.classList.add('print-with-legend');
   else document.body.classList.remove('print-with-legend');
   window.print();
