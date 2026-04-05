@@ -1005,7 +1005,15 @@ class ScheduleLabel extends google.maps.OverlayView {
     div.innerHTML = escHtml(this.street.name) +
       (this.street.split ? '<span class="split-star">★</span>' : '');
 
-    // Labels stay horizontal — no rotation
+    // Rotate label to follow street direction (like Google Maps)
+    if (this.street.labelHeading != null) {
+      let angle = this.street.labelHeading;
+      // Keep text readable — flip if upside down
+      if (angle > 90 && angle <= 270) angle -= 180;
+      if (angle < -90 && angle >= -270) angle += 180;
+      div.style.transform = `rotate(${angle}deg)`;
+      div.style.transformOrigin = 'center center';
+    }
 
     // Drag to reposition
     div.addEventListener('mousedown', (e) => this._startDrag(e));
@@ -1033,16 +1041,9 @@ class ScheduleLabel extends google.maps.OverlayView {
     if (!this.div) return;
     const pt = this.getProjection().fromLatLngToDivPixel(this.pos);
     if (pt) {
-      // Offset label perpendicular to street (above the line) so it doesn't block the polyline
-      const angle  = (this.street.labelHeading || 0) * Math.PI / 180;
-      const offset = 20; // px above the street
-      const perpX  =  Math.sin(angle) * offset;
-      const perpY  = -Math.cos(angle) * offset;
-      // Preserve any collision-resolution offset
-      const extraX = parseFloat(this.div.dataset.extraX || '0');
-      const extraY = parseFloat(this.div.dataset.extraY || '0');
-      this.div.style.left = (pt.x - this.div.offsetWidth  / 2 + perpX + extraX) + 'px';
-      this.div.style.top  = (pt.y - this.div.offsetHeight / 2 + perpY + extraY) + 'px';
+      // Center label on street midpoint (Google Maps style — label sits on the line)
+      this.div.style.left = (pt.x - this.div.offsetWidth  / 2) + 'px';
+      this.div.style.top  = (pt.y - this.div.offsetHeight / 2) + 'px';
     }
   }
 
@@ -1903,36 +1904,22 @@ function refreshStreetLabels() {
 function resolveCollisions() {
   requestAnimationFrame(() => {
     const divs = Array.from(document.querySelectorAll('.map-label'));
+    // Reset visibility first
+    divs.forEach(d => d.style.opacity = '1');
     if (divs.length < 2) return;
-    for (let pass = 0; pass < 20; pass++) {
-      let moved = false;
-      for (let i = 0; i < divs.length; i++) {
-        for (let j = i + 1; j < divs.length; j++) {
-          const a = divs[i].getBoundingClientRect();
-          const b = divs[j].getBoundingClientRect();
-          const gap = 4;
-          const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left) + gap;
-          const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) + gap;
-          if (overlapX <= 0 || overlapY <= 0) continue;
-          moved = true;
-          if (overlapY <= overlapX) {
-            // Push apart vertically
-            const half = overlapY / 2;
-            divs[i].dataset.extraY = (parseFloat(divs[i].dataset.extraY || '0') - half) + '';
-            divs[j].dataset.extraY = (parseFloat(divs[j].dataset.extraY || '0') + half) + '';
-            divs[i].style.top = (parseFloat(divs[i].style.top) - half) + 'px';
-            divs[j].style.top = (parseFloat(divs[j].style.top) + half) + 'px';
-          } else {
-            // Push apart horizontally
-            const half = overlapX / 2;
-            divs[i].dataset.extraX = (parseFloat(divs[i].dataset.extraX || '0') - half) + '';
-            divs[j].dataset.extraX = (parseFloat(divs[j].dataset.extraX || '0') + half) + '';
-            divs[i].style.left = (parseFloat(divs[i].style.left) - half) + 'px';
-            divs[j].style.left = (parseFloat(divs[j].style.left) + half) + 'px';
-          }
+    // Hide overlapping labels (keep first, hide second) — Google Maps style
+    for (let i = 0; i < divs.length; i++) {
+      if (divs[i].style.opacity === '0') continue;
+      const a = divs[i].getBoundingClientRect();
+      for (let j = i + 1; j < divs.length; j++) {
+        if (divs[j].style.opacity === '0') continue;
+        const b = divs[j].getBoundingClientRect();
+        const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (overlapX > 0 && overlapY > 0) {
+          divs[j].style.opacity = '0'; // hide the later one
         }
       }
-      if (!moved) break;
     }
   });
 }
