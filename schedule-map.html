@@ -2364,41 +2364,26 @@ function buildPrintLegend(visibleIds) {
   const body = document.getElementById('print-legend-body');
   if (!body) return;
 
-  const grouped = {};
-  for (const s of streets) {
-    if (visibleIds && !visibleIds.has(s.id)) continue;
-    const key = `${s.date}|${s.color}`;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(s);
+  // Get all visible placed streets sorted by number
+  const visible = streets
+    .filter(s => s.placed && s.mapNum && (!visibleIds || visibleIds.has(s.id)))
+    .sort((a, b) => a.mapNum - b.mapNum);
+
+  if (!visible.length) {
+    body.innerHTML = '<div style="font-size:10px;color:#999">No streets in this area</div>';
+    return;
   }
 
-  let html = '';
-  for (const d of days) {
-    const group = grouped[d.key] || [];
-    if (!group.length) continue;
-    const hex = COLOR_HEX[d.color] || '#888';
+  const rows = visible.map(s => {
+    const hex = COLOR_HEX[s.color] || '#555';
+    return `<div class="lg-street">
+      <span class="lg-checkbox"></span>
+      <span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:50%;background:${hex};color:#fff;font-size:9px;font-weight:800;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact">${s.mapNum}</span>
+      <span>${escHtml(s.name)}</span>
+    </div>`;
+  }).join('');
 
-    html += `<div class="lg-day">
-      <div class="lg-day-header">
-        <div class="lg-swatch" style="background:${hex};-webkit-print-color-adjust:exact;print-color-adjust:exact"></div>
-        <span class="lg-day-title">${escHtml(d.label)}</span>
-      </div>`;
-
-    for (const s of group) {
-      const num = s.mapNum
-        ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:50%;background:${hex};color:#fff;font-size:9px;font-weight:800;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact">${s.mapNum}</span>`
-        : '';
-      html += `<div class="lg-street${s.split ? ' split' : ''}">
-        <span class="lg-checkbox"></span>
-        ${num}
-        <span>${escHtml(s.name)}</span>
-      </div>`;
-    }
-
-    html += `</div>`;
-  }
-
-  body.innerHTML = html || '<div style="font-size:10px;color:#999">No streets in this area</div>';
+  body.innerHTML = rows;
 }
 
 // ─── Manual Pin Mode (multi-point) ───────────────────────
