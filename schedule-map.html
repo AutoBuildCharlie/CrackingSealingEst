@@ -433,6 +433,104 @@
     body.preview-mode #map-area    { flex: 1; }
     body.preview-mode #preview-bar { display: flex !important; }
 
+    /* ─── PRINT PACKET ──────────────────────────────────── */
+    #print-packet { display: none; }
+    @media print {
+      body.printing-packet #header,
+      body.printing-packet #right-panel,
+      body.printing-packet #geocode-bar,
+      body.printing-packet #toast,
+      body.printing-packet #pin-bar,
+      body.printing-packet #upgrade-bar,
+      body.printing-packet #status-bar,
+      body.printing-packet #preview-bar,
+      body.printing-packet #main { display: none !important; }
+      body.printing-packet #print-packet { display: block !important; }
+      .packet-page {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        page-break-after: always;
+        background: white;
+        font-family: 'Inter', sans-serif;
+        overflow: hidden;
+      }
+      .packet-page:last-child { page-break-after: avoid; }
+      .packet-header {
+        padding: 8px 14px;
+        border-bottom: 2px solid #111;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+      }
+      .packet-header h2 { font-size: 13px; font-weight: 800; margin: 0; }
+      .packet-header span { font-size: 10px; color: #555; }
+      .packet-body {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+      .packet-map {
+        flex: 1;
+        overflow: hidden;
+      }
+      .packet-map img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .packet-legend {
+        width: 230px;
+        flex-shrink: 0;
+        border-left: 2px solid #ccc;
+        padding: 10px 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .packet-legend-title {
+        font-size: 11px;
+        font-weight: 800;
+        border-bottom: 2px solid #111;
+        padding-bottom: 6px;
+        margin-bottom: 4px;
+      }
+      .packet-street-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 4px 0;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 11px;
+        color: #111;
+      }
+      .packet-checkbox {
+        width: 14px;
+        height: 14px;
+        border: 2px solid #333;
+        border-radius: 2px;
+        flex-shrink: 0;
+      }
+      .packet-num {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 800;
+        color: #fff;
+        flex-shrink: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+
     /* ─── PRINT STYLES ───────────────────────────────────── */
     @page { size: landscape; margin: 0; }
     @media print {
@@ -578,8 +676,9 @@
   <button class="btn btn-clear" onclick="rotateMap(15)" title="Rotate map clockwise">↻ Rotate</button>
   <button class="btn btn-clear" onclick="rotateMap(0, true)" title="Reset rotation">⊙ Reset</button>
   <button class="btn" onclick="showPrintPreview()" style="background:#0f766e;color:#fff" title="Preview what the printed map will look like">👁 Preview</button>
-  <button class="btn btn-export" onclick="printSection(true)" title="Print map + checklist of streets visible on screen">🖨 Print + List</button>
-  <button class="btn btn-export" onclick="printSection(false)" title="Print just the map — no legend">🖨 Map Only</button>
+  <button class="btn btn-export" onclick="generatePrintPacket()" title="Auto-generate full print packet — all sections with checklists" style="background:#7c3aed;color:#fff">📋 Print Packet</button>
+  <button class="btn btn-export" onclick="printSection(true)" title="Print current view + checklist">🖨 Print + List</button>
+  <button class="btn btn-export" onclick="printSection(false)" title="Print just the map">🖨 Map Only</button>
   <a href="index.html" class="btn btn-back">← PavementScan</a>
 </div>
 
@@ -740,6 +839,9 @@
     document.addEventListener('mouseup', () => { dragging = false; handle.style.cursor = 'grab'; });
   })();
   </script>
+
+  <!-- Auto-generated print packet (hidden until Print Packet) -->
+  <div id="print-packet"></div>
 
   <!-- Print-only legend (hidden on screen) -->
   <div id="print-legend" style="display:none">
@@ -2361,6 +2463,111 @@ window.addEventListener('afterprint', () => {
   _printLabels.forEach(l => l.setMap(null));
   _printLabels = [];
 });
+
+// ─── Print Packet ─────────────────────────────────────────
+function generatePrintPacket() {
+  const placed = streets.filter(s => s.placed && s.paths && s.paths.length && s.lat && s.lng && s.mapNum);
+  if (!placed.length) { showToast('No streets on map yet'); return; }
+
+  showToast('Building print packet…');
+
+  // 1. Cluster into geographic sections (split by lat midpoint, then lng)
+  const lats = placed.map(s => s.lat);
+  const lngs = placed.map(s => s.lng);
+  const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const midLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+
+  const raw = {
+    'NW': placed.filter(s => s.lat >= midLat && s.lng <  midLng),
+    'NE': placed.filter(s => s.lat >= midLat && s.lng >= midLng),
+    'SW': placed.filter(s => s.lat <  midLat && s.lng <  midLng),
+    'SE': placed.filter(s => s.lat <  midLat && s.lng >= midLng),
+  };
+  const labels = { NW: 'North-West', NE: 'North-East', SW: 'South-West', SE: 'South-East' };
+  const sections = Object.entries(raw).filter(([,g]) => g.length > 0);
+  const total = sections.length;
+
+  // 2. Build page HTML for each section
+  let pagesHtml = '';
+  sections.forEach(([key, group], idx) => {
+    const sLats = group.map(s => s.lat);
+    const sLngs = group.map(s => s.lng);
+    const minLat = Math.min(...sLats), maxLat = Math.max(...sLats);
+    const minLng = Math.min(...sLngs), maxLng = Math.max(...sLngs);
+    const cLat   = (minLat + maxLat) / 2;
+    const cLng   = (minLng + maxLng) / 2;
+
+    // Auto zoom to fit section
+    const latSpan = (maxLat - minLat) || 0.005;
+    const lngSpan = (maxLng - minLng) || 0.005;
+    const zoom = Math.max(13, Math.min(16, Math.floor(Math.log2(0.15 / Math.max(latSpan, lngSpan))) + 14));
+
+    // Build static map paths (simplified — start, mid, end per street)
+    const pathParts = group.map(s => {
+      const pts = s.paths.flat();
+      const step = Math.max(1, Math.floor(pts.length / 5));
+      const sample = [];
+      for (let i = 0; i < pts.length; i += step) sample.push(pts[i]);
+      if (sample[sample.length-1] !== pts[pts.length-1]) sample.push(pts[pts.length-1]);
+      const hex = (COLOR_HEX[s.color] || '#555555').replace('#','');
+      const coords = sample.map(p => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('|');
+      return `path=color:0x${hex}FF|weight:4|${coords}`;
+    });
+
+    // Split into batches to stay under URL limit
+    const base = `https://maps.googleapis.com/maps/api/staticmap?center=${cLat},${cLng}&zoom=${zoom}&size=860x520&scale=2&style=feature:all|element:labels|visibility:off&style=feature:road|element:geometry|color:0xe5e5e5&key=${API_KEY}`;
+    const mapUrl = base + '&' + pathParts.join('&');
+
+    // Checklist legend
+    const legendRows = group.sort((a,b) => a.mapNum - b.mapNum).map(s => {
+      const hex = COLOR_HEX[s.color] || '#555';
+      return `<div class="packet-street-row">
+        <div class="packet-checkbox"></div>
+        <div class="packet-num" style="background:${hex}">${s.mapNum}</div>
+        <span>${escHtml(s.name)}</span>
+      </div>`;
+    }).join('');
+
+    pagesHtml += `
+      <div class="packet-page">
+        <div class="packet-header">
+          <h2>Newark 2025 Slurry Seal — ${labels[key]} Section</h2>
+          <span>Page ${idx+1} of ${total} &nbsp;|&nbsp; ${group.length} streets</span>
+        </div>
+        <div class="packet-body">
+          <div class="packet-map">
+            <img src="${mapUrl}" alt="Section map" onerror="this.alt='Map unavailable — check API key restrictions'">
+          </div>
+          <div class="packet-legend">
+            <div class="packet-legend-title">Street Checklist</div>
+            ${legendRows}
+          </div>
+        </div>
+      </div>`;
+  });
+
+  // 3. Inject into print container and print
+  const container = document.getElementById('print-packet');
+  container.innerHTML = pagesHtml;
+  document.body.classList.add('printing-packet');
+
+  // Wait for static map images to load then print
+  const imgs = container.querySelectorAll('img');
+  let loaded = 0;
+  const tryPrint = () => { if (++loaded >= imgs.length) { setTimeout(() => window.print(), 300); } };
+  if (!imgs.length) { setTimeout(() => window.print(), 300); }
+  imgs.forEach(img => {
+    if (img.complete) tryPrint();
+    else { img.onload = tryPrint; img.onerror = tryPrint; }
+  });
+
+  // Restore after print dialog closes
+  const restore = () => {
+    document.body.classList.remove('printing-packet');
+    window.removeEventListener('focus', restore);
+  };
+  window.addEventListener('focus', restore);
+}
 
 function buildPrintLegend(visibleIds) {
   const body = document.getElementById('print-legend-body');
