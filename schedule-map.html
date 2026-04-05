@@ -2685,29 +2685,43 @@ const NO_LABEL_STYLES = [
 function printSection(withLegend) {
   const center = map.getCenter();
   const zoom   = map.getZoom();
-  const bounds = map.getBounds();
-
-  if (withLegend) {
-    // Filter to streets whose centroid is inside the current map bounds
-    const visibleIds = new Set(
-      streets
-        .filter(s => s.placed && s.mapNum && s.lat && s.lng && bounds && bounds.contains(new google.maps.LatLng(s.lat, s.lng)))
-        .map(s => s.id)
-    );
-    buildPrintLegend(visibleIds);
-    document.body.classList.add('print-with-legend');
-  } else {
-    document.body.classList.remove('print-with-legend');
-  }
 
   map.setOptions({ styles: NO_LABEL_STYLES });
-  refreshStreetLabels();
-  google.maps.event.trigger(map, 'resize');
-  setTimeout(() => {
-    map.setCenter(center);
-    map.setZoom(zoom);
-    setTimeout(() => window.print(), 400);
-  }, 150);
+
+  if (withLegend) {
+    // 1. Expand map first (hide sidebar) so bounds match what will actually print
+    document.body.classList.add('print-with-legend');
+    google.maps.event.trigger(map, 'resize');
+    setTimeout(() => {
+      map.setCenter(center);
+      map.setZoom(zoom);
+      // 2. Now capture bounds of the expanded map view
+      setTimeout(() => {
+        const bounds = map.getBounds();
+        const visibleIds = new Set(
+          streets
+            .filter(s => s.placed && s.mapNum && s.lat && s.lng && bounds && bounds.contains(new google.maps.LatLng(s.lat, s.lng)))
+            .map(s => s.id)
+        );
+        buildPrintLegend(visibleIds);
+        refreshStreetLabels();
+        // 3. Print
+        setTimeout(() => window.print(), 300);
+      }, 300);
+    }, 150);
+  } else {
+    document.body.classList.remove('print-with-legend');
+    refreshStreetLabels();
+    google.maps.event.trigger(map, 'resize');
+    setTimeout(() => {
+      map.setCenter(center);
+      map.setZoom(zoom);
+      setTimeout(() => window.print(), 400);
+    }, 150);
+  }
+
+  const restore = () => { document.body.classList.remove('print-with-legend'); window.removeEventListener('focus', restore); };
+  window.addEventListener('focus', restore);
 }
 
 // ─── Street Search ───────────────────────────────────────
