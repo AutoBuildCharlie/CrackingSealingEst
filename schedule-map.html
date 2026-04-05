@@ -738,6 +738,15 @@ function isInNewark(lat, lng) {
          lng >= NEWARK_BBOX.minLng && lng <= NEWARK_BBOX.maxLng;
 }
 
+// Remove a placed street from the map by id
+function removeStreetFromMap(id) {
+  if (infoWindow) infoWindow.close();
+  if (markers[id]) { markers[id].setMap(null); delete markers[id]; }
+  const st = streets.find(s => s.id === id);
+  if (st) { st.placed = false; st.lat = null; st.lng = null; st.paths = null; }
+  renderAll(); saveState();
+}
+
 // Attach click (info popup) + dblclick (remove) to a set of polylines for a street
 function attachPolylineListeners(polylines, street) {
   polylines.forEach(poly => {
@@ -755,18 +764,14 @@ function attachPolylineListeners(polylines, street) {
           <div style="font-size:12px;color:#555">${escHtml(dayLabel)}</div>
           ${street.split ? '<div style="font-size:11px;color:#888;margin-top:2px">★ Split day</div>' : ''}
           ${segInfo}
-          <div style="font-size:10px;color:#aaa;margin-top:6px">Double-click to remove</div>
+          <button onclick="removeStreetFromMap('${street.id}')" style="margin-top:8px;width:100%;padding:5px 8px;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600">🗑 Delete Street</button>
         </div>
       `);
       infoWindow.setPosition(e.latLng);
       infoWindow.open(map);
     });
     poly.addListener('dblclick', () => {
-      if (infoWindow) infoWindow.close();
-      polylines.forEach(p => p.setMap(null));
-      delete markers[street.id];
-      street.placed = false; street.lat = null; street.lng = null; street.paths = null;
-      renderAll(); saveState();
+      removeStreetFromMap(street.id);
     });
   });
 }
