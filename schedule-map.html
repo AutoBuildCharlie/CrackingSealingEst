@@ -2366,7 +2366,7 @@ function buildPrintLegend(visibleIds) {
 
   // Get all visible placed streets sorted by number
   const visible = streets
-    .filter(s => s.placed && s.mapNum && (!visibleIds || visibleIds.has(s.id)))
+    .filter(s => s.placed && s.mapNum && (!visibleIds || visibleIds.size === 0 || visibleIds.has(s.id)))
     .sort((a, b) => a.mapNum - b.mapNum);
 
   if (!visible.length) {
@@ -2675,11 +2675,19 @@ function printSection(withLegend) {
   if (withLegend) {
     // Build legend with only streets visible in current map view
     const visibleIds = new Set(
-      streets
-        .filter(s => s.placed && s.lat && s.lng && bounds && bounds.contains({ lat: s.lat, lng: s.lng }))
-        .map(s => s.id)
+      streets.filter(s => {
+        if (!s.placed || !s.mapNum) return false;
+        // Use path midpoint if available, fall back to geocoded lat/lng
+        let lat = s.lat, lng = s.lng;
+        if (s.paths && s.paths.length) {
+          const pts = s.paths.flat();
+          const mid = pts[Math.floor(pts.length / 2)];
+          if (mid) { lat = mid.lat; lng = mid.lng; }
+        }
+        return lat && lng && bounds && bounds.contains({ lat, lng });
+      }).map(s => s.id)
     );
-    buildPrintLegend(visibleIds.size ? visibleIds : null);
+    buildPrintLegend(visibleIds); // always pass the set, even if empty
     document.body.classList.add('print-with-legend');
   } else {
     document.body.classList.remove('print-with-legend');
