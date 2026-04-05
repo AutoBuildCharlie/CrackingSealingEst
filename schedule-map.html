@@ -653,9 +653,19 @@
   <div id="new-street-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center">
     <div style="background:#1f2937;border-radius:10px;padding:20px;min-width:280px;max-width:360px;font-family:'Inter',sans-serif;box-shadow:0 4px 24px rgba(0,0,0,0.5)">
       <div style="font-weight:700;font-size:15px;color:#fff;margin-bottom:4px">Which street is this?</div>
-      <div style="font-size:11px;color:#6b7280;margin-bottom:12px">Pick from your schedule list</div>
-      <input id="new-street-search" type="text" placeholder="Filter streets..." oninput="filterNewStreetList()" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:7px 10px;color:#e0e0e0;font-size:12px;margin-bottom:8px;box-sizing:border-box">
-      <select id="new-street-pick" size="7" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:4px;color:#e0e0e0;font-size:12px;margin-bottom:14px;box-sizing:border-box"></select>
+      <div style="font-size:11px;color:#6b7280;margin-bottom:12px">Pick from your schedule list, or type a new name below</div>
+      <input id="new-street-search" type="text" placeholder="Search existing streets..." oninput="filterNewStreetList()" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:7px 10px;color:#e0e0e0;font-size:12px;margin-bottom:8px;box-sizing:border-box">
+      <select id="new-street-pick" size="5" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:4px;color:#e0e0e0;font-size:12px;margin-bottom:12px;box-sizing:border-box"></select>
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="flex:1;height:1px;background:#374151"></div>
+        <span style="font-size:10px;color:#6b7280">OR ADD NEW</span>
+        <div style="flex:1;height:1px;background:#374151"></div>
+      </div>
+      <input id="new-street-name" type="text" placeholder="New street name..." style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:7px 10px;color:#e0e0e0;font-size:12px;margin-bottom:8px;box-sizing:border-box">
+      <select id="new-street-day" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:7px 10px;color:#e0e0e0;font-size:12px;margin-bottom:14px;box-sizing:border-box">
+        <option value="">Select day...</option>
+      </select>
       <div style="display:flex;gap:8px">
         <button onclick="confirmNewStreet()" style="flex:1;padding:8px;background:#22c55e;border:none;border-radius:6px;color:#fff;font-weight:600;cursor:pointer;font-size:13px">Save Street</button>
         <button onclick="cancelNewStreet()" style="padding:8px 14px;background:#374151;border:none;border-radius:6px;color:#d1d5db;cursor:pointer;font-size:13px">Cancel</button>
@@ -2311,6 +2321,10 @@ function finishPinMode() {
     map.setOptions({ draggableCursor: '' });
     document.getElementById('pin-bar').style.display = 'none';
     document.getElementById('new-street-search').value = '';
+    document.getElementById('new-street-name').value = '';
+    const daySel = document.getElementById('new-street-day');
+    daySel.innerHTML = '<option value="">Select day...</option>';
+    for (const d of days) daySel.innerHTML += `<option value="${escHtml(d.key)}">${escHtml(d.label)}</option>`;
     populateNewStreetPicker('');
     const modal = document.getElementById('new-street-modal');
     modal.style.display = 'flex';
@@ -2352,15 +2366,27 @@ function filterNewStreetList() {
   populateNewStreetPicker(document.getElementById('new-street-search').value);
 }
 
-// Save the drawn path to the selected street
+// Save the drawn path — uses picker if a street is selected, otherwise name+day fields
 function confirmNewStreet() {
-  const sel = document.getElementById('new-street-pick');
-  const id  = sel.value;
-  if (!id) { showToast('Select a street first'); return; }
-  const st   = streets.find(s => s.id === id);
-  if (!st) { showToast('Street not found'); return; }
-  const path = pinMode.pendingPath;
-  const hex  = COLOR_HEX[st.color] || '#888';
+  const path   = pinMode.pendingPath;
+  const pickId = document.getElementById('new-street-pick').value;
+  let st;
+
+  if (pickId) {
+    // Use existing street from list
+    st = streets.find(s => s.id === pickId);
+    if (!st) { showToast('Street not found'); return; }
+  } else {
+    // Create new street from name+day fields
+    const name   = document.getElementById('new-street-name').value.trim();
+    const dayVal = document.getElementById('new-street-day').value;
+    if (!name || !dayVal) { showToast('Select a street from the list, or enter a name and day'); return; }
+    const [date, color] = dayVal.split('|');
+    const d = days.find(x => x.key === dayVal);
+    st = pushStreet({ name, date, day: d?.day || '', color, split: false });
+  }
+
+  const hex = COLOR_HEX[st.color] || '#888';
   if (markers[st.id]) markers[st.id].setMap(null);
   const polylines = [new google.maps.Polyline({
     path, strokeColor: hex, strokeOpacity: 0.85, strokeWeight: 6, map, zIndex: 2, clickable: true,
