@@ -509,33 +509,29 @@
   <div id="right-panel">
     <div id="panel-scroll">
 
-      <!-- Step 1 -->
+      <!-- Step 1: Plan PDF -->
       <div class="section">
-        <div class="section-label"><span class="step-badge">1</span> Upload Schedule Maps</div>
-        <div class="upload-zone" id="sched-zone" onclick="document.getElementById('sched-input').click()">
-          <div class="upload-icon">📋</div>
-          <div>Drag &amp; drop or click to upload</div>
-          <div style="font-size:10px;margin-top:2px;color:#4b5563">Images or PDF — AI reads street names + dates</div>
-        </div>
-        <input type="file" id="sched-input" accept="image/*,application/pdf" multiple style="display:none" onchange="handleScheduleUpload(this.files)">
-        <div id="extract-status" style="margin-top:6px;font-size:11px;color:#6b7280;min-height:16px"></div>
-      </div>
-
-      <!-- Step 2 hint -->
-      <div class="section">
-        <div class="section-label"><span class="step-badge">2</span> Review &amp; Place</div>
-        <div style="font-size:11px;color:#4b5563;line-height:1.5">Streets auto-place on the map after extraction. Click a street name to pan to it. Drag labels to reposition. Double-click a label to remove it.</div>
-      </div>
-
-      <!-- Step 3: Plan PDF for exact segments -->
-      <div class="section">
-        <div class="section-label"><span class="step-badge">3</span> Upload Plan PDF — Exact Segments</div>
-        <div style="font-size:11px;color:#4b5563;line-height:1.5;margin-bottom:8px">Upload the 60-page plan PDF. AI reads each page and extracts exact begin/end intersections — then redraws streets as precise segments.</div>
+        <div class="section-label"><span class="step-badge">1</span> Upload Plan PDF</div>
+        <div style="font-size:11px;color:#4b5563;line-height:1.5;margin-bottom:8px">AI reads every page and extracts all street segments with exact begin/end intersections. Do this first — streets won't appear on the map yet.</div>
         <div id="plan-zone" class="upload-zone" onclick="document.getElementById('plan-input').click()" ondrop="handlePlanDrop(event)" ondragover="event.preventDefault()">
-          <div style="font-size:12px;color:#6b7280">Drag &amp; drop plan PDF or click to upload</div>
+          <div class="upload-icon">📄</div>
+          <div>Drag &amp; drop plan PDF or click to upload</div>
         </div>
         <input type="file" id="plan-input" accept=".pdf,image/*" multiple style="display:none" onchange="handlePlanUpload(this.files)">
         <div id="plan-status" style="margin-top:6px;font-size:11px;color:#6b7280;min-height:16px"></div>
+      </div>
+
+      <!-- Step 2: Color Schedule -->
+      <div class="section">
+        <div class="section-label"><span class="step-badge">2</span> Upload Color Schedule</div>
+        <div style="font-size:11px;color:#4b5563;line-height:1.5;margin-bottom:8px">Upload your color-coded schedule map. AI matches colors + dates to extracted streets — they appear on the map with exact segments. Upload one week at a time.</div>
+        <div class="upload-zone" id="sched-zone" onclick="document.getElementById('sched-input').click()">
+          <div class="upload-icon">📋</div>
+          <div>Drag &amp; drop or click to upload</div>
+          <div style="font-size:10px;margin-top:2px;color:#4b5563">Images — AI reads colors + dates</div>
+        </div>
+        <input type="file" id="sched-input" accept="image/*,application/pdf" multiple style="display:none" onchange="handleScheduleUpload(this.files)">
+        <div id="extract-status" style="margin-top:6px;font-size:11px;color:#6b7280;min-height:16px"></div>
       </div>
 
       <!-- Week filter -->
@@ -953,26 +949,38 @@ async function handleScheduleUpload(files) {
 
   document.getElementById('sched-input').value = '';
 
+  // Apply saved segment data (from plan PDF) to newly extracted streets
+  if (savedSegments.length && newStreets.length) {
+    applySegmentData(savedSegments, newStreets);
+  }
+
   statusEl.innerHTML = newStreets.length
-    ? `✓ Added ${newStreets.length} street${newStreets.length !== 1 ? 's' : ''}`
+    ? `✓ Added ${newStreets.length} street${newStreets.length !== 1 ? 's' : ''} — placing on map...`
     : `⚠ No new streets found`;
 
   renderAll();
-  showToast(`${newStreets.length} streets extracted — placing on map...`);
 
-  // Auto-geocode all newly extracted streets
+  // Auto-geocode all newly extracted streets (will clip to exact segment if beginAt/endAt set)
   if (newStreets.length) {
     await geocodeAll(newStreets);
   }
 }
 
 async function callAI(b64, mimeType) {
+  // Build known street list from plan PDF segments (helps AI match names accurately)
+  const knownNames = savedSegments.length
+    ? [...new Set(savedSegments.map(s => s.name))].sort()
+    : [];
+  const knownList = knownNames.length
+    ? `\n\nKnown streets scheduled for treatment in this project:\n${knownNames.join('\n')}\n\nPrefer matching colored segments to names from this list. Use the exact spelling from the list when it matches.`
+    : '';
+
   const prompt = `You are reading a color-coded street work schedule map for Newark, California.
 
-The map has a legend in the corner: each color = a different work day (e.g. Green = 4/13 Mon, Blue = 4/14 Tue, Orange = 4/15 Wed, Yellow = 4/16 Thu, Red = 4/17 Fri, Pink = 4/25 Sat, etc.).
+The map has a legend showing which color = which work day — read the legend directly from the image (e.g. Green = 4/13 Mon, Blue = 4/14 Tue, Orange = 4/15 Wed, Yellow = 4/16 Thu, Red = 4/17 Fri, etc.).${knownList}
 
 For EVERY colored street segment visible on the map:
-1. Read the street name from map labels (read exactly as printed, do not abbreviate or expand)
+1. Identify the street name — match to the known list above when possible, otherwise read exactly as printed
 2. Note the highlight color
 3. Match to the legend date and day of week
 4. If a single street has TWO different colors on it, list it twice with split: true for both
@@ -985,7 +993,7 @@ Return ONLY valid JSON array, no other text:
 ]
 
 Allowed color values: green, blue, orange, yellow, red, pink, purple, teal, maroon, navy
-City is Newark CA — read names exactly as shown, preserve abbreviations.`;
+City is Newark CA — preserve abbreviations exactly as in the known list.`;
 
   const body = {
     provider: 'openai',
@@ -1081,27 +1089,12 @@ async function handlePlanUpload(files) {
     if (p < totalPages) await delay(1200);
   }
 
-  // Save segments to localStorage so they persist for future weeks
+  // Save segments to localStorage — streets will be placed when color schedule is uploaded
   savedSegments = allSegments;
-
-  statusEl.innerHTML = `<span class="spinner"></span>Matching ${allSegments.length} segments to streets...`;
-  const matched = applySegmentData(allSegments);
-  statusEl.innerHTML = `✓ Matched ${matched} streets — redrawing exact segments...`;
-
-  // Redraw matched streets with exact segment clipping
-  const toRedraw = streets.filter(s => s.beginAt && s.endAt);
-  for (let i = 0; i < toRedraw.length; i++) {
-    const st = toRedraw[i];
-    statusEl.innerHTML = `<span class="spinner"></span>Redrawing ${i + 1}/${toRedraw.length}: ${st.name}`;
-    if (markers[st.id]) { markers[st.id].setMap(null); delete markers[st.id]; }
-    st.placed = false; st.lat = null; st.lng = null; st.paths = null;
-    await drawStreetFromOverpass(st);
-    if (i < toRedraw.length - 1) await delay(1500);
-  }
-
-  renderAll();
   saveState();
-  statusEl.innerHTML = `✓ Done — ${matched} streets redrawn with exact segments`;
+
+  const uniqueNames = [...new Set(allSegments.map(s => s.name))].length;
+  statusEl.innerHTML = `✓ ${allSegments.length} segments extracted (${uniqueNames} streets) — now upload your color schedule`;
 }
 
 async function callPlanAI(pages, pageNum) {
@@ -1650,7 +1643,10 @@ function renderList() {
   const banner    = document.getElementById('not-found-banner');
 
   if (!streets.length) {
-    container.innerHTML = '<div style="font-size:11px;color:#374151;text-align:center;padding:16px 0">No streets yet — upload schedule images</div>';
+    const hint = savedSegments.length
+      ? `Upload your color schedule (Step 2) to place ${[...new Set(savedSegments.map(s=>s.name))].length} streets on the map`
+      : 'Upload plan PDF first (Step 1), then color schedule';
+    container.innerHTML = `<div style="font-size:11px;color:#374151;text-align:center;padding:16px 0">${hint}</div>`;
     banner.classList.remove('show');
     return;
   }
@@ -1804,8 +1800,10 @@ function clearAll() {
   markers          = {};
   streets          = [];
   days             = [];
+  savedSegments    = [];
   activeWeekFilter = null;
   document.getElementById('extract-status').textContent = '';
+  document.getElementById('plan-status').textContent = '';
   document.getElementById('geocode-bar').classList.remove('show');
   rebuildDaySelect();
   renderAll();
