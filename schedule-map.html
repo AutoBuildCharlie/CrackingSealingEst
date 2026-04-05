@@ -979,11 +979,7 @@ function initMap() {
     if (pinMode.active) { handlePinClick(e.latLng); return; }
     if (infoWindow) infoWindow.close();
   });
-  map.addListener('zoom_changed', () => {
-    // Re-run labels + collision after zoom settles (run twice to catch slow renders)
-    setTimeout(() => { refreshStreetLabels(); }, 300);
-    setTimeout(() => { resolveCollisions(); }, 600);
-  });
+  map.addListener('zoom_changed', () => setTimeout(refreshStreetLabels, 300));
   loadState();
 }
 
@@ -1900,9 +1896,6 @@ function refreshStreetLabels() {
     label.setMap(map);
     streetLabels[st.id] = label;
   }
-  // After labels render, resolve collisions (run twice — first pass may miss rotated labels)
-  setTimeout(resolveCollisions, 200);
-  setTimeout(resolveCollisions, 500);
 }
 
 // Push overlapping labels apart so they don't cross each other
