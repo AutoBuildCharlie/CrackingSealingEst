@@ -1429,6 +1429,31 @@ async function drawStreetFromOverpass(street) {
     if (i < namesToTry.length - 1) await delay(1000);
   }
 
+  // Fallback: geocode with Google → use that point to do a small Overpass radius query
+  // This finds streets that exist but whose OSM name doesn't match our search variants
+  if (!data || !data.elements || !data.elements.length) {
+    const geo = await geocodeStreet(street.name);
+    if (geo) {
+      try {
+        const aroundQuery = `[out:json][timeout:10];way["name"](around:120,${geo.lat},${geo.lng});out geom;`;
+        const aroundRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: 'data=' + encodeURIComponent(aroundQuery),
+          signal: AbortSignal.timeout(12000),
+        });
+        if (aroundRes.ok) {
+          const aroundData = await aroundRes.json();
+          // Only accept a result if its name loosely matches our street name
+          const norm = normalizeName(street.name);
+          const match = (aroundData.elements || []).find(e =>
+            e.tags?.name && wordOverlap(normalizeName(e.tags.name), norm) >= 0.5
+          );
+          if (match) data = { elements: [match] };
+        }
+      } catch(e) { /* skip */ }
+    }
+  }
+
   if (!data || !data.elements || !data.elements.length) return false;
 
   const hex        = COLOR_HEX[street.color] || '#888';
