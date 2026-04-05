@@ -118,29 +118,20 @@
 
     /* Colored pill labels on the map */
     .map-label {
-      white-space: nowrap;
-      font-size: 11px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
       font-weight: 800;
       font-family: 'Inter', sans-serif;
       cursor: move;
       user-select: none;
-      letter-spacing: 0.4px;
-      text-shadow:
-        -1px -1px 0 #fff,
-         1px -1px 0 #fff,
-        -1px  1px 0 #fff,
-         1px  1px 0 #fff,
-         0 0 6px #fff,
-         0 0 3px #fff;
-      background: none !important;
-      border: none !important;
-      box-shadow: none !important;
-      padding: 0;
-    }
-    .map-label .split-star {
-      font-size: 8px;
-      opacity: 0.8;
-      margin-left: 2px;
+      color: #fff;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
     }
 
     /* Geocode progress bar */
@@ -468,14 +459,11 @@
         font-size: 12px !important;
         font-weight: 900 !important;
         color: #000 !important;
-        background: none !important;
-        border: none !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-        text-shadow: none !important;
         opacity: 1 !important;
         visibility: visible !important;
-        display: block !important;
+        display: flex !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
       #pin-bar, #upgrade-bar, #status-bar { display: none !important; }
       /* Print legend panel — hidden by default for section prints */
@@ -998,22 +986,11 @@ class ScheduleLabel extends google.maps.OverlayView {
     const hex  = COLOR_HEX[this.street.color] || '#555';
 
     const div = document.createElement('div');
-    div.className        = 'map-label';
-    div.style.position   = 'absolute';
-    div.style.color      = '#000';
-    div.dataset.id       = this.street.id;
-    div.innerHTML = escHtml(this.street.name) +
-      (this.street.split ? '<span class="split-star">★</span>' : '');
-
-    // Rotate label to follow street direction (like Google Maps)
-    if (this.street.labelHeading != null) {
-      let angle = this.street.labelHeading;
-      // Keep text readable — flip if upside down
-      if (angle > 90 && angle <= 270) angle -= 180;
-      if (angle < -90 && angle >= -270) angle += 180;
-      div.style.transform = `rotate(${angle}deg)`;
-      div.style.transformOrigin = 'center center';
-    }
+    div.className          = 'map-label';
+    div.style.position     = 'absolute';
+    div.style.background   = hex;
+    div.dataset.id         = this.street.id;
+    div.textContent        = this.street.mapNum || '?';
 
     // Drag to reposition
     div.addEventListener('mousedown', (e) => this._startDrag(e));
@@ -1881,16 +1858,19 @@ function refreshStreetLabels() {
       delete streetLabels[id];
     }
   }
+  // Assign sequential numbers to placed streets
+  let num = 1;
+  for (const st of streets) {
+    if (st.placed && st.paths && st.paths.length) st.mapNum = num++;
+    else st.mapNum = null;
+  }
+
   // Add/update labels for placed polyline streets
   for (const st of streets) {
     if (!st.placed || !st.paths || !st.paths.length) continue;
     const allPts = st.paths.flat();
     if (!allPts.length) continue;
-    // Vary label position per street (15%–85%) based on name hash — spreads labels in dense areas
-    const hash = st.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    const pos  = 0.15 + (hash % 71) / 100; // 0.15 to 0.85
-    const mid  = allPts[Math.floor(allPts.length * pos)] || allPts[Math.floor(allPts.length / 2)];
-    st.labelHeading = pathHeading(allPts);
+    const mid = allPts[Math.floor(allPts.length / 2)];
     if (streetLabels[st.id]) {
       streetLabels[st.id].setMap(null);
       delete streetLabels[st.id];
@@ -2061,7 +2041,7 @@ function renderList() {
     for (const s of filtered) {
       const cls = s.placed ? 'placed' : s.geocodeFailed ? 'not-found' : '';
       html += `<div class="street-row ${cls}" data-sid="${s.id}" onclick="selectStreet('${s.id}')">
-        <div class="s-dot" style="background:${s.geocodeFailed ? '#f59e0b' : hex}"></div>
+        ${s.mapNum ? `<span style="min-width:18px;height:18px;border-radius:50%;background:${hex};color:#fff;font-size:9px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-right:4px;flex-shrink:0">${s.mapNum}</span>` : `<div class="s-dot" style="background:${s.geocodeFailed ? '#f59e0b' : hex}"></div>`}
         <span class="s-name">${escHtml(s.name)}</span>
         ${s.split ? '<span class="split-badge">split</span>' : ''}
         ${s.geocodeFailed ? `<span onclick="event.stopPropagation();startPinMode('${s.id}')" title="Draw manually" style="font-size:10px;color:#60a5fa;margin-left:4px;cursor:pointer">✏</span>` : ''}
