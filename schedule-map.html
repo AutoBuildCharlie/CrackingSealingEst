@@ -435,6 +435,74 @@
 
     /* ─── PRINT PACKET ──────────────────────────────────── */
     #print-packet { display: none; }
+
+    /* Packet preview overlay (on-screen before printing) */
+    #packet-preview-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #1a1a2e;
+      z-index: 9999;
+      flex-direction: column;
+    }
+    #packet-preview-overlay.show { display: flex; }
+    #packet-preview-bar {
+      background: #111;
+      color: #fff;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      border-bottom: 2px solid #333;
+    }
+    #packet-preview-bar h3 { margin: 0; font-size: 14px; flex: 1; }
+    #packet-preview-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      align-items: center;
+    }
+    .packet-preview-page {
+      background: white;
+      width: 100%;
+      max-width: 1100px;
+      border-radius: 6px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+    }
+    .packet-preview-page .packet-header {
+      padding: 10px 16px;
+      border-bottom: 2px solid #111;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8f8f8;
+    }
+    .packet-preview-page .packet-header h2 { font-size: 13px; font-weight: 800; margin: 0; }
+    .packet-preview-page .packet-header span { font-size: 10px; color: #555; }
+    .packet-preview-page .packet-body {
+      display: flex;
+      min-height: 420px;
+    }
+    .packet-preview-page .packet-map { flex: 1; overflow: hidden; }
+    .packet-preview-page .packet-map img { width: 100%; height: 100%; object-fit: cover; display: block; min-height: 380px; }
+    .packet-preview-page .packet-legend {
+      width: 240px;
+      flex-shrink: 0;
+      border-left: 2px solid #ccc;
+      padding: 12px;
+      overflow-y: auto;
+      max-height: 500px;
+    }
+    .packet-preview-page .packet-legend-title { font-size: 11px; font-weight: 800; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 6px; }
+    .packet-preview-page .packet-street-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid #f0f0f0; font-size: 11px; }
+    .packet-preview-page .packet-checkbox { width: 13px; height: 13px; border: 2px solid #333; border-radius: 2px; flex-shrink: 0; }
+    .packet-preview-page .packet-num { width: 17px; height: 17px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #fff; flex-shrink: 0; }
     @media print {
       body.printing-packet #header,
       body.printing-packet #right-panel,
@@ -842,6 +910,16 @@
 
   <!-- Auto-generated print packet (hidden until Print Packet) -->
   <div id="print-packet"></div>
+
+  <!-- Packet preview overlay -->
+  <div id="packet-preview-overlay">
+    <div id="packet-preview-bar">
+      <h3>📋 Print Packet Preview</h3>
+      <button onclick="printPacketFromPreview()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">🖨 Print All Pages</button>
+      <button onclick="closePacketPreview()" style="background:#374151;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">✕ Close</button>
+    </div>
+    <div id="packet-preview-scroll"></div>
+  </div>
 
   <!-- Print-only legend (hidden on screen) -->
   <div id="print-legend" style="display:none">
@@ -2556,27 +2634,35 @@ function generatePrintPacket() {
       </div>`;
   });
 
-  // 3. Inject into print container and print
-  const container = document.getElementById('print-packet');
-  container.innerHTML = pagesHtml;
-  document.body.classList.add('printing-packet');
+  // 3. Show preview overlay — user sees pages before printing
+  // Inject into both the print container and the preview scroll area
+  const printContainer = document.getElementById('print-packet');
+  const previewScroll  = document.getElementById('packet-preview-scroll');
+  printContainer.innerHTML = pagesHtml;
 
-  // Wait for static map images to load then print
-  const imgs = container.querySelectorAll('img');
+  // Build preview version (same HTML but wrapped in preview card class)
+  previewScroll.innerHTML = pagesHtml.replace(/class="packet-page"/g, 'class="packet-page packet-preview-page"');
+
+  document.getElementById('packet-preview-overlay').classList.add('show');
+  showToast('Scroll down to see all pages');
+}
+
+function printPacketFromPreview() {
+  document.body.classList.add('printing-packet');
+  const imgs = document.getElementById('print-packet').querySelectorAll('img');
   let loaded = 0;
-  const tryPrint = () => { if (++loaded >= imgs.length) { setTimeout(() => window.print(), 300); } };
-  if (!imgs.length) { setTimeout(() => window.print(), 300); }
+  const tryPrint = () => { if (++loaded >= imgs.length) setTimeout(() => window.print(), 300); };
+  if (!imgs.length) { setTimeout(() => window.print(), 300); return; }
   imgs.forEach(img => {
     if (img.complete) tryPrint();
     else { img.onload = tryPrint; img.onerror = tryPrint; }
   });
-
-  // Restore after print dialog closes
-  const restore = () => {
-    document.body.classList.remove('printing-packet');
-    window.removeEventListener('focus', restore);
-  };
+  const restore = () => { document.body.classList.remove('printing-packet'); window.removeEventListener('focus', restore); };
   window.addEventListener('focus', restore);
+}
+
+function closePacketPreview() {
+  document.getElementById('packet-preview-overlay').classList.remove('show');
 }
 
 function buildPrintLegend(visibleIds) {
