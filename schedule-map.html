@@ -534,6 +534,7 @@
   <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(this.files)">
   <button class="btn btn-clear" onclick="document.getElementById('import-input').click()">⬆ Import</button>
   <button class="btn btn-place-all" onclick="placeAllSegments()">▶ Place All Streets</button>
+  <button class="btn" onclick="startNewStreetDraw()" style="background:#0369a1;color:#fff" title="Click multiple points on the map to draw a new street">✏ Draw Street</button>
   <button class="btn btn-clear" onclick="clearStreets()">Clear Streets</button>
   <button class="btn btn-clear" onclick="clearAll()">Clear All</button>
   <button class="btn btn-export" onclick="printSection(false)" title="Print just the map — no legend (for section prints)">🖨 Print Section</button>
@@ -637,6 +638,7 @@
     <!-- Pin mode bar — shown when manually drawing a street -->
     <div id="pin-bar" style="display:none;padding:8px 12px;background:#1e3a5f;border-top:2px solid #3b82f6;font-size:11px;color:#fff;display:none;align-items:center;gap:8px;flex-shrink:0">
       <span id="pin-msg" style="flex:1"></span>
+      <button id="pin-finish-btn" onclick="finishPinMode()" style="display:none;background:#22c55e;border:none;border-radius:4px;color:#fff;padding:4px 12px;cursor:pointer;font-size:11px;font-weight:600">✓ Finish</button>
       <button onclick="cancelPinMode()" style="background:#374151;border:none;border-radius:4px;color:#d1d5db;padding:4px 10px;cursor:pointer;font-size:11px">✕ Cancel</button>
     </div>
     <div id="status-bar">0 streets · 0 placed on map</div>
@@ -644,6 +646,21 @@
       <button onclick="upgradePillsToPolylines()" style="width:100%;padding:6px;background:#1d4ed8;border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:11px;font-weight:600">
         ⬆ Upgrade pill labels → road lines
       </button>
+    </div>
+  </div>
+
+  <!-- New street name/day prompt modal -->
+  <div id="new-street-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#1f2937;border-radius:10px;padding:20px;min-width:280px;max-width:340px;font-family:'Inter',sans-serif;box-shadow:0 4px 24px rgba(0,0,0,0.5)">
+      <div style="font-weight:700;font-size:15px;color:#fff;margin-bottom:12px">Name this street</div>
+      <input id="new-street-name" type="text" placeholder="Street name..." style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:8px 10px;color:#e0e0e0;font-size:13px;margin-bottom:10px;box-sizing:border-box">
+      <select id="new-street-day" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:8px 10px;color:#e0e0e0;font-size:13px;margin-bottom:14px;box-sizing:border-box">
+        <option value="">Select day...</option>
+      </select>
+      <div style="display:flex;gap:8px">
+        <button onclick="confirmNewStreet()" style="flex:1;padding:8px;background:#22c55e;border:none;border-radius:6px;color:#fff;font-weight:600;cursor:pointer;font-size:13px">Save Street</button>
+        <button onclick="cancelNewStreet()" style="padding:8px 14px;background:#374151;border:none;border-radius:6px;color:#d1d5db;cursor:pointer;font-size:13px">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -2219,58 +2236,140 @@ function buildPrintLegend() {
   body.innerHTML = html || '<div style="font-size:10px;color:#999">No streets added yet</div>';
 }
 
-// ─── Manual Pin Mode ─────────────────────────────────────
-let pinMode = { active: false, street: null, start: null, startMarker: null };
+// ─── Manual Pin Mode (multi-point) ───────────────────────
+let pinMode = { active: false, street: null, points: [], pointMarkers: [], previewPolyline: null, isNew: false, pendingPath: null };
 
 function startPinMode(streetId) {
   const st = streets.find(s => s.id === streetId);
   if (!st) return;
-  cancelPinMode(); // clear any existing
-  pinMode = { active: true, street: st, start: null, startMarker: null };
+  cancelPinMode();
+  pinMode = { active: true, street: st, points: [], pointMarkers: [], previewPolyline: null, isNew: false, pendingPath: null };
   map.setOptions({ draggableCursor: 'crosshair' });
+  document.getElementById('pin-finish-btn').style.display = 'none';
   const bar = document.getElementById('pin-bar');
   bar.style.display = 'flex';
-  document.getElementById('pin-msg').textContent = `📍 ${st.name} — click START point on map`;
+  document.getElementById('pin-msg').textContent = `📍 ${st.name} — click points on map, then ✓ Finish`;
 }
 
 function cancelPinMode() {
-  if (pinMode.startMarker) pinMode.startMarker.setMap(null);
-  pinMode = { active: false, street: null, start: null, startMarker: null };
+  if (pinMode.pointMarkers) pinMode.pointMarkers.forEach(m => m.setMap(null));
+  if (pinMode.previewPolyline) pinMode.previewPolyline.setMap(null);
+  pinMode = { active: false, street: null, points: [], pointMarkers: [], previewPolyline: null, isNew: false, pendingPath: null };
   map.setOptions({ draggableCursor: '' });
   document.getElementById('pin-bar').style.display = 'none';
 }
 
 function handlePinClick(latLng) {
   if (!pinMode.active) return;
-  if (!pinMode.start) {
-    // First click — record start, place marker
-    pinMode.start = latLng;
-    pinMode.startMarker = new google.maps.Marker({
-      position: latLng, map,
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
+  const pt = { lat: latLng.lat(), lng: latLng.lng() };
+  pinMode.points.push(pt);
+
+  // Small blue dot for each point
+  const marker = new google.maps.Marker({
+    position: latLng, map,
+    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 5, fillColor: '#3b82f6', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
+    zIndex: 20,
+  });
+  pinMode.pointMarkers.push(marker);
+
+  // Live preview polyline
+  if (pinMode.previewPolyline) {
+    pinMode.previewPolyline.setPath(pinMode.points);
+  } else if (pinMode.points.length >= 2) {
+    pinMode.previewPolyline = new google.maps.Polyline({
+      path: pinMode.points, strokeColor: '#3b82f6', strokeOpacity: 0.6,
+      strokeWeight: 4, map, zIndex: 10, clickable: false,
     });
-    document.getElementById('pin-msg').textContent = `📍 ${pinMode.street.name} — click END point on map`;
+  }
+
+  // Show Finish button after 2+ points
+  if (pinMode.points.length >= 2) {
+    document.getElementById('pin-finish-btn').style.display = 'inline-block';
+  }
+  const name = pinMode.street ? pinMode.street.name : 'new street';
+  document.getElementById('pin-msg').textContent = `📍 ${name} — ${pinMode.points.length} point${pinMode.points.length > 1 ? 's' : ''} · click more or ✓ Finish`;
+}
+
+// Start drawing a brand-new street from scratch
+function startNewStreetDraw() {
+  cancelPinMode();
+  pinMode = { active: true, street: null, points: [], pointMarkers: [], previewPolyline: null, isNew: true, pendingPath: null };
+  map.setOptions({ draggableCursor: 'crosshair' });
+  document.getElementById('pin-finish-btn').style.display = 'none';
+  document.getElementById('pin-bar').style.display = 'flex';
+  document.getElementById('pin-msg').textContent = '📍 Click points on map to draw street, then ✓ Finish';
+}
+
+// Called when user clicks ✓ Finish
+function finishPinMode() {
+  if (pinMode.points.length < 2) { showToast('Add at least 2 points first'); return; }
+  const path = [...pinMode.points];
+
+  if (pinMode.isNew) {
+    // Store path and show name/day prompt
+    pinMode.pendingPath = path;
+    pinMode.active = false;
+    map.setOptions({ draggableCursor: '' });
+    document.getElementById('pin-bar').style.display = 'none';
+    // Populate day selector in modal
+    const sel = document.getElementById('new-street-day');
+    sel.innerHTML = '<option value="">Select day...</option>';
+    for (const d of days) sel.innerHTML += `<option value="${escHtml(d.key)}">${escHtml(d.label)}</option>`;
+    document.getElementById('new-street-name').value = '';
+    const modal = document.getElementById('new-street-modal');
+    modal.style.display = 'flex';
+    setTimeout(() => document.getElementById('new-street-name').focus(), 50);
   } else {
-    // Second click — draw polyline
-    const st   = pinMode.street;
-    const path = [{ lat: pinMode.start.lat(), lng: pinMode.start.lng() }, { lat: latLng.lat(), lng: latLng.lng() }];
-    const hex  = COLOR_HEX[st.color] || '#888';
+    // Existing street — save path directly
+    const st  = pinMode.street;
+    const hex = COLOR_HEX[st.color] || '#888';
     if (markers[st.id]) markers[st.id].setMap(null);
     const polylines = [new google.maps.Polyline({
       path, strokeColor: hex, strokeOpacity: 0.85, strokeWeight: 6, map, zIndex: 2, clickable: true,
     })];
     attachPolylineListeners(polylines, st);
-    st.paths  = [path];
-    st.lat    = (path[0].lat + path[1].lat) / 2;
-    st.lng    = (path[0].lng + path[1].lng) / 2;
+    st.paths = [path];
+    st.lat = path.reduce((s, p) => s + p.lat, 0) / path.length;
+    st.lng = path.reduce((s, p) => s + p.lng, 0) / path.length;
     st.placed = true;
     st.geocodeFailed = false;
     markers[st.id] = { setMap: (m) => polylines.forEach(p => p.setMap(m)) };
     cancelPinMode();
     renderAll();
     saveState();
-    showToast(`${st.name} drawn manually`);
+    showToast(`${st.name} drawn`);
   }
+}
+
+// Save a newly drawn street after name/day are entered
+function confirmNewStreet() {
+  const name   = document.getElementById('new-street-name').value.trim();
+  const dayVal = document.getElementById('new-street-day').value;
+  if (!name || !dayVal) { showToast('Enter a name and select a day'); return; }
+  const [date, color] = dayVal.split('|');
+  const d  = days.find(x => x.key === dayVal);
+  const st = pushStreet({ name, date, day: d?.day || '', color, split: false });
+  const path = pinMode.pendingPath;
+  const hex  = COLOR_HEX[color] || '#888';
+  const polylines = [new google.maps.Polyline({
+    path, strokeColor: hex, strokeOpacity: 0.85, strokeWeight: 6, map, zIndex: 2, clickable: true,
+  })];
+  attachPolylineListeners(polylines, st);
+  st.paths = [path];
+  st.lat   = path.reduce((s, p) => s + p.lat, 0) / path.length;
+  st.lng   = path.reduce((s, p) => s + p.lng, 0) / path.length;
+  st.placed = true;
+  markers[st.id] = { setMap: (m) => polylines.forEach(p => p.setMap(m)) };
+  document.getElementById('new-street-modal').style.display = 'none';
+  cancelPinMode();
+  renderAll();
+  saveState();
+  showToast(`${name} added`);
+}
+
+function cancelNewStreet() {
+  document.getElementById('new-street-modal').style.display = 'none';
+  cancelPinMode();
 }
 
 // ─── Retry Not-Found Streets (cache-first + single batch Overpass call) ───
