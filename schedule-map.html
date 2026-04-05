@@ -2381,7 +2381,7 @@ function buildPrintLegend(visibleIds) {
 
   // Get all visible placed streets sorted by number
   const visible = streets
-    .filter(s => s.placed && s.mapNum && (!visibleIds || visibleIds.size === 0 || visibleIds.has(s.id)))
+    .filter(s => s.placed && s.mapNum && (!visibleIds || visibleIds.has(s.id)))
     .sort((a, b) => a.mapNum - b.mapNum);
 
   if (!visible.length) {
@@ -2688,21 +2688,23 @@ function printSection(withLegend) {
   const bounds = map.getBounds();
 
   if (withLegend) {
-    // Build legend with only streets visible in current map view
-    const visibleIds = new Set(
-      streets.filter(s => {
-        if (!s.placed || !s.mapNum) return false;
-        // Use path midpoint if available, fall back to geocoded lat/lng
-        let lat = s.lat, lng = s.lng;
-        if (s.paths && s.paths.length) {
-          const pts = s.paths.flat();
-          const mid = pts[Math.floor(pts.length / 2)];
-          if (mid) { lat = mid.lat; lng = mid.lng; }
+    // Check which number circles are actually visible inside the map element
+    const mapEl = document.getElementById('gmap');
+    const mapRect = mapEl ? mapEl.getBoundingClientRect() : null;
+    const visibleIds = new Set();
+    if (mapRect) {
+      for (const [id, label] of Object.entries(streetLabels)) {
+        if (!label.div) continue;
+        const r = label.div.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top  + r.height / 2;
+        if (cx >= mapRect.left && cx <= mapRect.right &&
+            cy >= mapRect.top  && cy <= mapRect.bottom) {
+          visibleIds.add(id);
         }
-        return lat && lng && bounds && bounds.contains({ lat, lng });
-      }).map(s => s.id)
-    );
-    buildPrintLegend(visibleIds); // always pass the set, even if empty
+      }
+    }
+    buildPrintLegend(visibleIds);
     document.body.classList.add('print-with-legend');
   } else {
     document.body.classList.remove('print-with-legend');
