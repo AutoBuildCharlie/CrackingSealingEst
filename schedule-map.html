@@ -992,8 +992,6 @@ function initMap() {
     if (infoWindow) infoWindow.close();
   });
   map.addListener('zoom_changed', () => { setTimeout(refreshStreetLabels, 300); setTimeout(resolveCollisions, 600); });
-  // Track visible streets continuously so Print + List always has the right set
-  map.addListener('idle', updateVisibleStreets);
   loadState();
 }
 
@@ -2683,41 +2681,50 @@ const NO_LABEL_STYLES = [
   { featureType: 'transit',     stylers: [{ visibility: 'off' }] },
 ];
 
-// ─── Visible Street Tracking ─────────────────────────────
-let _visibleStreetIds = new Set();
-function updateVisibleStreets() {
-  const bounds = map.getBounds();
-  if (!bounds) return;
-  _visibleStreetIds = new Set(
-    streets
-      .filter(s => s.placed && s.mapNum && s.lat && s.lng && bounds.contains(new google.maps.LatLng(s.lat, s.lng)))
-      .map(s => s.id)
-  );
-}
-
-// ─── Section Print ───────────────────────────────────────
+// ─── Section Print (clean rewrite v390) ──────────────────
 function printSection(withLegend) {
   const center = map.getCenter();
   const zoom   = map.getZoom();
-  map.setOptions({ styles: NO_LABEL_STYLES });
 
   if (withLegend) {
-    // Use the streets tracked as visible BEFORE print resize — captured live on every map idle
-    buildPrintLegend(new Set(_visibleStreetIds));
+    // Step 1: snapshot which circles are visually on screen RIGHT NOW (before any resize)
+    const mapArea = document.getElementById('map-area');
+    const mapRect = mapArea.getBoundingClientRect();
+    const visibleIds = new Set();
+    document.querySelectorAll('.map-label-circle').forEach(circle => {
+      const wrapper = circle.closest('.map-label');
+      if (!wrapper || !wrapper.dataset.id) return;
+      const r = circle.getBoundingClientRect();
+      const cx = (r.left + r.right)  / 2;
+      const cy = (r.top  + r.bottom) / 2;
+      if (cx >= mapRect.left && cx <= mapRect.right &&
+          cy >= mapRect.top  && cy <= mapRect.bottom) {
+        visibleIds.add(wrapper.dataset.id);
+      }
+    });
+
+    // Step 2: build legend from that snapshot
+    buildPrintLegend(visibleIds);
     document.body.classList.add('print-with-legend');
   } else {
     document.body.classList.remove('print-with-legend');
   }
 
+  // Step 3: set print map styles, resize, restore center, print
+  map.setOptions({ styles: NO_LABEL_STYLES });
   refreshStreetLabels();
   google.maps.event.trigger(map, 'resize');
   setTimeout(() => {
     map.setCenter(center);
     map.setZoom(zoom);
     setTimeout(() => window.print(), 400);
-  }, 150);
+  }, 200);
 
-  const restore = () => { document.body.classList.remove('print-with-legend'); window.removeEventListener('focus', restore); };
+  // Step 4: restore after print dialog closes
+  const restore = () => {
+    document.body.classList.remove('print-with-legend');
+    window.removeEventListener('focus', restore);
+  };
   window.addEventListener('focus', restore);
 }
 

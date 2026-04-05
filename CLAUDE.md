@@ -668,8 +668,8 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 - **Draw Street tool:** ✏ Draw Street button in toolbar → click map points → ✓ Finish → pick from schedule list or type new name. Modal is draggable.
 - **Delete street:** Click any polyline → popup shows red 🗑 Delete Street button
 - **Rotate map:** ↺ ↻ buttons in toolbar, 15° per click, ⊙ to reset
-- **Current status:** Map complete. All streets labeled, print-ready. Next step is for Cal to Export JSON (backup), then print/save as PDF and email to Terri at GRSI.
-- **Next session:** Export JSON backup → print as landscape PDF → email to Terri
+- **Current status (v389):** Map complete, numbered pins on streets, Print + List feature still broken — list never filters to just visible streets. Print Packet approach abandoned (Static Maps API unreliable). Full print function rewrite needed next session.
+- **Next session:** Rewrite printSection() from scratch — clean approach, no accumulated patches
 
 ### Schedule Map — Known Decisions (updated)
 | Decision | Reason |
@@ -691,6 +691,9 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 | Clipping permanently removed from drawFromCachedElements | Tried twice (v316, v324) — both caused diagonal lines. Full streets is the permanent decision. Never re-attempt clipping in this function. |
 | Retry button calls retryNotFound() not geocodeAll() | geocodeAll() only uses fast OSM cache. retryNotFound() uses full per-street Overpass + Google geocode + around:120 fallback. Retry must always use the accurate path. |
 | Cal always prefers accuracy over speed | Explicit preference stated. Never remove slow-but-accurate fallbacks for speed gains on this project. |
+| Print Packet abandoned | Static Maps API images never loaded reliably — blank print pages. Removed completely (v380). Use Print + List instead. |
+| Street labels switched to numbered circles | Each placed street gets a small colored circle with a number. Sidebar list shows matching number + street name + checkbox. Numbers assigned in streets array order. |
+| Print + List legend filter broken through v389 | Tried: lat/lng bounds, pixel position check, idle event, pre-computed set. Root issue: `s.lat/s.lng` may not accurately reflect path position for all streets, OR bounds after sidebar resize includes more streets than visible. Need clean rewrite of printSection(). |
 | Plan PDF AI prompt requires gray-filled road surface | Old prompt said "gray shaded" — AI kept picking up background context labels. New prompt explicitly says the ROAD SURFACE must be visibly filled gray, not just labeled. |
 | Street labels = bold black text, no pill | Removed pill background. Labels are plain bold black text with white text-shadow outline. Applied via ScheduleLabel.onAdd() and .map-label CSS. |
 | Print labels added via beforeprint | Polyline streets have no persistent label. beforeprint creates temporary ScheduleLabel overlays for all placed polyline streets. afterprint removes them. |
