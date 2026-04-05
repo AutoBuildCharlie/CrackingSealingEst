@@ -992,6 +992,8 @@ function initMap() {
     if (infoWindow) infoWindow.close();
   });
   map.addListener('zoom_changed', () => { setTimeout(refreshStreetLabels, 300); setTimeout(resolveCollisions, 600); });
+  // Track visible streets continuously so Print + List always has the right set
+  map.addListener('idle', updateVisibleStreets);
   loadState();
 }
 
@@ -2681,6 +2683,18 @@ const NO_LABEL_STYLES = [
   { featureType: 'transit',     stylers: [{ visibility: 'off' }] },
 ];
 
+// ─── Visible Street Tracking ─────────────────────────────
+let _visibleStreetIds = new Set();
+function updateVisibleStreets() {
+  const bounds = map.getBounds();
+  if (!bounds) return;
+  _visibleStreetIds = new Set(
+    streets
+      .filter(s => s.placed && s.mapNum && s.lat && s.lng && bounds.contains(new google.maps.LatLng(s.lat, s.lng)))
+      .map(s => s.id)
+  );
+}
+
 // ─── Section Print ───────────────────────────────────────
 function printSection(withLegend) {
   const center = map.getCenter();
@@ -2688,46 +2702,20 @@ function printSection(withLegend) {
   map.setOptions({ styles: NO_LABEL_STYLES });
 
   if (withLegend) {
+    // Use the streets tracked as visible BEFORE print resize — captured live on every map idle
+    buildPrintLegend(new Set(_visibleStreetIds));
     document.body.classList.add('print-with-legend');
-    google.maps.event.trigger(map, 'resize');
-    setTimeout(() => {
-      map.setCenter(center);
-      map.setZoom(zoom);
-      // Wait for map to fully render then check which circles are on screen
-      google.maps.event.addListenerOnce(map, 'idle', () => {
-        refreshStreetLabels();
-        setTimeout(() => {
-          const mapArea = document.getElementById('map-area');
-          const mapRect = mapArea ? mapArea.getBoundingClientRect() : null;
-          const visibleIds = new Set();
-          if (mapRect) {
-            document.querySelectorAll('.map-label').forEach(div => {
-              const id = div.dataset.id;
-              if (!id) return;
-              const r = div.getBoundingClientRect();
-              const cx = (r.left + r.right) / 2;
-              const cy = (r.top  + r.bottom) / 2;
-              if (cx >= mapRect.left && cx <= mapRect.right &&
-                  cy >= mapRect.top  && cy <= mapRect.bottom) {
-                visibleIds.add(id);
-              }
-            });
-          }
-          buildPrintLegend(visibleIds);
-          setTimeout(() => window.print(), 200);
-        }, 400); // give circles time to reposition after idle
-      });
-    }, 150);
   } else {
     document.body.classList.remove('print-with-legend');
-    refreshStreetLabels();
-    google.maps.event.trigger(map, 'resize');
-    setTimeout(() => {
-      map.setCenter(center);
-      map.setZoom(zoom);
-      setTimeout(() => window.print(), 400);
-    }, 150);
   }
+
+  refreshStreetLabels();
+  google.maps.event.trigger(map, 'resize');
+  setTimeout(() => {
+    map.setCenter(center);
+    map.setZoom(zoom);
+    setTimeout(() => window.print(), 400);
+  }, 150);
 
   const restore = () => { document.body.classList.remove('print-with-legend'); window.removeEventListener('focus', restore); };
   window.addEventListener('focus', restore);
