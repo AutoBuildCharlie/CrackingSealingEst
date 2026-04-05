@@ -422,137 +422,62 @@
     }
     #toast.show { opacity: 1; }
 
-    /* ─── PREVIEW MODE ──────────────────────────────────── */
-    body.preview-mode #header      { display: none !important; }
-    body.preview-mode #right-panel { display: none !important; }
-    body.preview-mode #pin-bar     { display: none !important; }
-    body.preview-mode #upgrade-bar { display: none !important; }
-    body.preview-mode #status-bar  { display: none !important; }
-    body.preview-mode #geocode-bar { display: none !important; }
-    body.preview-mode #main        { height: 100vh; }
-    body.preview-mode #map-area    { flex: 1; }
-    body.preview-mode #preview-bar { display: flex !important; }
-
-    /* ─── PRINT STYLES ───────────────────────────────────── */
-    @page { size: landscape; margin: 0; }
+    /* ─── PRINT ─────────────────────────────────────────────── */
+    @page { size: landscape; margin: 0.8cm; }
     @media print {
-      html, body {
-        width: 100%; height: 100%;
-        margin: 0; padding: 0;
-        background: white;
-        overflow: hidden;
-      }
-      #header, #right-panel, #geocode-bar, #toast,
-      #pin-bar, #upgrade-bar, #status-bar, #preview-bar { display: none !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      html, body { background: white !important; margin: 0; padding: 0; }
+      #header, #geocode-bar, #toast, #pin-bar, #upgrade-bar, #preview-bar { display: none !important; }
       #main {
         display: flex !important;
         flex-direction: row !important;
         width: 100% !important;
-        height: 100% !important;
+        height: 100vh !important;
         margin: 0; padding: 0;
-        position: absolute;
-        inset: 0;
       }
       #map-area {
-        display: block !important;
         flex: 1 !important;
         height: 100% !important;
         position: relative !important;
       }
-      #gmap {
-        position: absolute !important;
-        inset: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
+      #gmap { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; }
+      #right-panel {
+        width: 260px !important;
+        flex-shrink: 0 !important;
+        background: white !important;
+        border-left: 2px solid #ccc !important;
+        overflow: hidden !important;
       }
+      #panel-scroll { background: white !important; overflow: hidden !important; }
+      /* Hide everything in the panel except the street list */
+      .section:has(#plan-zone),
+      .section:has(#sched-zone),
+      .section:has(.manual-row),
+      #filter-section,
+      #not-found-banner,
+      #street-search,
+      #status-bar { display: none !important; }
+      /* Section label */
+      .section-label { color: #111 !important; border-color: #ccc !important; background: white !important; }
+      /* Day headers */
+      .day-header { background: white !important; padding-bottom: 4px !important; }
+      .day-count { color: #666 !important; }
+      /* Street rows */
+      .street-row {
+        background: white !important;
+        border-bottom: 1px solid #e5e7eb !important;
+        color: #111 !important;
+      }
+      .s-name { color: #111 !important; }
+      .del-btn { display: none !important; }
+      /* Map labels */
       .map-label {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
         font-size: 12px !important;
         font-weight: 900 !important;
         color: #000 !important;
         opacity: 1 !important;
         visibility: visible !important;
         display: flex !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      #pin-bar, #upgrade-bar, #status-bar { display: none !important; }
-      /* Print legend panel */
-      body.print-with-legend #print-legend {
-        display: flex !important;
-        flex-direction: column;
-        width: 260px;
-        flex-shrink: 0;
-        background: white;
-        border-left: 2px solid #ccc;
-        padding: 16px 14px;
-        overflow: hidden;
-        font-family: 'Inter', sans-serif;
-      }
-      #print-legend {
-        display: none !important;
-      }
-      #print-legend h2 {
-        font-size: 14px;
-        font-weight: 800;
-        color: #111;
-        margin-bottom: 2px;
-      }
-      #print-legend .proj-sub {
-        font-size: 10px;
-        color: #666;
-        margin-bottom: 12px;
-        line-height: 1.4;
-        border-bottom: 2px solid #e5e7eb;
-        padding-bottom: 10px;
-      }
-      #print-legend .lg-day {
-        margin-bottom: 10px;
-      }
-      #print-legend .lg-day-header {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 5px;
-        border-bottom: 1px solid #e5e7eb;
-        padding-bottom: 4px;
-      }
-      #print-legend .lg-swatch {
-        width: 14px;
-        height: 14px;
-        border-radius: 3px;
-        flex-shrink: 0;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      #print-legend .lg-day-title {
-        font-size: 11px;
-        font-weight: 800;
-        color: #111;
-      }
-      #print-legend .lg-street {
-        font-size: 11px;
-        color: #111;
-        padding: 4px 0;
-        line-height: 1.4;
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        border-bottom: 1px solid #f3f4f6;
-      }
-      #print-legend .lg-checkbox {
-        width: 14px;
-        height: 14px;
-        border: 2px solid #333;
-        border-radius: 2px;
-        flex-shrink: 0;
-        display: inline-block;
-      }
-      #print-legend .lg-street.split::after {
-        content: ' ★';
-        color: #888;
-        font-size: 9px;
       }
     }
   </style>
@@ -575,9 +500,7 @@
   <button class="btn btn-clear" onclick="clearStreets()">Clear Streets</button>
   <button class="btn btn-clear" onclick="clearAll()">Clear All</button>
 
-  <button class="btn" onclick="showPrintPreview()" style="background:#0f766e;color:#fff" title="Preview what the printed map will look like">👁 Preview</button>
-<button class="btn btn-export" onclick="printSection(true)" title="Print current view + checklist">🖨 Print + List</button>
-  <button class="btn btn-export" onclick="printSection(false)" title="Print just the map">🖨 Map Only</button>
+  <button class="btn btn-export" onclick="window.print()" title="Print map + street list">🖨 Print</button>
   <a href="index.html" class="btn btn-back">← PavementScan</a>
 </div>
 
@@ -688,14 +611,7 @@
     </div>
   </div>
 
-  <!-- Preview mode floating toolbar (shown when body.preview-mode) -->
-  <div id="preview-bar" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(15,15,15,0.92);border-radius:10px;padding:8px 14px;display:none;align-items:center;gap:10px;font-family:'Inter',sans-serif;box-shadow:0 2px 16px rgba(0,0,0,0.5)">
-    <span style="color:#9ca3af;font-size:12px">Preview mode — pan &amp; zoom freely</span>
-    <button onclick="printFromPreview()" style="padding:5px 14px;background:#22c55e;border:none;border-radius:6px;color:#fff;font-weight:700;cursor:pointer;font-size:12px">🖨 Print / Save PDF</button>
-    <button onclick="closePrintPreview()" style="padding:5px 12px;background:#374151;border:none;border-radius:6px;color:#d1d5db;cursor:pointer;font-size:12px">✕ Exit Preview</button>
-  </div>
-
-  <!-- Draw street — pick which street from the list -->
+<!-- Draw street — pick which street from the list -->
   <div id="new-street-modal" style="display:none;position:fixed;inset:0;background:transparent;z-index:9999;pointer-events:none">
     <div id="new-street-box" style="pointer-events:all;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1f2937;border-radius:10px;padding:20px;min-width:280px;max-width:360px;font-family:'Inter',sans-serif;box-shadow:0 4px 24px rgba(0,0,0,0.7)">
       <div id="new-street-drag-handle" style="font-weight:700;font-size:15px;color:#fff;margin-bottom:4px;cursor:grab;user-select:none" title="Drag to move">Which street is this? <span style="font-size:10px;color:#4b5563;font-weight:400">⠿ drag</span></div>
@@ -739,12 +655,6 @@
   })();
   </script>
 
-  <!-- Print-only legend (hidden on screen) -->
-  <div id="print-legend" style="display:none">
-    <h2>Newark 2025 Slurry Seal</h2>
-    <div class="proj-sub">City of Newark, Alameda County, CA<br>Project CIPA10005.FY2025</div>
-    <div id="print-legend-body"></div>
-  </div>
 
 </div><!-- end main -->
 
@@ -2347,59 +2257,6 @@ function setupDropZone(zoneId, onDrop) {
 
 setupDropZone('sched-zone', files => handleScheduleUpload(files));
 
-// ─── Light map for print, dark map for screen ────────────
-const PRINT_STYLES = [
-  { elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi',    stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',stylers: [{ visibility: 'off' }] },
-];
-
-let _printLabels = []; // temporary labels added during print
-
-window.addEventListener('beforeprint', () => {
-  buildPrintLegend();
-  if (map) map.setOptions({ styles: PRINT_STYLES });
-  // Add name labels to all polyline streets (they have no persistent label)
-  for (const st of streets) {
-    if (!st.placed || !st.paths || !st.lat || !st.lng) continue;
-    if (markers[st.id] && markers[st.id].getMap) continue; // already a ScheduleLabel
-    const lbl = new window.ScheduleLabel(new google.maps.LatLng(st.lat, st.lng), st);
-    lbl.setMap(map);
-    _printLabels.push(lbl);
-  }
-});
-
-window.addEventListener('afterprint', () => {
-  if (map) map.setOptions({ styles: MAP_STYLES });
-  _printLabels.forEach(l => l.setMap(null));
-  _printLabels = [];
-});
-
-function buildPrintLegend(visibleIds) {
-  const body = document.getElementById('print-legend-body');
-  if (!body) return;
-
-  // Get all visible placed streets sorted by number
-  const visible = streets
-    .filter(s => s.placed && s.mapNum && (!visibleIds || visibleIds.has(s.id)))
-    .sort((a, b) => a.mapNum - b.mapNum);
-
-  if (!visible.length) {
-    body.innerHTML = '<div style="font-size:10px;color:#999">No streets in this area</div>';
-    return;
-  }
-
-  const rows = visible.map(s => {
-    const hex = COLOR_HEX[s.color] || '#555';
-    return `<div class="lg-street">
-      <span class="lg-checkbox"></span>
-      <span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:50%;background:${hex};color:#fff;font-size:9px;font-weight:800;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact">${s.mapNum}</span>
-      <span>${escHtml(s.name)}</span>
-    </div>`;
-  }).join('');
-
-  body.innerHTML = rows;
-}
 
 // ─── Manual Pin Mode (multi-point) ───────────────────────
 let pinMode = { active: false, street: null, points: [], pointMarkers: [], previewPolyline: null, isNew: false, pendingPath: null };
@@ -2648,85 +2505,6 @@ function rotateMap(deg, reset) {
   setTimeout(() => { google.maps.event.trigger(map, 'resize'); refreshStreetLabels(); }, 100);
 }
 
-// ─── Print Preview ───────────────────────────────────────
-function showPrintPreview() {
-  document.body.classList.add('preview-mode');
-  google.maps.event.trigger(map, 'resize');
-}
-
-function closePrintPreview() {
-  document.body.classList.remove('preview-mode');
-  google.maps.event.trigger(map, 'resize');
-}
-
-function printFromPreview() {
-  const center = map.getCenter();
-  const zoom   = map.getZoom();
-  document.body.classList.remove('preview-mode', 'print-with-legend');
-  document.getElementById('preview-bar').style.display = 'none';
-  map.setOptions({ styles: NO_LABEL_STYLES });
-  google.maps.event.trigger(map, 'resize');
-  setTimeout(() => {
-    map.setCenter(center);
-    map.setZoom(zoom);
-    setTimeout(() => window.print(), 400);
-  }, 150);
-}
-
-const NO_LABEL_STYLES = [
-  { elementType: 'labels',      stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text', stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi',         stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',     stylers: [{ visibility: 'off' }] },
-];
-
-// ─── Section Print (clean rewrite v390) ──────────────────
-function printSection(withLegend) {
-  const center = map.getCenter();
-  const zoom   = map.getZoom();
-
-  if (withLegend) {
-    // Step 1: snapshot which circles are visually on screen RIGHT NOW (before any resize)
-    const mapArea = document.getElementById('map-area');
-    const mapRect = mapArea.getBoundingClientRect();
-    const visibleIds = new Set();
-    document.querySelectorAll('.map-label-circle').forEach(circle => {
-      const wrapper = circle.closest('.map-label');
-      if (!wrapper || !wrapper.dataset.id) return;
-      const r = circle.getBoundingClientRect();
-      const cx = (r.left + r.right)  / 2;
-      const cy = (r.top  + r.bottom) / 2;
-      if (cx >= mapRect.left && cx <= mapRect.right &&
-          cy >= mapRect.top  && cy <= mapRect.bottom) {
-        visibleIds.add(wrapper.dataset.id);
-      }
-    });
-
-    // Step 2: build legend from that snapshot
-    buildPrintLegend(visibleIds);
-    document.body.classList.add('print-with-legend');
-  } else {
-    document.body.classList.remove('print-with-legend');
-  }
-
-  // Step 3: set print map styles, resize, restore center, print
-  map.setOptions({ styles: NO_LABEL_STYLES });
-  refreshStreetLabels();
-  google.maps.event.trigger(map, 'resize');
-  setTimeout(() => {
-    map.setCenter(center);
-    map.setZoom(zoom);
-    setTimeout(() => window.print(), 400);
-  }, 200);
-
-  // Step 4: restore after print dialog closes
-  const restore = () => {
-    document.body.classList.remove('print-with-legend');
-    window.removeEventListener('focus', restore);
-  };
-  window.addEventListener('focus', restore);
-}
 
 // ─── Street Search ───────────────────────────────────────
 let _searchQuery = '';
