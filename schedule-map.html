@@ -1030,8 +1030,13 @@ class ScheduleLabel extends google.maps.OverlayView {
     if (!this.div) return;
     const pt = this.getProjection().fromLatLngToDivPixel(this.pos);
     if (pt) {
-      this.div.style.left = (pt.x - this.div.offsetWidth  / 2) + 'px';
-      this.div.style.top  = (pt.y - this.div.offsetHeight / 2) + 'px';
+      // Offset label perpendicular to street (above the line) so it doesn't block the polyline
+      const angle  = (this.street.labelHeading || 0) * Math.PI / 180;
+      const offset = 13; // px above the street
+      const perpX  =  Math.sin(angle) * offset;
+      const perpY  = -Math.cos(angle) * offset;
+      this.div.style.left = (pt.x - this.div.offsetWidth  / 2 + perpX) + 'px';
+      this.div.style.top  = (pt.y - this.div.offsetHeight / 2 + perpY) + 'px';
     }
   }
 
@@ -1843,14 +1848,15 @@ function closeReview() {
   document.getElementById('review-overlay').classList.remove('show');
 }
 
-// Calculate the visual angle of a path so labels can be rotated to match the street
+// Calculate CSS rotation angle for a path so labels align with the street
 function pathHeading(pts) {
   if (pts.length < 2) return 0;
   const p1 = pts[Math.floor(pts.length * 0.3)];
   const p2 = pts[Math.floor(pts.length * 0.7)];
+  // dx_screen = east (positive), dy_screen = down on screen (lat increases up, so flip)
   const dx = p2.lng - p1.lng;
-  const dy = p2.lat - p1.lat;
-  let angle = Math.atan2(dx, dy) * 180 / Math.PI;
+  const dy = -(p2.lat - p1.lat);
+  let angle = Math.atan2(dy, dx) * 180 / Math.PI;
   // Keep text readable — never upside down
   if (angle > 90)  angle -= 180;
   if (angle < -90) angle += 180;
