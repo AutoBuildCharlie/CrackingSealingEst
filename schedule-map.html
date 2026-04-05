@@ -640,11 +640,16 @@ function attachPolylineListeners(polylines, street) {
       if (!infoWindow) infoWindow = new google.maps.InfoWindow();
       const d = days.find(d => d.key === `${street.date}|${street.color}`);
       const dayLabel = d ? d.label : `${street.date} ${street.day}`;
+      const segInfo = street.beginAt
+        ? `<div style="font-size:11px;color:#444;margin-top:4px">📍 ${escHtml(street.beginAt)} → ${escHtml(street.endAt || 'dead end')}</div>
+           <div style="font-size:10px;color:#888;margin-top:2px">${escHtml(street.segSource || '')}${street.segConfidence === 'low' ? ' ⚠ low confidence' : ''}</div>`
+        : '';
       infoWindow.setContent(`
-        <div style="font-family:sans-serif;min-width:140px">
+        <div style="font-family:sans-serif;min-width:160px">
           <div style="font-weight:700;font-size:14px;margin-bottom:4px">${escHtml(street.name)}</div>
           <div style="font-size:12px;color:#555">${escHtml(dayLabel)}</div>
           ${street.split ? '<div style="font-size:11px;color:#888;margin-top:2px">★ Split day</div>' : ''}
+          ${segInfo}
           <div style="font-size:10px;color:#aaa;margin-top:6px">Double-click to remove</div>
         </div>
       `);
@@ -1018,36 +1023,64 @@ function handlePlanDrop(e) {
 async function handlePlanUpload(files) {
   if (!files || !files.length) return;
   const statusEl = document.getElementById('plan-status');
-  statusEl.innerHTML = '<span class="spinner"></span>Rendering plan pages...';
 
-  let pages = [];
-  for (const file of files) {
-    if (file.type === 'application/pdf') {
-      try {
-        const images = await pdfToImages(file);
-        for (const b64 of images) pages.push({ b64, mimeType: 'image/jpeg' });
-      } catch(e) { console.error('Plan PDF render error', e); }
-    } else {
-      const b64 = await fileToBase64(file);
-      pages.push({ b64, mimeType: file.type });
-    }
+  // Only handle PDFs and images
+  const file = files[0];
+  const isPdf = file.type === 'application/pdf';
+
+  await loadPdfJs();
+  let pdf = null;
+  let totalPages = 1;
+
+  if (isPdf) {
+    statusEl.innerHTML = '<span class="spinner"></span>Loading PDF...';
+    const ab = await file.arrayBuffer();
+    pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+    totalPages = pdf.numPages;
   }
 
-  statusEl.innerHTML = `<span class="spinner"></span>Reading ${pages.length} plan pages...`;
-
+  // Skip pages 1–3 (cover, legend, site index) — start at page 4
+  const startPage = isPdf ? 4 : 1;
   const allSegments = [];
-  // Send 3 pages at a time to reduce API calls
-  for (let i = 0; i < pages.length; i += 3) {
-    const batch = pages.slice(i, i + 3);
-    statusEl.innerHTML = `<span class="spinner"></span>Page ${i + 1}–${Math.min(i + 3, pages.length)} of ${pages.length}...`;
+
+  for (let p = startPage; p <= totalPages; p++) {
+    statusEl.innerHTML = `<span class="spinner"></span>Reading page ${p} of ${totalPages}...`;
+
+    let b64, mimeType;
+    if (isPdf) {
+      // Render ONE page at low scale → send → discard (keeps memory flat)
+      const page     = await pdf.getPage(p);
+      const viewport = page.getViewport({ scale: 1.2 }); // lower res = less memory
+      const canvas   = document.createElement('canvas');
+      canvas.width   = viewport.width;
+      canvas.height  = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      b64      = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+      mimeType = 'image/jpeg';
+      // Discard canvas immediately to free memory
+      canvas.width = 0; canvas.height = 0;
+    } else {
+      b64      = await fileToBase64(file);
+      mimeType = file.type;
+    }
+
     try {
-      const segs = await callPlanAI(batch);
-      allSegments.push(...segs);
-    } catch(e) { console.error('Plan AI error', e); }
-    if (i + 3 < pages.length) await delay(1000);
+      const segs = await callPlanAI([{ b64, mimeType }], p);
+      for (const seg of segs) {
+        seg.sourcePage = p; // track which page it came from
+        allSegments.push(seg);
+      }
+      const found = segs.length;
+      statusEl.innerHTML = `<span class="spinner"></span>Page ${p}/${totalPages} — found ${found} segment${found !== 1 ? 's' : ''}`;
+    } catch(e) {
+      console.error(`Plan AI error page ${p}`, e);
+      statusEl.innerHTML = `<span class="spinner"></span>Page ${p}/${totalPages} — error, skipping`;
+    }
+
+    if (p < totalPages) await delay(1200);
   }
 
-  statusEl.innerHTML = `<span class="spinner"></span>Applying segment data to ${allSegments.length} entries...`;
+  statusEl.innerHTML = `<span class="spinner"></span>Matching ${allSegments.length} segments to streets...`;
   const matched = applySegmentData(allSegments);
   statusEl.innerHTML = `✓ Matched ${matched} streets — redrawing exact segments...`;
 
@@ -1055,6 +1088,7 @@ async function handlePlanUpload(files) {
   const toRedraw = streets.filter(s => s.beginAt && s.endAt);
   for (let i = 0; i < toRedraw.length; i++) {
     const st = toRedraw[i];
+    statusEl.innerHTML = `<span class="spinner"></span>Redrawing ${i + 1}/${toRedraw.length}: ${st.name}`;
     if (markers[st.id]) { markers[st.id].setMap(null); delete markers[st.id]; }
     st.placed = false; st.lat = null; st.lng = null; st.paths = null;
     await drawStreetFromOverpass(st);
@@ -1066,23 +1100,25 @@ async function handlePlanUpload(files) {
   statusEl.innerHTML = `✓ Done — ${matched} streets redrawn with exact segments`;
 }
 
-async function callPlanAI(pages) {
-  const prompt = `These are engineering plan sheets for Newark's 2025 Citywide Slurry Seal Project.
-The gray-shaded areas show the exact pavement to be treated with slurry seal.
+async function callPlanAI(pages, pageNum) {
+  const prompt = `This is page ${pageNum} of an engineering plan set for Newark's 2025 Citywide Slurry Seal Project.
+The gray-shaded areas show the exact pavement segments to be treated with slurry seal.
 
-For EVERY gray-shaded street segment visible on ANY of these pages:
-1. Street name — read exactly as labeled on the map
-2. Beginning cross street — where the gray shading starts (the first intersecting street)
-3. Ending cross street — where the gray shading ends, OR "dead end" for cul-de-sacs
+For EVERY gray-shaded street segment visible on this page:
+1. Street name — read exactly as labeled on the map, preserve abbreviations
+2. Beginning cross street — the intersecting street where the gray shading starts
+3. Ending cross street — the intersecting street where the gray shading ends (use "dead end" for cul-de-sacs)
+4. Confidence — "high" if you can clearly read both intersections, "low" if uncertain
 
 Return ONLY a JSON array, no other text:
-[{"name": "Elm St", "from": "Cedar Blvd", "to": "Thornton Ave"}, ...]
+[{"name": "Elm St", "from": "Cedar Blvd", "to": "Thornton Ave", "confidence": "high"}, ...]
 
 Rules:
-- Include ALL gray-shaded streets from ALL pages
-- For cul-de-sacs, use "dead end" as the "to" value
-- If a segment continues to the next sheet (matchline), use the last visible cross street
-- Read names exactly as printed — do not expand abbreviations`;
+- Only include streets that are GRAY SHADED — not background streets
+- Read names exactly as printed — do not expand abbreviations (keep Dr, St, Ave, Blvd, Ct, Pl as-is)
+- If the segment continues off the page edge (matchline), use the last visible cross street
+- If you cannot confidently read a name or intersection, still include it but set confidence to "low"
+- Do NOT include streets that are just background reference streets (not shaded)`;
 
   const content = [{ type: 'text', text: prompt }];
   for (const p of pages) {
@@ -1115,15 +1151,13 @@ function applySegmentData(segments) {
   for (const seg of segments) {
     if (!seg.name || !seg.from) continue;
     const normSeg = normalizeName(seg.name);
-    // Find matching street(s) in list
-    const matches = streets.filter(s => {
-      const score = wordOverlap(normalizeName(s.name), normSeg);
-      return score >= 0.67;
-    });
+    const matches = streets.filter(s => wordOverlap(normalizeName(s.name), normSeg) >= 0.67);
     for (const st of matches) {
-      if (!st.beginAt) { // don't overwrite if already set
-        st.beginAt = seg.from;
-        st.endAt   = seg.to || 'dead end';
+      if (!st.beginAt) {
+        st.beginAt      = seg.from;
+        st.endAt        = seg.to || 'dead end';
+        st.segSource    = `Plan page ${seg.sourcePage || '?'}`;
+        st.segConfidence = seg.confidence || 'high';
         matched++;
       }
     }
