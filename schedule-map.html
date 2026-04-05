@@ -766,18 +766,22 @@ function fuzzyMatchFromCache(name, cache) {
 }
 
 // Draw polylines from cached Overpass elements
-function drawFromCachedElements(street, cachedEntry, startPt, endPt) {
+function drawFromCachedElements(street, cachedEntry, cache) {
   const hex   = COLOR_HEX[street.color] || '#888';
   let paths = cachedEntry.elements
     .filter(e => e.geometry && e.geometry.length > 1)
     .map(e => e.geometry.map(p => ({ lat: p.lat, lng: p.lon })));
   if (!paths.length) return false;
 
-  // Clip to exact segment if intersection points provided
-  if (startPt || endPt) {
+  // Clip to exact segment using local OSM intersection — no API calls
+  if (street.beginAt || street.endAt) {
     const allPts = paths.flat();
-    const clipped = clipPathToSegment(allPts, startPt, endPt);
-    if (clipped.length >= 2) paths = [clipped];
+    const startPt = street.beginAt ? findCrossPoint(allPts, street.beginAt, cache) : null;
+    const endPt   = street.endAt   ? findCrossPoint(allPts, street.endAt,   cache) : null;
+    if (startPt || endPt) {
+      const clipped = clipPathToSegment(allPts, startPt, endPt);
+      if (clipped.length >= 2) paths = [clipped];
+    }
   }
 
   const polylines = paths.map(path => new google.maps.Polyline({
@@ -1247,6 +1251,30 @@ function geocodeIntersection(street, cross) {
   });
 }
 
+// Find where a cross street intersects a main path — fully local, no API call
+function findCrossPoint(mainPath, crossName, cache) {
+  if (!crossName || !cache) return null;
+  const crossLower = crossName.toLowerCase();
+  if (crossLower === 'dead end' || crossLower.startsWith('matchline') ||
+      crossLower.startsWith('edge of') || crossLower.includes('edge of the map')) return null;
+  const crossEntry = fuzzyMatchFromCache(crossName, cache);
+  if (!crossEntry) return null;
+  const crossPts = crossEntry.elements.flatMap(e =>
+    (e.geometry || []).map(p => ({ lat: p.lat, lng: p.lon }))
+  );
+  if (!crossPts.length) return null;
+  // Find the point on mainPath closest to any point on the cross street
+  let bestIdx = 0, bestDist = Infinity;
+  for (let i = 0; i < mainPath.length; i++) {
+    for (const cp of crossPts) {
+      const d = Math.hypot(mainPath[i].lat - cp.lat, mainPath[i].lng - cp.lng);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+  }
+  // Only use if genuinely close (~150m in degrees ≈ 0.0015)
+  return bestDist < 0.0015 ? mainPath[bestIdx] : null;
+}
+
 // Clip a polyline path to just the segment between two lat/lng points
 function clipPathToSegment(points, startPt, endPt) {
   if (!startPt && !endPt) return points;
@@ -1288,11 +1316,7 @@ async function geocodeAll(batch) {
       // 1. Try fuzzy match against full Newark street cache (local — no API call)
       const cacheHit = cache ? fuzzyMatchFromCache(st.name, cache) : null;
       if (cacheHit) {
-        const [startPt, endPt] = await Promise.all([
-          st.beginAt ? geocodeIntersection(st.name, st.beginAt) : Promise.resolve(null),
-          st.endAt   ? geocodeIntersection(st.name, st.endAt)   : Promise.resolve(null),
-        ]);
-        if (drawFromCachedElements(st, cacheHit, startPt, endPt)) { placed++; continue; }
+        if (drawFromCachedElements(st, cacheHit, cache)) { placed++; continue; }
       }
       {
         // 2. Final fallback: Google geocoder with bounds check
@@ -1430,7 +1454,8 @@ function geocodeStreet(name) {
     }, (results, status) => {
       if (status === 'OK' && results.length) {
         const loc = results[0].geometry.location;
-        resolve({ lat: loc.lat(), lng: loc.lng() });
+        const lat = loc.lat(), lng = loc.lng();
+        resolve(isInNewark(lat, lng) ? { lat, lng } : null);
       } else {
         resolve(null);
       }
@@ -1558,7 +1583,7 @@ function selectStreet(id) {
         // Try fuzzy cache match
         const cache = await fetchNewarkStreetCache().catch(() => null);
         const hit = cache ? fuzzyMatchFromCache(st.name, cache) : null;
-        if (hit && drawFromCachedElements(st, hit)) {
+        if (hit && drawFromCachedElements(st, hit, cache)) {
           // placed via cache
         } else {
           const result = await geocodeStreet(st.name);
@@ -1863,11 +1888,7 @@ async function upgradePillsToPolylines() {
 
       const hit = cache ? fuzzyMatchFromCache(st.name, cache) : null;
       if (hit) {
-        const [startPt, endPt] = await Promise.all([
-          st.beginAt ? geocodeIntersection(st.name, st.beginAt) : Promise.resolve(null),
-          st.endAt   ? geocodeIntersection(st.name, st.endAt)   : Promise.resolve(null),
-        ]);
-        if (drawFromCachedElements(st, hit, startPt, endPt)) { upgraded++; continue; }
+        if (drawFromCachedElements(st, hit, cache)) { upgraded++; continue; }
       }
       if (origLat && origLng) {
         placeMarker(st, origLat, origLng);
