@@ -1311,26 +1311,14 @@ async function geocodeAll(batch) {
     try {
       // 1. Try fuzzy match against full Newark street cache (local — no API call)
       const cacheHit = cache ? fuzzyMatchFromCache(st.name, cache) : null;
-      if (cacheHit) {
-        if (drawFromCachedElements(st, cacheHit, cache)) { placed++; continue; }
-      }
-      {
-        // 2. Final fallback: Google geocoder with bounds check
-        const result = await geocodeStreet(st.name);
-        if (result) {
-          st.geocodeFailed = false;
-          placeMarker(st, result.lat, result.lng);
-          placed++;
-        } else {
-          st.geocodeFailed = true;
-          failed++;
-        }
-      }
+      if (cacheHit && drawFromCachedElements(st, cacheHit, cache)) { placed++; continue; }
+      // No confident match — mark as not found (no geocoder guesses)
+      st.geocodeFailed = true;
+      failed++;
     } catch (e) {
       st.geocodeFailed = true;
       failed++;
     }
-    // Small delay only for geocoder fallback streets — cache hits need no delay
   }
 
   bar.classList.remove('show');
@@ -1886,20 +1874,15 @@ async function upgradePillsToPolylines() {
       st.placed = false; st.lat = null; st.lng = null;
 
       const hit = cache ? fuzzyMatchFromCache(st.name, cache) : null;
-      if (hit) {
-        if (drawFromCachedElements(st, hit, cache)) { upgraded++; continue; }
-      }
-      // Tier 3: per-street Overpass regex call (catches streets the cache fuzzy match missed)
+      if (hit && drawFromCachedElements(st, hit, cache)) { upgraded++; continue; }
+      // Tier 2: per-street Overpass regex call (catches streets the cache fuzzy match missed)
       const drawnByOverpass = await drawStreetFromOverpass(st);
       if (drawnByOverpass) { upgraded++; continue; }
-      // Last resort: restore pill label
-      if (origLat && origLng) {
-        placeMarker(st, origLat, origLng);
-      } else {
-        const result = await geocodeStreet(st.name);
-        if (result) { placeMarker(st, result.lat, result.lng); }
-        else { st.geocodeFailed = true; }
-      }
+      // Can't confirm — mark as not found, no geocoder guesses
+      st.geocodeFailed = true;
+      st.placed = false;
+      st.lat = null;
+      st.lng = null;
     } catch(e) { /* keep going */ }
   }
   bar.classList.remove('show');
