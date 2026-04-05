@@ -462,6 +462,9 @@
         width: 100% !important;
         height: 100% !important;
       }
+      /* Hide all Google Maps built-in labels, keep only our custom .map-label */
+      .gm-style > div > div > div > div > div > div > div[style*="pointer-events: none"] { display: none !important; }
+      .gm-style-iw { display: none !important; }
       .map-label {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
@@ -2664,28 +2667,37 @@ function printFromPreview() {
   const zoom   = map.getZoom();
   document.body.classList.remove('preview-mode', 'print-with-legend');
   document.getElementById('preview-bar').style.display = 'none';
+  map.setOptions({ styles: NO_LABEL_STYLES });
   google.maps.event.trigger(map, 'resize');
   setTimeout(() => {
     map.setCenter(center);
     map.setZoom(zoom);
-    setTimeout(() => window.print(), 300);
+    setTimeout(() => window.print(), 400);
   }, 150);
 }
+
+const NO_LABEL_STYLES = [
+  { elementType: 'labels',      stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi',         stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit',     stylers: [{ visibility: 'off' }] },
+];
 
 // ─── Section Print ───────────────────────────────────────
 function printSection(withLegend) {
   if (withLegend) document.body.classList.add('print-with-legend');
   else document.body.classList.remove('print-with-legend');
-  // Snapshot current view before layout shifts
   const center = map.getCenter();
   const zoom   = map.getZoom();
+  // Force label-hiding styles before print render
+  map.setOptions({ styles: NO_LABEL_STYLES });
   refreshStreetLabels();
   google.maps.event.trigger(map, 'resize');
-  // Restore exact view after resize so nothing gets cut off
   setTimeout(() => {
     map.setCenter(center);
     map.setZoom(zoom);
-    setTimeout(() => window.print(), 300);
+    setTimeout(() => window.print(), 400);
   }, 150);
 }
 
