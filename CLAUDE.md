@@ -45,7 +45,7 @@ A pavement assessment tool built for crack seal and slurry seal contractors (Cal
 - **Branch:** `master` — GitHub Pages auto-deploys on push
 - **Deploy command:** `/git-deploy` or `git add . && git commit -m "vXXX: ..." && git push`
 - **Version convention:** bump `?v=XXX` on `<link rel="stylesheet">` and `<script src="...">` in both `index.html` and `mobile.html`
-- **Current version:** v280 (desktop app.js v245, style.css v185), mobile.js v49, schedule-map.html v311
+- **Current version:** v280 (desktop app.js v245, style.css v185), mobile.js v49, schedule-map.html v321
 
 ---
 
@@ -641,16 +641,18 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 - **Double-click polyline:** Removes it from map
 - **Print/Export PDF:** `window.print()` → full map + legend
 
-### Schedule Map — GRSI Newark 2025 Status (as of v311 session)
+### Schedule Map — GRSI Newark 2025 Status (as of v321 session)
 - **Plan PDF:** 250708- Newark 2025 Citywide Slurry Seal Plans.pdf (71MB, in Cal's Downloads folder)
-- **PDF structure:** Page 1 = overview street map (thick black segments), Page 2 = unknown, Page 3 = site index map (numbered boxes 1-59 showing which area = which plan page), Pages 4-60 = zoomed-in plan sheets
+- **PDF structure:** Page 1 = overview street map (thick black segments), Page 3 = site index map (numbered boxes), Pages 4-60 = zoomed-in plan sheets
 - **Plan PDF skips pages 1-3** — AI starts reading at page 4
-- **172 segments extracted, 117 unique streets, 4 low confidence** — plan PDF extraction works well
-- **Color map AI reading FAILED** — AI reads wrong streets from color map (false positives), draws full streets instead of clipped segments, creates duplicate day entries. This approach is unreliable.
-- **Dates still needed** — Cal will source dates separately (not from color map AI). Goal: master map with all 117 streets + dates/colors for crew.
-- **Current blocker:** How to reliably assign dates to the 117 correctly extracted streets
-- **Terri (GRSI contact):** No spreadsheet — all data in PDF images only
-- **OpenAI billing:** Cal added $10 credits (was down to $0.45). April budget $3.76/$100 limit.
+- **174 segments extracted, 115 streets, 1 low confidence** — plan PDF extraction works well
+- **Export JSON:** Cal has saved `newark-schedule-2026-04-05 (1).json` in Downloads — contains all 174 savedSegments, import this to skip re-uploading the 71MB PDF
+- **Place All Streets button:** Draws all 115 streets as gray polylines in ~3 seconds using single Newark OSM cache call
+- **85–86 streets placed, 29 not found** — not-found streets are mostly British-named cul-de-sacs (Wembley, Norwich, Rugby, Bath, etc.) in a specific subdivision. Not in OSM or Google for Newark bounds.
+- **Clipping status:** Streets draw FULL (not clipped to exact segment). Local OSM intersection approach was tried but caused diagonal lines — reverted. Full streets is current behavior.
+- **Dates still needed** — color map AI reading is unreliable. Cal needs to get dates from Terri as a typed list. Until then, map shows gray streets with no color/date.
+- **Current state:** Parked. Map functional with 86 gray streets. Needs dates to be useful for crew.
+- **Next session:** Get date list from Terri → build manual date-entry UI → color streets by week
 
 ### Schedule Map — Known Decisions (updated)
 | Decision | Reason |
@@ -661,11 +663,28 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 | Clear Streets keeps savedSegments | User needs to wipe bad color data without losing 71MB PDF extraction |
 | Segment review panel | Shows all 172 extracted segments with confidence flags so user can spot errors |
 | Color map AI reading abandoned | Too unreliable — reads background street labels as colored segments, confuses red/orange, creates duplicates |
-| Full streets drawing instead of clipped | Intersection geocoding fails for park boundaries/matchlines → falls back to full street |
+| Full streets drawing instead of clipped | Both geocoder-based and local OSM intersection clipping were tried. Local approach caused diagonal lines (threshold too loose, parallel streets matched as intersections). Full streets is the current fallback. |
 | Google Maps still in use | Despite issues, still the base map — may revisit if better approach found |
 | Plan PDF pages 1-3 skipped | Page 1 = overview map, Page 3 = site index — no segment data on these pages |
+| Batch geocoding uses single Overpass cache call | Fetching all Newark streets in one call then matching locally = 3 seconds vs minutes of 429 errors. Never make per-street Overpass calls for batch operations. |
+| Place All Streets button added | Draws all segments from savedSegments as gray polylines without needing a color schedule. Deduplicates by name, skips already-placed streets. |
+| matchline/edge-of-page skipped in geocodeIntersection | These are drafting terms not real intersections — treated same as dead end (returns null, clips from start to road end) |
+| All geocoder bounds now use NEWARK_BBOX constant | Previously had 3 different hardcoded bounds — now all reference one constant for consistency |
+| Geocoder promises have 10s timeout | Google Maps Geocoder callback can hang indefinitely — added setTimeout(resolve(null), 10000) to both geocodeStreet and geocodeIntersection |
 
-### Built This Session (v307–v311)
+### Built This Session (v312–v321)
+- **v312:** Fixed clipping — skip matchline/edge-of-page/edge-of-map as geocodable endpoints
+- **v313:** Added **▶ Place All Streets** button — draws all 115 segments from plan PDF as gray lines without needing a color schedule
+- **v314:** Fixed geocodeAll — load Newark cache once upfront, no per-street Overpass calls (3 seconds vs minutes)
+- **v315:** Fixed upgradePillsToPolylines — same cache-first fix, no per-street Overpass calls
+- **v316:** Applied segment clipping in drawFromCachedElements — geocodes begin/end intersections before drawing
+- **v317:** Widened Newark bbox, removed double bounds check on geocoder
+- **v318:** Local OSM intersection clipping — find cross point using cached geometry (no API calls) — REVERTED, caused diagonal lines
+- **v319:** Reverted clipping — draw full streets cleanly
+- **v320:** Audit fixes — res.ok checks on all fetches, geocoder timeouts (10s), consistent Newark bounds, spinner error handling, Fit All feedback toast
+- **v321:** Fixed ScheduleLabel polyline removal order + handlePlanUpload try/catch indent
+
+### Built Previous Sessions (v307–v311)
 - **v307:** savedSegments persisted to localStorage, auto-apply to new streets on manual add
 - **v308:** Flipped flow — Step 1 = Plan PDF (saves segments, draws nothing), Step 2 = Color Schedule (creates + draws streets)
 - **v309:** Segment review panel — overlay shows all extracted segments sorted low-confidence first

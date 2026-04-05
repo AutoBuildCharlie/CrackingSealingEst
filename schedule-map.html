@@ -1889,6 +1889,10 @@ async function upgradePillsToPolylines() {
       if (hit) {
         if (drawFromCachedElements(st, hit, cache)) { upgraded++; continue; }
       }
+      // Tier 3: per-street Overpass regex call (catches streets the cache fuzzy match missed)
+      const drawnByOverpass = await drawStreetFromOverpass(st);
+      if (drawnByOverpass) { upgraded++; continue; }
+      // Last resort: restore pill label
       if (origLat && origLng) {
         placeMarker(st, origLat, origLng);
       } else {
