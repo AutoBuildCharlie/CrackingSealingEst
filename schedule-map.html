@@ -445,7 +445,8 @@
       #header, #right-panel, #geocode-bar, #toast,
       #pin-bar, #upgrade-bar, #status-bar, #preview-bar { display: none !important; }
       #main {
-        display: block !important;
+        display: flex !important;
+        flex-direction: row !important;
         width: 100% !important;
         height: 100% !important;
         margin: 0; padding: 0;
@@ -454,10 +455,9 @@
       }
       #map-area {
         display: block !important;
-        width: 100% !important;
+        flex: 1 !important;
         height: 100% !important;
-        position: absolute !important;
-        inset: 0 !important;
+        position: relative !important;
       }
       #gmap {
         position: absolute !important;
