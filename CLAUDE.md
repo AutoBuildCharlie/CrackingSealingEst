@@ -565,7 +565,7 @@ Worker holds API keys, routes to OpenAI or Google based on `provider` param.
 - **Desktop:** v280 (app.js v245, style.css v185)
 - **Mobile JS:** v49, mobile.css v4
 - **Service Worker:** v2
-- **Schedule Map:** v293 (schedule-map.html)
+- **Schedule Map:** v306 (schedule-map.html)
 
 Check `index.html` for `?v=XXX` on stylesheet + app.js script.
 Check `mobile.html` for `?v=XXX` on mobile.js script.
@@ -611,40 +611,71 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 | Drag-and-drop on both zones | Easier than click-to-browse for large PDF files |
 | Split streets show ★ badge | Half-street work days noted without duplicate entries |
 | All pages sent to AI individually | Multi-page PDFs — each page is a separate schedule week |
+| Overpass delay 1.5s between streets | Overpass rate-limits (429/504) at faster rates — 1.5s keeps it stable |
+| Overpass auto-retry on 429/504 | Waits 4-8s and retries up to 3x before giving up on a street |
+| Abbreviation expansion before Overpass | OSM sometimes stores full names (Drive vs Dr) — try both forms |
+| Case-insensitive Overpass regex | `["name"~"^name$",i]` — note: `i` not `"i"` (quoted i = 400 Bad Request) |
+| Full Newark street cache | One Overpass query fetches all named ways in Newark → local fuzzy match for not-found streets |
+| Word overlap fuzzy match threshold 0.67 | 2 of 3 words must match — handles typos like "Sant Luke" → "St Luke" |
+| Upgrade pills to polylines button | Streets placed by geocoder (pill labels) can be upgraded to real Overpass road lines |
+| Plan PDF skips pages 1-3 | Pages 1-3 are cover, legend, site index — no segment data |
+| Plan PDF renders at scale 1.2 | Lower than default 2.0 — 60% less memory, still readable for AI |
+| Plan PDF renders 1 page at a time | Render → send → discard — keeps browser memory flat for 60-page PDFs |
+| Dates come from schedule screenshots not plan PDF | Plan PDF shows WHERE, not WHEN. Dates/colors from color-coded overview map Cal screenshotted |
+| NewPark Mall/Plaza never found | They're a shopping mall/parking lot — not in OSM as road names. Leave as not-found |
+| Source tracking on segment data | Each extracted segment tagged with plan page number + confidence level |
+| Click polyline = info popup | Shows name, date, segment from→to, source page, confidence. Click map to close |
 
-### Schedule Map — Current Architecture (v293)
+### Schedule Map — Current Architecture (v306)
 - **Background:** Real Google Map centered on Newark, CA (no image upload needed)
-- **Extraction:** Upload color-coded schedule images/PDF → GPT-4o reads colors + street names → builds list
-- **Placement:** Overpass API draws colored polylines along actual road geometry (hard Newark bbox — no out-of-city results)
-- **Fallback:** If Overpass can't find a street → geocoder with Newark bounds check → pill label
-- **Save state:** All placed streets saved to localStorage — survives browser close
-- **Week filter:** All | Week 1 | Week 2 etc — auto-detected from dates, hides/shows polylines
-- **Color key:** Small overlay on map showing color → date
-- **Print:** Full page map + legend panel (color swatches, dates, street list per day)
-- **Not-found:** Amber banner shows any streets Overpass/geocoder couldn't place — click to retry
-- **Double-click polyline** to remove it from map
+- **Step 1:** Upload color-coded schedule images/PDF → GPT-4o reads colors + street names → builds list of `{name, date, day, color, split}`
+- **Step 2:** Streets auto-place on map via Overpass (polylines) or Google geocoder (pill labels)
+- **Step 3 (Phase 2):** Upload 60-page plan PDF → AI reads each page 1 at a time → extracts `{name, from, to, confidence}` → matches to schedule streets → redraws with clipped exact segments
+- **Placement chain:** Overpass exact → Overpass expanded abbreviations → fuzzy match against full Newark cache → Google geocoder → not-found
+- **Save state:** All placed streets + paths saved to localStorage — survives browser close
+- **Week filter:** All | Week 1 | Week 2 etc — auto-detected from dates
+- **Not-found banner:** Expandable list showing all failed streets + retry button
+- **Upgrade button:** Blue button at bottom — re-runs Overpass on all pill-label streets to convert to polylines
+- **Click polyline:** Info popup shows name, date, segment from→to, source page, confidence flag
+- **Double-click polyline:** Removes it from map
+- **Print/Export PDF:** `window.print()` → full map + legend
 
 ### Schedule Map — GRSI Newark 2025 Status
-- **Terri sent the full 60-page plan PDF** (250708- Newark 2025 Citywide Slurry Seal Plans.pdf) — it contains zoomed-in map images of each street segment, highlighted in color. No data table.
-- **Color info lives in the schedule images** (the ones Cal screenshotted from the color-coded overview map)
-- **Workflow:** Screenshot zoomed sections of color-coded map → upload to tool → AI extracts streets → polylines draw on Google Map
-- **3 screenshots tested:** AI extracted 30 streets, colors matched correctly (green=4/13, blue=4/14, orange=4/15 etc)
-- **23 streets not found** from those 3 shots — need more zoomed screenshots to cover full city
-- **60-page PDF:** Pages are Google Maps-style zoomed street views — useful for visual reference but color data still comes from schedule screenshots
+- **Plan PDF:** 250708- Newark 2025 Citywide Slurry Seal Plans.pdf (71MB, in Cal's Downloads folder) — 60 pages of zoomed aerial map images showing gray-shaded street segments
+- **Schedule data source:** Color-coded overview map screenshots (NOT the plan PDF). Dates + colors extracted from those screenshots.
+- **107 streets extracted** from the 71MB PDF upload to the app — schedule data (dates/colors) matched
+- **~49 streets placed as polylines**, rest as pill labels or not-found (as of v306)
+- **Not-found includes:** NewPark Mall, NewPark Plaza (parking lots, not roads), duplicates across days, streets not in OSM
+- **Phase 2 ready:** Step 3 in the panel — upload plan PDF → AI extracts begin/end intersections → clips polylines to exact segments
+- **Terri (GRSI contact):** No spreadsheet available — all data is in PDF images only
 
-### Built This Session
-- **v278:** Created `schedule-map.html` — full Schedule Map tool. Added "📋 Schedule Map" button to PavementScan header. Added `.btn-schedule-map` style to style.css.
-- **v279:** Added PDF drag-and-drop support, PDF.js rendering for both Step 1 (all pages → AI) and Step 2 (selected page → background).
-- **v280:** Added PDF page number selector to Step 2 so user can load any page as background (not just page 1).
+### Built This Session (v294–v306)
+- **v294:** Abbreviation expansion + case-insensitive Overpass matching, wider Newark bbox
+- **v295:** Full Newark street cache — one Overpass query fetches all streets, fuzzy match against it
+- **v296:** Fixed retry banner — wired onclick to geocodeAll (was missing click handler)
+- **v297:** Not-found banner expandable with street name list + separate retry button
+- **v298:** Fixed Overpass 400 errors — `,"i"` → `,i` (case-insensitive flag syntax)
+- **v299:** Upgrade pills to polylines button — re-runs Overpass on geocoder-placed pill labels
+- **v300:** Increased Overpass delay to 1.5s, auto-retry on 429/504 with exponential backoff
+- **v301:** Fixed upgrade function — saves original lat/lng, restores pill if Overpass fails, recovers lost streets
+- **v302:** Further delay increases, retry logic hardened
+- **v303:** Click polyline → info popup (name + date). Double-click still removes. Click map to close popup.
+- **v304:** Click anywhere on map closes info popup
+- **v305:** Phase 2 built — Step 3 upload zone, callPlanAI, applySegmentData, geocodeIntersection, clipPathToSegment, modified drawStreetFromOverpass to clip when beginAt/endAt available
+- **v306:** Plan PDF — 1 page at a time (memory safe), scale 1.2, skip pages 1-3, source page tracking, confidence flags, popup shows segment source
+
+### Built Previous Sessions (v278–v293)
+- **v278:** Created `schedule-map.html`. Added "📋 Schedule Map" button to PavementScan header.
+- **v279:** PDF drag-and-drop, PDF.js rendering for Step 1 and Step 2.
+- **v280:** PDF page number selector for Step 2.
 - **v281:** Replaced image background with real Google Map, auto-geocode after extraction.
 - **v282:** Amber not-found banner, Newark bounding box for geocoder.
 - **v283-284:** Print exports full map only, light map style for paper handoff.
 - **v285:** Print legend panel with dates, colors, street list.
 - **v286:** Save state to localStorage, color key overlay, Fit All button.
-- **v287:** Switched to Maps JS Geocoder (REST API was being blocked).
-- **v288:** DEMO_MAP_ID fix attempt for AdvancedMarkerElement.
-- **v289:** Replaced AdvancedMarkerElement with custom OverlayView (ScheduleLabel).
-- **v290:** Fixed "google is not defined" — define ScheduleLabel inside initMap callback.
+- **v287:** Switched to Maps JS Geocoder.
+- **v288-289:** Replaced AdvancedMarkerElement with custom OverlayView (ScheduleLabel).
+- **v290:** Fixed "google is not defined" — ScheduleLabel defined inside initMap callback.
 - **v291:** Hide POI/transit icons from map.
-- **v292:** Overpass API polylines for exact street highlighting, hard Newark bounds, geocoder fallback with bounds check, paths saved to localStorage for restore.
-- **v293:** Week filter buttons (All/Week 1/Week 2 etc), filters polylines and street list.
+- **v292:** Overpass API polylines, hard Newark bounds, geocoder fallback, paths saved to localStorage.
+- **v293:** Week filter buttons (All/Week 1/Week 2 etc).
