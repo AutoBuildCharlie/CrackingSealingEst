@@ -342,6 +342,42 @@
       flex-shrink: 0;
     }
 
+    /* Segment review overlay */
+    #review-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: #111827;
+      z-index: 20;
+      flex-direction: column;
+    }
+    #review-overlay.show { display: flex; }
+    #review-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid #374151;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    #review-header h3 { font-size: 13px; font-weight: 700; flex: 1; }
+    #review-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 14px;
+    }
+    #review-list::-webkit-scrollbar { width: 4px; }
+    #review-list::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+    .seg-row {
+      padding: 6px 0;
+      border-bottom: 1px solid #1f2937;
+      font-size: 11px;
+    }
+    .seg-name { font-weight: 600; color: #e0e0e0; margin-bottom: 2px; }
+    .seg-from { color: #6b7280; }
+    .seg-meta { font-size: 10px; color: #374151; margin-top: 1px; }
+    .seg-low { color: #fbbf24; font-size: 10px; margin-left: 4px; }
+
     /* Spinner */
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner {
@@ -562,6 +598,16 @@
       </div>
 
     </div><!-- end panel-scroll -->
+
+    <!-- Segment review overlay (shown over panel when user clicks Review) -->
+    <div id="review-overlay">
+      <div id="review-header">
+        <h3>Extracted Segments</h3>
+        <span id="review-summary" style="font-size:10px;color:#6b7280"></span>
+        <button onclick="closeReview()" style="background:#374151;border:none;border-radius:5px;color:#d1d5db;padding:4px 10px;cursor:pointer;font-size:11px">✕ Close</button>
+      </div>
+      <div id="review-list"></div>
+    </div>
 
     <div id="status-bar">0 streets · 0 placed on map</div>
     <div id="upgrade-bar" style="display:none;padding:6px 14px;border-top:1px solid #374151;">
@@ -1094,7 +1140,9 @@ async function handlePlanUpload(files) {
   saveState();
 
   const uniqueNames = [...new Set(allSegments.map(s => s.name))].length;
-  statusEl.innerHTML = `✓ ${allSegments.length} segments extracted (${uniqueNames} streets) — now upload your color schedule`;
+  const lowCount = allSegments.filter(s => s.confidence === 'low').length;
+  const lowNote = lowCount ? ` · <span style="color:#fbbf24">⚠ ${lowCount} low confidence</span>` : '';
+  statusEl.innerHTML = `✓ ${allSegments.length} segments (${uniqueNames} streets)${lowNote} — <a href="#" onclick="openReview();return false;" style="color:#3b82f6">Review</a> · then upload color schedule`;
 }
 
 async function callPlanAI(pages, pageNum) {
@@ -1568,6 +1616,45 @@ function buildWeekFilters() {
     html += `<button class="filter-btn ${activeWeekFilter === w ? 'active' : ''}" onclick="setWeekFilter(${w})">Week ${w}</button>`;
   }
   btnArea.innerHTML = html;
+}
+
+// ─── Segment Review Panel ────────────────────────────────
+function openReview() {
+  const overlay = document.getElementById('review-overlay');
+  const list    = document.getElementById('review-list');
+  const summary = document.getElementById('review-summary');
+
+  if (!savedSegments.length) {
+    showToast('No segments yet — upload plan PDF first');
+    return;
+  }
+
+  const lowCount = savedSegments.filter(s => s.confidence === 'low').length;
+  summary.textContent = `${savedSegments.length} segments · ${lowCount} low confidence`;
+
+  // Sort: low confidence first, then alphabetically
+  const sorted = [...savedSegments].sort((a, b) => {
+    if (a.confidence === 'low' && b.confidence !== 'low') return -1;
+    if (b.confidence === 'low' && a.confidence !== 'low') return 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  list.innerHTML = sorted.map(s => `
+    <div class="seg-row">
+      <div class="seg-name">
+        ${escHtml(s.name || '?')}
+        ${s.confidence === 'low' ? '<span class="seg-low">⚠ low confidence</span>' : ''}
+      </div>
+      <div class="seg-from">${escHtml(s.from || '?')} → ${escHtml(s.to || 'dead end')}</div>
+      <div class="seg-meta">Plan page ${s.sourcePage || '?'}</div>
+    </div>
+  `).join('');
+
+  overlay.classList.add('show');
+}
+
+function closeReview() {
+  document.getElementById('review-overlay').classList.remove('show');
 }
 
 // ─── Render ──────────────────────────────────────────────
