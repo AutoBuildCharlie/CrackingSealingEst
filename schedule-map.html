@@ -419,6 +419,17 @@
     }
     #toast.show { opacity: 1; }
 
+    /* ─── PREVIEW MODE ──────────────────────────────────── */
+    body.preview-mode #header      { display: none !important; }
+    body.preview-mode #right-panel { display: none !important; }
+    body.preview-mode #pin-bar     { display: none !important; }
+    body.preview-mode #upgrade-bar { display: none !important; }
+    body.preview-mode #status-bar  { display: none !important; }
+    body.preview-mode #geocode-bar { display: none !important; }
+    body.preview-mode #main        { height: 100vh; }
+    body.preview-mode #map-area    { flex: 1; }
+    body.preview-mode #preview-bar { display: flex !important; }
+
     /* ─── PRINT STYLES ───────────────────────────────────── */
     @media print {
       body {
@@ -537,6 +548,7 @@
   <button class="btn" onclick="startNewStreetDraw()" style="background:#0369a1;color:#fff" title="Click multiple points on the map to draw a new street">✏ Draw Street</button>
   <button class="btn btn-clear" onclick="clearStreets()">Clear Streets</button>
   <button class="btn btn-clear" onclick="clearAll()">Clear All</button>
+  <button class="btn" onclick="showPrintPreview()" style="background:#0f766e;color:#fff" title="Preview what the printed map will look like">👁 Preview</button>
   <button class="btn btn-export" onclick="printSection(false)" title="Print just the map — no legend (for section prints)">🖨 Print Section</button>
   <button class="btn btn-export" onclick="printSection(true)" title="Print map + full schedule legend">🖨 Print + Legend</button>
   <a href="index.html" class="btn btn-back">← PavementScan</a>
@@ -647,6 +659,13 @@
         ⬆ Upgrade pill labels → road lines
       </button>
     </div>
+  </div>
+
+  <!-- Preview mode floating toolbar (shown when body.preview-mode) -->
+  <div id="preview-bar" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(15,15,15,0.92);border-radius:10px;padding:8px 14px;display:none;align-items:center;gap:10px;font-family:'Inter',sans-serif;box-shadow:0 2px 16px rgba(0,0,0,0.5)">
+    <span style="color:#9ca3af;font-size:12px">Preview mode — pan &amp; zoom freely</span>
+    <button onclick="printFromPreview()" style="padding:5px 14px;background:#22c55e;border:none;border-radius:6px;color:#fff;font-weight:700;cursor:pointer;font-size:12px">🖨 Print / Save PDF</button>
+    <button onclick="closePrintPreview()" style="padding:5px 12px;background:#374151;border:none;border-radius:6px;color:#d1d5db;cursor:pointer;font-size:12px">✕ Exit Preview</button>
   </div>
 
   <!-- Draw street — pick which street from the list -->
@@ -2532,6 +2551,23 @@ async function retryNotFound() {
   renderAll();
   saveState();
   showToast(found ? `Found ${found} of ${targets.length} streets` : `Still can't find these — use ✏ Draw to place them manually`);
+}
+
+// ─── Print Preview ───────────────────────────────────────
+function showPrintPreview() {
+  document.body.classList.add('preview-mode');
+  google.maps.event.trigger(map, 'resize');
+}
+
+function closePrintPreview() {
+  document.body.classList.remove('preview-mode');
+  google.maps.event.trigger(map, 'resize');
+}
+
+function printFromPreview() {
+  document.body.classList.remove('preview-mode', 'print-with-legend');
+  document.getElementById('preview-bar').style.display = 'none';
+  setTimeout(() => window.print(), 100);
 }
 
 // ─── Section Print ───────────────────────────────────────
