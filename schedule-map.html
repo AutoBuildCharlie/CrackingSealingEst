@@ -1886,7 +1886,7 @@ function refreshStreetLabels() {
     if (!st.placed || !st.paths || !st.paths.length) continue;
     const allPts = st.paths.flat();
     if (!allPts.length) continue;
-    const mid = allPts[Math.floor(allPts.length / 2)];
+    const mid = allPts[Math.floor(allPts.length * 0.25)];
     st.labelHeading = pathHeading(allPts);
     if (streetLabels[st.id]) {
       streetLabels[st.id].setMap(null);
