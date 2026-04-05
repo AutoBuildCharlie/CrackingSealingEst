@@ -518,6 +518,9 @@
   </div>
   <div class="hdr-spacer"></div>
   <button class="btn btn-fit" onclick="fitMapToMarkers()">⊡ Fit All</button>
+  <button class="btn btn-clear" onclick="exportData()">⬇ Export</button>
+  <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(this.files)">
+  <button class="btn btn-clear" onclick="document.getElementById('import-input').click()">⬆ Import</button>
   <button class="btn btn-clear" onclick="clearStreets()">Clear Streets</button>
   <button class="btn btn-clear" onclick="clearAll()">Clear All</button>
   <button class="btn btn-export" onclick="window.print()">Export PDF</button>
@@ -1877,6 +1880,64 @@ async function upgradePillsToPolylines() {
   renderAll();
   saveState();
   showToast(`Upgraded ${upgraded} of ${targets.length} labels to road lines`);
+}
+
+// ─── Export / Import ─────────────────────────────────────────
+function exportData() {
+  const data = { streets, days, savedSegments };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `newark-schedule-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Exported — save this file somewhere safe');
+}
+
+async function importData(files) {
+  if (!files || !files.length) return;
+  try {
+    const text = await files[0].text();
+    const data = JSON.parse(text);
+    // Clear existing map markers
+    for (const id in markers) markers[id].setMap(null);
+    markers       = {};
+    streets       = data.streets       || [];
+    days          = data.days          || [];
+    savedSegments = data.savedSegments || [];
+    // Restore map drawings
+    for (const st of streets) {
+      if (!st.placed) continue;
+      if (st.paths && st.paths.length) {
+        const hex = COLOR_HEX[st.color] || '#888';
+        const polylines = st.paths.map(path => new google.maps.Polyline({
+          path, strokeColor: hex, strokeOpacity: 0.85, strokeWeight: 6,
+          map, zIndex: 2, clickable: true,
+        }));
+        attachPolylineListeners(polylines, st);
+        markers[st.id] = { setMap: (m) => polylines.forEach(p => p.setMap(m)) };
+      } else if (st.lat && st.lng) {
+        placeMarker(st, st.lat, st.lng);
+      }
+    }
+    rebuildDaySelect();
+    renderAll();
+    saveState();
+    if (streets.some(s => s.placed)) fitMapToMarkers();
+    const segNote = savedSegments.length ? ` · ${savedSegments.length} plan segments restored` : '';
+    showToast(`Imported ${streets.length} streets${segNote}`, 4000);
+    document.getElementById('import-input').value = '';
+    // Update plan status if segments were restored
+    if (savedSegments.length) {
+      const uniqueNames = [...new Set(savedSegments.map(s => s.name))].length;
+      const lowCount = savedSegments.filter(s => s.confidence === 'low').length;
+      const lowNote = lowCount ? ` · <span style="color:#fbbf24">⚠ ${lowCount} low confidence</span>` : '';
+      document.getElementById('plan-status').innerHTML = `✓ ${savedSegments.length} segments (${uniqueNames} streets)${lowNote} — <a href="#" onclick="openReview();return false;" style="color:#3b82f6">Review</a> · then upload color schedule`;
+    }
+  } catch(e) {
+    showToast('Import failed — invalid file');
+  }
 }
 
 // ─── Clear Streets Only (keeps saved segments from plan PDF) ─
