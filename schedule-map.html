@@ -1832,45 +1832,36 @@ function updateStatus() {
 }
 
 async function upgradePillsToPolylines() {
-  // Include pills AND any streets that got lost (placed=false, geocodeFailed=false, no lat)
   const targets = streets.filter(s => (s.placed && !s.paths) || (!s.placed && !s.geocodeFailed && !s.lat));
   if (!targets.length) { showToast('No pill labels to upgrade'); return; }
-  showToast(`Upgrading ${targets.length} labels to road lines…`);
   const bar   = document.getElementById('geocode-bar');
   const msgEl = document.getElementById('geocode-msg');
   bar.classList.add('show');
+
+  // Load cache once upfront — no per-street Overpass calls
+  msgEl.textContent = 'Loading Newark street map…';
+  const cache = await fetchNewarkStreetCache().catch(() => null);
+
   let upgraded = 0;
   for (let i = 0; i < targets.length; i++) {
     const st = targets[i];
     msgEl.textContent = `Upgrading ${i + 1} of ${targets.length}: ${st.name}`;
     try {
-      // Save original position in case we need to restore
       const origLat = st.lat, origLng = st.lng;
-      // Remove existing pill marker
       if (markers[st.id]) { markers[st.id].setMap(null); delete markers[st.id]; }
       st.placed = false; st.lat = null; st.lng = null;
 
-      const drawn = await drawStreetFromOverpass(st);
-      if (drawn) {
+      const hit = cache ? fuzzyMatchFromCache(st.name, cache) : null;
+      if (hit && drawFromCachedElements(st, hit)) {
         upgraded++;
+      } else if (origLat && origLng) {
+        placeMarker(st, origLat, origLng);
       } else {
-        // Try fuzzy cache match
-        const cache = await fetchNewarkStreetCache().catch(() => null);
-        const hit = cache ? fuzzyMatchFromCache(st.name, cache) : null;
-        if (hit && drawFromCachedElements(st, hit)) {
-          upgraded++;
-        } else if (origLat && origLng) {
-          // Restore original pill — don't lose it
-          placeMarker(st, origLat, origLng);
-        } else {
-          // Try geocoder as last resort
-          const result = await geocodeStreet(st.name);
-          if (result) { placeMarker(st, result.lat, result.lng); }
-          else { st.geocodeFailed = true; }
-        }
+        const result = await geocodeStreet(st.name);
+        if (result) { placeMarker(st, result.lat, result.lng); }
+        else { st.geocodeFailed = true; }
       }
     } catch(e) { /* keep going */ }
-    if (i < targets.length - 1) await delay(1500);
   }
   bar.classList.remove('show');
   renderAll();
