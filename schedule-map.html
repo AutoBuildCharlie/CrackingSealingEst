@@ -118,20 +118,32 @@
 
     /* Colored pill labels on the map */
     .map-label {
-      width: 16px;
-      height: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: move;
+      user-select: none;
+      position: absolute;
+    }
+    .map-label-circle {
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 8px;
+      font-size: 9px;
       font-weight: 800;
       font-family: 'Inter', sans-serif;
-      cursor: move;
-      user-select: none;
       color: #fff;
-      border: 1.5px solid #fff;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+    .map-label-stem {
+      width: 2px;
+      height: 8px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.4);
     }
 
     /* Geocode progress bar */
@@ -985,11 +997,12 @@ class ScheduleLabel extends google.maps.OverlayView {
     const hex  = COLOR_HEX[this.street.color] || '#555';
 
     const div = document.createElement('div');
-    div.className          = 'map-label';
-    div.style.position     = 'absolute';
-    div.style.background   = hex;
-    div.dataset.id         = this.street.id;
-    div.textContent        = this.street.mapNum || '?';
+    div.className      = 'map-label';
+    div.style.position = 'absolute';
+    div.dataset.id     = this.street.id;
+    div.innerHTML = `
+      <div class="map-label-circle" style="background:${hex}">${this.street.mapNum || '?'}</div>
+      <div class="map-label-stem" style="background:${hex}"></div>`;
 
     // Drag to reposition
     div.addEventListener('mousedown', (e) => this._startDrag(e));
@@ -1017,9 +1030,9 @@ class ScheduleLabel extends google.maps.OverlayView {
     if (!this.div) return;
     const pt = this.getProjection().fromLatLngToDivPixel(this.pos);
     if (pt) {
-      // Center label on street midpoint (Google Maps style — label sits on the line)
+      // Stem tip points at street midpoint — offset upward by full height so tip touches the line
       this.div.style.left = (pt.x - this.div.offsetWidth  / 2) + 'px';
-      this.div.style.top  = (pt.y - this.div.offsetHeight / 2) + 'px';
+      this.div.style.top  = (pt.y - this.div.offsetHeight) + 'px';
     }
   }
 
