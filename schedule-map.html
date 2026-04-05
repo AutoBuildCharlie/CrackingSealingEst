@@ -996,6 +996,12 @@ class ScheduleLabel extends google.maps.OverlayView {
     div.innerHTML = escHtml(this.street.name) +
       (this.street.split ? '<span class="split-star">★</span>' : '');
 
+    // Rotate to match street direction
+    if (this.street.labelHeading) {
+      div.style.transform = `rotate(${this.street.labelHeading}deg)`;
+      div.style.transformOrigin = 'center center';
+    }
+
     // Drag to reposition
     div.addEventListener('mousedown', (e) => this._startDrag(e));
 
@@ -1835,6 +1841,20 @@ function closeReview() {
   document.getElementById('review-overlay').classList.remove('show');
 }
 
+// Calculate the visual angle of a path so labels can be rotated to match the street
+function pathHeading(pts) {
+  if (pts.length < 2) return 0;
+  const p1 = pts[Math.floor(pts.length * 0.3)];
+  const p2 = pts[Math.floor(pts.length * 0.7)];
+  const dx = p2.lng - p1.lng;
+  const dy = p2.lat - p1.lat;
+  let angle = Math.atan2(dx, dy) * 180 / Math.PI;
+  // Keep text readable — never upside down
+  if (angle > 90)  angle -= 180;
+  if (angle < -90) angle += 180;
+  return angle;
+}
+
 // ─── Street Name Labels on Polylines ─────────────────────
 // Keeps a ScheduleLabel at the midpoint of every polyline-placed street.
 function refreshStreetLabels() {
@@ -1852,8 +1872,8 @@ function refreshStreetLabels() {
     const allPts = st.paths.flat();
     if (!allPts.length) continue;
     const mid = allPts[Math.floor(allPts.length / 2)];
+    st.labelHeading = pathHeading(allPts);
     if (streetLabels[st.id]) {
-      // Update position and name in case they changed
       streetLabels[st.id].setMap(null);
       delete streetLabels[st.id];
     }
