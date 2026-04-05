@@ -1818,7 +1818,12 @@ function renderList() {
   if (notFound.length) {
     banner.classList.add('show');
     banner.style.cursor = 'pointer';
-    const nameList = notFound.map(s => `<div style="padding:1px 0;color:#fbbf24;font-size:10px">• ${escHtml(s.name)} (${s.date})</div>`).join('');
+    const nameList = notFound.map(s => `
+      <div style="padding:3px 0;display:flex;align-items:center;gap:6px">
+        <span style="color:#fbbf24;font-size:10px;flex:1">• ${escHtml(s.name)}</span>
+        <button onclick="startPinMode('${s.id}')" title="Draw manually on map" style="background:#1e3a5f;border:1px solid #3b82f6;border-radius:4px;color:#60a5fa;cursor:pointer;font-size:10px;padding:2px 7px;white-space:nowrap">✏ Draw</button>
+        <button onclick="removeStreet('${s.id}')" title="Delete" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:12px;padding:0 2px">×</button>
+      </div>`).join('');
     banner.innerHTML = `
       <div onclick="this.parentElement.querySelector('.nf-list').style.display=this.parentElement.querySelector('.nf-list').style.display==='none'?'block':'none'" style="font-weight:600;margin-bottom:4px">
         ⚠ ${notFound.length} streets not found — click to see list
