@@ -585,6 +585,13 @@
       <!-- Schedule list -->
       <div class="section">
         <div class="section-label">Schedule</div>
+        <div style="position:relative;margin-bottom:6px">
+          <input type="text" id="street-search" placeholder="🔍 Find street…"
+            style="width:100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
+            oninput="filterStreetList(this.value)"
+            onkeydown="if(event.key==='Enter')jumpToFirstMatch()"
+          >
+        </div>
         <div id="not-found-banner"></div>
         <div id="street-list">
           <div style="font-size:11px;color:#374151;text-align:center;padding:16px 0">No streets yet — upload schedule images</div>
@@ -1793,9 +1800,8 @@ function renderList() {
     const group = grouped[d.key] || [];
     if (!group.length) continue;
     // Filter by active week
-    const filtered = activeWeekFilter === null
-      ? group
-      : group.filter(s => getStreetWeek(s) === activeWeekFilter);
+    const filtered = (activeWeekFilter === null ? group : group.filter(s => getStreetWeek(s) === activeWeekFilter))
+      .filter(s => !_searchQuery || s.name.toLowerCase().includes(_searchQuery));
     if (!filtered.length) continue;
     const hex    = COLOR_HEX[d.color] || '#888';
     const placed = filtered.filter(s => s.placed).length;
@@ -2120,6 +2126,26 @@ function buildPrintLegend() {
   }
 
   body.innerHTML = html || '<div style="font-size:10px;color:#999">No streets added yet</div>';
+}
+
+// ─── Street Search ───────────────────────────────────────
+let _searchQuery = '';
+
+function filterStreetList(query) {
+  _searchQuery = query.trim().toLowerCase();
+  renderList();
+}
+
+function jumpToFirstMatch() {
+  if (!_searchQuery) return;
+  const match = streets.find(s => s.name.toLowerCase().includes(_searchQuery) && s.placed && s.lat && s.lng);
+  if (match) {
+    map.panTo({ lat: match.lat, lng: match.lng });
+    map.setZoom(17);
+    showToast(`Found: ${match.name}`);
+  } else {
+    showToast(`"${_searchQuery}" not found on map`);
+  }
 }
 
 renderAll();
