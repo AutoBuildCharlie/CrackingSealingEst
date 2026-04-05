@@ -1886,7 +1886,10 @@ function refreshStreetLabels() {
     if (!st.placed || !st.paths || !st.paths.length) continue;
     const allPts = st.paths.flat();
     if (!allPts.length) continue;
-    const mid = allPts[Math.floor(allPts.length * 0.25)];
+    // Vary label position per street (15%–85%) based on name hash — spreads labels in dense areas
+    const hash = st.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const pos  = 0.15 + (hash % 71) / 100; // 0.15 to 0.85
+    const mid  = allPts[Math.floor(allPts.length * pos)] || allPts[Math.floor(allPts.length / 2)];
     st.labelHeading = pathHeading(allPts);
     if (streetLabels[st.id]) {
       streetLabels[st.id].setMap(null);
