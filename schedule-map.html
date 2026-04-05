@@ -2471,7 +2471,7 @@ function generatePrintPacket() {
 
   showToast('Building print packet…');
 
-  // 1. Cluster into geographic sections (split by lat midpoint, then lng)
+  // Always exactly 4 pages — split by lat midpoint then lng midpoint
   const lats = placed.map(s => s.lat);
   const lngs = placed.map(s => s.lng);
   const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
@@ -2483,6 +2483,12 @@ function generatePrintPacket() {
     'SW': placed.filter(s => s.lat <  midLat && s.lng <  midLng),
     'SE': placed.filter(s => s.lat <  midLat && s.lng >= midLng),
   };
+  // Merge empty quadrants into the closest one with streets
+  ['NW','NE','SW','SE'].forEach(key => {
+    if (raw[key].length) return;
+    const fallback = key.startsWith('N') ? (key === 'NW' ? 'SW' : 'SE') : (key === 'SW' ? 'NW' : 'NE');
+    raw[fallback].push(...raw[key]);
+  });
   const labels = { NW: 'North-West', NE: 'North-East', SW: 'South-West', SE: 'South-East' };
   const sections = Object.entries(raw).filter(([,g]) => g.length > 0);
   const total = sections.length;
@@ -2518,13 +2524,15 @@ function generatePrintPacket() {
     const base = `https://maps.googleapis.com/maps/api/staticmap?center=${cLat},${cLng}&zoom=${zoom}&size=860x520&scale=2&style=feature:all|element:labels|visibility:off&style=feature:road|element:geometry|color:0xe5e5e5&key=${API_KEY}`;
     const mapUrl = base + '&' + pathParts.join('&');
 
-    // Checklist legend
-    const legendRows = group.sort((a,b) => a.mapNum - b.mapNum).map(s => {
+    // Checklist — 2 columns if more than 20 streets so everything fits on one page
+    const sorted = group.slice().sort((a,b) => a.mapNum - b.mapNum);
+    const twoCols = sorted.length > 20;
+    const legendRows = sorted.map(s => {
       const hex = COLOR_HEX[s.color] || '#555';
       return `<div class="packet-street-row">
         <div class="packet-checkbox"></div>
-        <div class="packet-num" style="background:${hex}">${s.mapNum}</div>
-        <span>${escHtml(s.name)}</span>
+        <div class="packet-num" style="background:${hex};-webkit-print-color-adjust:exact;print-color-adjust:exact">${s.mapNum}</div>
+        <span style="font-size:${twoCols ? '9px' : '11px'}">${escHtml(s.name)}</span>
       </div>`;
     }).join('');
 
@@ -2536,11 +2544,13 @@ function generatePrintPacket() {
         </div>
         <div class="packet-body">
           <div class="packet-map">
-            <img src="${mapUrl}" alt="Section map" onerror="this.alt='Map unavailable — check API key restrictions'">
+            <img src="${mapUrl}" alt="Section map" onerror="this.alt='Map image unavailable'">
           </div>
-          <div class="packet-legend">
+          <div class="packet-legend" style="${twoCols ? 'width:320px' : ''}">
             <div class="packet-legend-title">Street Checklist</div>
-            ${legendRows}
+            <div style="${twoCols ? 'column-count:2;column-gap:10px' : ''}">
+              ${legendRows}
+            </div>
           </div>
         </div>
       </div>`;
