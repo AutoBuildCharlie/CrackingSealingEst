@@ -2688,22 +2688,12 @@ function printSection(withLegend) {
   const bounds = map.getBounds();
 
   if (withLegend) {
-    // Check which number circles are actually visible inside the map element
-    const mapEl = document.getElementById('gmap');
-    const mapRect = mapEl ? mapEl.getBoundingClientRect() : null;
-    const visibleIds = new Set();
-    if (mapRect) {
-      for (const [id, label] of Object.entries(streetLabels)) {
-        if (!label.div) continue;
-        const r = label.div.getBoundingClientRect();
-        const cx = r.left + r.width / 2;
-        const cy = r.top  + r.height / 2;
-        if (cx >= mapRect.left && cx <= mapRect.right &&
-            cy >= mapRect.top  && cy <= mapRect.bottom) {
-          visibleIds.add(id);
-        }
-      }
-    }
+    // Filter to streets whose centroid is inside the current map bounds
+    const visibleIds = new Set(
+      streets
+        .filter(s => s.placed && s.mapNum && s.lat && s.lng && bounds && bounds.contains(new google.maps.LatLng(s.lat, s.lng)))
+        .map(s => s.id)
+    );
     buildPrintLegend(visibleIds);
     document.body.classList.add('print-with-legend');
   } else {
