@@ -2506,6 +2506,33 @@ function rotateMap(deg, reset) {
 }
 
 
+// ─── Print: flat numbered list ───────────────────────────
+window.addEventListener('beforeprint', () => {
+  const container = document.getElementById('street-list');
+  if (!container) return;
+  const sorted = streets
+    .filter(s => s.mapNum)
+    .sort((a, b) => a.mapNum - b.mapNum);
+  if (!sorted.length) return;
+  const rows = sorted.map(s => {
+    const hex = COLOR_HEX[s.color] || '#555';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #e5e7eb">
+      <span style="min-width:20px;height:20px;border-radius:50%;background:${hex};color:#fff;font-size:9px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${s.mapNum}</span>
+      <span style="font-size:11px;color:#111">${escHtml(s.name)}</span>
+    </div>`;
+  }).join('');
+  container._originalHTML = container.innerHTML;
+  container.innerHTML = rows;
+});
+
+window.addEventListener('afterprint', () => {
+  const container = document.getElementById('street-list');
+  if (container && container._originalHTML !== undefined) {
+    container.innerHTML = container._originalHTML;
+    delete container._originalHTML;
+  }
+});
+
 // ─── Street Search ───────────────────────────────────────
 let _searchQuery = '';
 
