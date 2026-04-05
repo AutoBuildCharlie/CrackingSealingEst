@@ -973,6 +973,7 @@ function initMap() {
     if (pinMode.active) { handlePinClick(e.latLng); return; }
     if (infoWindow) infoWindow.close();
   });
+  map.addListener('zoom_changed', () => setTimeout(() => { refreshStreetLabels(); }, 200));
   loadState();
 }
 
@@ -1035,8 +1036,11 @@ class ScheduleLabel extends google.maps.OverlayView {
       const offset = 20; // px above the street
       const perpX  =  Math.sin(angle) * offset;
       const perpY  = -Math.cos(angle) * offset;
-      this.div.style.left = (pt.x - this.div.offsetWidth  / 2 + perpX) + 'px';
-      this.div.style.top  = (pt.y - this.div.offsetHeight / 2 + perpY) + 'px';
+      // Preserve any collision-resolution offset
+      const extraX = parseFloat(this.div.dataset.extraX || '0');
+      const extraY = parseFloat(this.div.dataset.extraY || '0');
+      this.div.style.left = (pt.x - this.div.offsetWidth  / 2 + perpX + extraX) + 'px';
+      this.div.style.top  = (pt.y - this.div.offsetHeight / 2 + perpY + extraY) + 'px';
     }
   }
 
@@ -1889,6 +1893,46 @@ function refreshStreetLabels() {
     label.setMap(map);
     streetLabels[st.id] = label;
   }
+  // After labels render, push any that overlap apart
+  setTimeout(resolveCollisions, 150);
+}
+
+// Push overlapping labels apart so they don't cross each other
+function resolveCollisions() {
+  requestAnimationFrame(() => {
+    const divs = Array.from(document.querySelectorAll('.map-label'));
+    if (divs.length < 2) return;
+    for (let pass = 0; pass < 20; pass++) {
+      let moved = false;
+      for (let i = 0; i < divs.length; i++) {
+        for (let j = i + 1; j < divs.length; j++) {
+          const a = divs[i].getBoundingClientRect();
+          const b = divs[j].getBoundingClientRect();
+          const gap = 4;
+          const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left) + gap;
+          const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) + gap;
+          if (overlapX <= 0 || overlapY <= 0) continue;
+          moved = true;
+          if (overlapY <= overlapX) {
+            // Push apart vertically
+            const half = overlapY / 2;
+            divs[i].dataset.extraY = (parseFloat(divs[i].dataset.extraY || '0') - half) + '';
+            divs[j].dataset.extraY = (parseFloat(divs[j].dataset.extraY || '0') + half) + '';
+            divs[i].style.top = (parseFloat(divs[i].style.top) - half) + 'px';
+            divs[j].style.top = (parseFloat(divs[j].style.top) + half) + 'px';
+          } else {
+            // Push apart horizontally
+            const half = overlapX / 2;
+            divs[i].dataset.extraX = (parseFloat(divs[i].dataset.extraX || '0') - half) + '';
+            divs[j].dataset.extraX = (parseFloat(divs[j].dataset.extraX || '0') + half) + '';
+            divs[i].style.left = (parseFloat(divs[i].style.left) - half) + 'px';
+            divs[j].style.left = (parseFloat(divs[j].style.left) + half) + 'px';
+          }
+        }
+      }
+      if (!moved) break;
+    }
+  });
 }
 
 // ─── Render ──────────────────────────────────────────────
