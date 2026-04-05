@@ -487,17 +487,17 @@
     .packet-preview-page .packet-header span { font-size: 10px; color: #555; }
     .packet-preview-page .packet-body {
       display: flex;
-      min-height: 420px;
+      min-height: 560px;
     }
     .packet-preview-page .packet-map { flex: 1; overflow: hidden; }
-    .packet-preview-page .packet-map img { width: 100%; height: 100%; object-fit: cover; display: block; min-height: 380px; }
+    .packet-preview-page .packet-map img { width: 100%; height: 100%; object-fit: cover; display: block; min-height: 520px; }
     .packet-preview-page .packet-legend {
-      width: 240px;
+      width: 260px;
       flex-shrink: 0;
       border-left: 2px solid #ccc;
       padding: 12px;
       overflow-y: auto;
-      max-height: 500px;
+      max-height: 600px;
     }
     .packet-preview-page .packet-legend-title { font-size: 11px; font-weight: 800; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 6px; }
     .packet-preview-page .packet-street-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid #f0f0f0; font-size: 11px; }
@@ -2541,14 +2541,19 @@ window.addEventListener('afterprint', () => {
 });
 
 // ─── Print Packet ─────────────────────────────────────────
-function buildStaticMapUrl(group, allStreets) {
-  const src = allStreets || group;
+function buildStaticMapUrl(group, boundsGroup) {
+  // boundsGroup = what to zoom/center to (may differ from group when doing overview)
+  const src = boundsGroup || group;
   const lats = src.map(s => s.lat), lngs = src.map(s => s.lng);
   const cLat = (Math.min(...lats) + Math.max(...lats)) / 2;
   const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
   const latSpan = (Math.max(...lats) - Math.min(...lats)) || 0.01;
   const lngSpan = (Math.max(...lngs) - Math.min(...lngs)) || 0.01;
-  const zoom = Math.max(12, Math.min(16, Math.floor(Math.log2(0.13 / Math.max(latSpan, lngSpan))) + 14));
+  // Fit-to-bounds zoom: calculate from map pixel dimensions
+  const mapW = 860, mapH = 520;
+  const latZoom = Math.log2((mapH / 256) * (170 / latSpan));
+  const lngZoom = Math.log2((mapW / 256) * (360 / lngSpan));
+  const zoom = Math.max(11, Math.min(16, Math.floor(Math.min(latZoom, lngZoom)) - 1));
   const pathParts = group.map(s => {
     const pts = s.paths.flat();
     const step = Math.max(1, Math.floor(pts.length / 5));
@@ -2601,7 +2606,7 @@ function generatePrintPacket() {
   showToast('Building print packet…');
 
   // Page 1: Full overview — all streets, full-width map, no checklist
-  const overviewUrl = buildStaticMapUrl(placed, placed);
+  const overviewUrl = buildStaticMapUrl(placed, placed); // bounds = all streets
   const overviewPage = `
     <div class="packet-page">
       <div class="packet-header">
