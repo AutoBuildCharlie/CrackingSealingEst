@@ -1219,7 +1219,8 @@ function applySegmentData(segments, targetList) {
 // Geocode a street intersection
 function geocodeIntersection(street, cross) {
   if (!geocoder) geocoder = new google.maps.Geocoder();
-  if (!cross || cross.toLowerCase() === 'dead end') return Promise.resolve(null);
+  const crossLower = (cross || '').toLowerCase();
+  if (!cross || crossLower === 'dead end' || crossLower.startsWith('matchline') || crossLower.startsWith('edge of') || crossLower.includes('edge of the map')) return Promise.resolve(null);
   return new Promise((resolve) => {
     geocoder.geocode({
       address: `${street} & ${cross}, Newark, CA`,

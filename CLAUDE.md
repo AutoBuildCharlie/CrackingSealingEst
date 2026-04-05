@@ -45,7 +45,7 @@ A pavement assessment tool built for crack seal and slurry seal contractors (Cal
 - **Branch:** `master` — GitHub Pages auto-deploys on push
 - **Deploy command:** `/git-deploy` or `git add . && git commit -m "vXXX: ..." && git push`
 - **Version convention:** bump `?v=XXX` on `<link rel="stylesheet">` and `<script src="...">` in both `index.html` and `mobile.html`
-- **Current version:** v256 (desktop app.js v225, style.css v184), mobile.js v49
+- **Current version:** v280 (desktop app.js v245, style.css v185), mobile.js v49, schedule-map.html v311
 
 ---
 
@@ -626,43 +626,56 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 | Source tracking on segment data | Each extracted segment tagged with plan page number + confidence level |
 | Click polyline = info popup | Shows name, date, segment from→to, source page, confidence. Click map to close |
 
-### Schedule Map — Current Architecture (v306)
-- **Background:** Real Google Map centered on Newark, CA (no image upload needed)
-- **Step 1:** Upload color-coded schedule images/PDF → GPT-4o reads colors + street names → builds list of `{name, date, day, color, split}`
-- **Step 2:** Streets auto-place on map via Overpass (polylines) or Google geocoder (pill labels)
-- **Step 3 (Phase 2):** Upload 60-page plan PDF → AI reads each page 1 at a time → extracts `{name, from, to, confidence}` → matches to schedule streets → redraws with clipped exact segments
+### Schedule Map — Current Architecture (v311)
+- **Background:** Real Google Map centered on Newark, CA
+- **Step 1 (NEW):** Upload plan PDF → AI reads every page → extracts `{name, from, to, confidence, sourcePage}` → saved to `savedSegments` in localStorage → nothing drawn on map yet
+- **Step 2 (NEW):** Upload color-coded schedule map image → AI reads colors + dates, gets known street list from savedSegments as context → creates streets with color/date → places on map with clipped segments
+- **Export/Import:** ⬇ Export button saves all data (streets + days + savedSegments) to JSON file. ⬆ Import loads it back — survives hard refreshes and updates.
+- **Clear Streets button:** Wipes placed streets + colors but keeps savedSegments from plan PDF
+- **Segment Review panel:** After Step 1, click "Review" link → overlay shows all 172 segments, sorted low-confidence first. Shows name, from→to, plan page number.
 - **Placement chain:** Overpass exact → Overpass expanded abbreviations → fuzzy match against full Newark cache → Google geocoder → not-found
-- **Save state:** All placed streets + paths saved to localStorage — survives browser close
+- **Save state:** All placed streets + paths + savedSegments saved to localStorage
 - **Week filter:** All | Week 1 | Week 2 etc — auto-detected from dates
 - **Not-found banner:** Expandable list showing all failed streets + retry button
-- **Upgrade button:** Blue button at bottom — re-runs Overpass on all pill-label streets to convert to polylines
 - **Click polyline:** Info popup shows name, date, segment from→to, source page, confidence flag
 - **Double-click polyline:** Removes it from map
 - **Print/Export PDF:** `window.print()` → full map + legend
 
-### Schedule Map — GRSI Newark 2025 Status
-- **Plan PDF:** 250708- Newark 2025 Citywide Slurry Seal Plans.pdf (71MB, in Cal's Downloads folder) — 60 pages of zoomed aerial map images showing gray-shaded street segments
-- **Schedule data source:** Color-coded overview map screenshots (NOT the plan PDF). Dates + colors extracted from those screenshots.
-- **107 streets extracted** from the 71MB PDF upload to the app — schedule data (dates/colors) matched
-- **~49 streets placed as polylines**, rest as pill labels or not-found (as of v306)
-- **Not-found includes:** NewPark Mall, NewPark Plaza (parking lots, not roads), duplicates across days, streets not in OSM
-- **Phase 2 ready:** Step 3 in the panel — upload plan PDF → AI extracts begin/end intersections → clips polylines to exact segments
-- **Terri (GRSI contact):** No spreadsheet available — all data is in PDF images only
+### Schedule Map — GRSI Newark 2025 Status (as of v311 session)
+- **Plan PDF:** 250708- Newark 2025 Citywide Slurry Seal Plans.pdf (71MB, in Cal's Downloads folder)
+- **PDF structure:** Page 1 = overview street map (thick black segments), Page 2 = unknown, Page 3 = site index map (numbered boxes 1-59 showing which area = which plan page), Pages 4-60 = zoomed-in plan sheets
+- **Plan PDF skips pages 1-3** — AI starts reading at page 4
+- **172 segments extracted, 117 unique streets, 4 low confidence** — plan PDF extraction works well
+- **Color map AI reading FAILED** — AI reads wrong streets from color map (false positives), draws full streets instead of clipped segments, creates duplicate day entries. This approach is unreliable.
+- **Dates still needed** — Cal will source dates separately (not from color map AI). Goal: master map with all 117 streets + dates/colors for crew.
+- **Current blocker:** How to reliably assign dates to the 117 correctly extracted streets
+- **Terri (GRSI contact):** No spreadsheet — all data in PDF images only
+- **OpenAI billing:** Cal added $10 credits (was down to $0.45). April budget $3.76/$100 limit.
 
-### Built This Session (v294–v306)
-- **v294:** Abbreviation expansion + case-insensitive Overpass matching, wider Newark bbox
-- **v295:** Full Newark street cache — one Overpass query fetches all streets, fuzzy match against it
-- **v296:** Fixed retry banner — wired onclick to geocodeAll (was missing click handler)
-- **v297:** Not-found banner expandable with street name list + separate retry button
-- **v298:** Fixed Overpass 400 errors — `,"i"` → `,i` (case-insensitive flag syntax)
-- **v299:** Upgrade pills to polylines button — re-runs Overpass on geocoder-placed pill labels
-- **v300:** Increased Overpass delay to 1.5s, auto-retry on 429/504 with exponential backoff
-- **v301:** Fixed upgrade function — saves original lat/lng, restores pill if Overpass fails, recovers lost streets
-- **v302:** Further delay increases, retry logic hardened
-- **v303:** Click polyline → info popup (name + date). Double-click still removes. Click map to close popup.
-- **v304:** Click anywhere on map closes info popup
-- **v305:** Phase 2 built — Step 3 upload zone, callPlanAI, applySegmentData, geocodeIntersection, clipPathToSegment, modified drawStreetFromOverpass to clip when beginAt/endAt available
-- **v306:** Plan PDF — 1 page at a time (memory safe), scale 1.2, skip pages 1-3, source page tracking, confidence flags, popup shows segment source
+### Schedule Map — Known Decisions (updated)
+| Decision | Reason |
+|---|---|
+| Plan PDF first, color schedule second | Plan PDF gives exact segments reliably. Color map AI was adding wrong streets. |
+| savedSegments persisted to localStorage | So plan PDF doesn't need to be re-uploaded when adding more streets |
+| Export/Import JSON button | Hard refreshes wipe localStorage — export saves everything to a file |
+| Clear Streets keeps savedSegments | User needs to wipe bad color data without losing 71MB PDF extraction |
+| Segment review panel | Shows all 172 extracted segments with confidence flags so user can spot errors |
+| Color map AI reading abandoned | Too unreliable — reads background street labels as colored segments, confuses red/orange, creates duplicates |
+| Full streets drawing instead of clipped | Intersection geocoding fails for park boundaries/matchlines → falls back to full street |
+| Google Maps still in use | Despite issues, still the base map — may revisit if better approach found |
+| Plan PDF pages 1-3 skipped | Page 1 = overview map, Page 3 = site index — no segment data on these pages |
+
+### Built This Session (v307–v311)
+- **v307:** savedSegments persisted to localStorage, auto-apply to new streets on manual add
+- **v308:** Flipped flow — Step 1 = Plan PDF (saves segments, draws nothing), Step 2 = Color Schedule (creates + draws streets)
+- **v309:** Segment review panel — overlay shows all extracted segments sorted low-confidence first
+- **v310:** Clear Streets button — wipes placed streets but keeps savedSegments
+- **v311:** Export/Import buttons — save all data to JSON file, reload anytime without re-uploading PDF
+
+### Built Previous Sessions (v278–v306)
+- **v278:** Created `schedule-map.html`. Added "📋 Schedule Map" button to PavementScan header.
+- **v279-v293:** PDF upload, Google Maps, Overpass polylines, geocoder fallback, week filters, save state
+- **v294-v306:** Abbreviation expansion, Newark street cache, fuzzy matching, Overpass retry logic, plan PDF Phase 2 (segment extraction + clipping)
 
 ### Built Previous Sessions (v278–v293)
 - **v278:** Created `schedule-map.html`. Added "📋 Schedule Map" button to PavementScan header.
