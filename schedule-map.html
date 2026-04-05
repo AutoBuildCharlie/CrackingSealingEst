@@ -962,6 +962,8 @@ function initMap() {
     styles: [
       { featureType: 'poi',     stylers: [{ visibility: 'off' }] },
       { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+      { featureType: 'road',    elementType: 'labels', stylers: [{ visibility: 'off' }] },
+      { featureType: 'administrative', elementType: 'labels', stylers: [{ visibility: 'off' }] },
     ],
   });
   // Define ScheduleLabel here so google.maps is guaranteed to be loaded
