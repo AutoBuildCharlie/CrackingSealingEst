@@ -462,22 +462,20 @@
         width: 100% !important;
         height: 100% !important;
       }
-      /* Hide all Google Maps built-in labels, keep only our custom .map-label */
-      .gm-style > div > div > div > div > div > div > div[style*="pointer-events: none"] { display: none !important; }
-      .gm-style-iw { display: none !important; }
       .map-label {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
-        font-size: 11px !important;
+        font-size: 12px !important;
         font-weight: 900 !important;
         color: #000 !important;
         background: none !important;
         border: none !important;
         box-shadow: none !important;
         padding: 0 !important;
-        text-shadow:
-          -1px -1px 0 #fff, 1px -1px 0 #fff,
-          -1px  1px 0 #fff, 1px  1px 0 #fff !important;
+        text-shadow: none !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        display: block !important;
       }
       #pin-bar, #upgrade-bar, #status-bar { display: none !important; }
       /* Print legend panel — hidden by default for section prints */
@@ -1007,11 +1005,7 @@ class ScheduleLabel extends google.maps.OverlayView {
     div.innerHTML = escHtml(this.street.name) +
       (this.street.split ? '<span class="split-star">★</span>' : '');
 
-    // Rotate to match street direction
-    if (this.street.labelHeading) {
-      div.style.transform = `rotate(${this.street.labelHeading}deg)`;
-      div.style.transformOrigin = 'center center';
-    }
+    // Labels stay horizontal — no rotation
 
     // Drag to reposition
     div.addEventListener('mousedown', (e) => this._startDrag(e));

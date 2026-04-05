@@ -45,7 +45,7 @@ A pavement assessment tool built for crack seal and slurry seal contractors (Cal
 - **Branch:** `master` — GitHub Pages auto-deploys on push
 - **Deploy command:** `/git-deploy` or `git add . && git commit -m "vXXX: ..." && git push`
 - **Version convention:** bump `?v=XXX` on `<link rel="stylesheet">` and `<script src="...">` in both `index.html` and `mobile.html`
-- **Current version:** v280 (desktop app.js v245, style.css v185), mobile.js v49, schedule-map.html v339
+- **Current version:** v280 (desktop app.js v245, style.css v185), mobile.js v49, schedule-map.html v362
 
 ---
 
@@ -565,7 +565,7 @@ Worker holds API keys, routes to OpenAI or Google based on `provider` param.
 - **Desktop:** v280 (app.js v245, style.css v185)
 - **Mobile JS:** v49, mobile.css v4
 - **Service Worker:** v2
-- **Schedule Map:** v306 (schedule-map.html)
+- **Schedule Map:** v362 (schedule-map.html)
 
 Check `index.html` for `?v=XXX` on stylesheet + app.js script.
 Check `mobile.html` for `?v=XXX` on mobile.js script.
@@ -625,8 +625,23 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 | NewPark Mall/Plaza never found | They're a shopping mall/parking lot — not in OSM as road names. Leave as not-found |
 | Source tracking on segment data | Each extracted segment tagged with plan page number + confidence level |
 | Click polyline = info popup | Shows name, date, segment from→to, source page, confidence. Click map to close |
+| Retry button uses cache-first + single batch Overpass | Old: one Overpass call per failed street → 429 flood. New: check Newark cache first (fuzzy threshold 0.5), then ONE batch regex query for remaining streets |
+| Delete button in polyline popup | Click any highlighted street → popup shows red 🗑 Delete Street button. Double-click still works too |
+| Multi-point street drawing | ✏ Draw Street button in toolbar → click map points (blue dots + live preview line) → ✓ Finish → pick from existing street list or type new name |
+| Draw modal picks from existing schedule list | No typing needed for streets already in the schedule — searchable dropdown. Falls back to name input if typing a new street |
+| Draw modal is draggable | Grab "Which street is this? ⠿ drag" title bar to move it off the map while you verify the drawn street |
+| Typed name wins over picker | If user types in the manual name box, that takes priority over any auto-selected picker option |
+| Day selector removed from draw modal | Cal doesn't want to assign days when drawing — removed entirely |
+| Labels float above street not on top | `LABEL_OFFSET_PX = 20` perpendicular offset. Rotation computed from start→end bearing of polyline |
+| Collision detection on labels | After refresh, runs up to 20 passes pushing overlapping labels apart. Re-runs on zoom change |
+| Default Google Maps street labels hidden | MAP_STYLES includes `labels.text` + `labels.icon` suppressed globally — only custom labels show |
+| Labels bold text only in print (no boxes) | Removed white box/border from print CSS — `text-shadow` outline on all sides for readability |
+| Labels re-applied before print | `printSection()` re-asserts map styles so tiles don't sneak labels back in during resize |
+| Landscape print orientation | `@page { size: landscape; }` added to print CSS |
+| Preview mode | 👁 Preview button hides sidebar, map fills screen, floating bar with 🖨 Print and ✕ Exit |
+| Print preserves map center/zoom | Snapshots center+zoom before resize, restores before dialog opens — nothing gets cut off |
 
-### Schedule Map — Current Architecture (v311)
+### Schedule Map — Current Architecture (v362)
 - **Background:** Real Google Map centered on Newark, CA
 - **Step 1 (NEW):** Upload plan PDF → AI reads every page → extracts `{name, from, to, confidence, sourcePage}` → saved to `savedSegments` in localStorage → nothing drawn on map yet
 - **Step 2 (NEW):** Upload color-coded schedule map image → AI reads colors + dates, gets known street list from savedSegments as context → creates streets with color/date → places on map with clipped segments
@@ -641,22 +656,20 @@ Check `mobile.html` for `?v=XXX` on mobile.js script.
 - **Double-click polyline:** Removes it from map
 - **Print/Export PDF:** `window.print()` → full map + legend
 
-### Schedule Map — GRSI Newark 2025 Status (as of v339 session)
+### Schedule Map — GRSI Newark 2025 Status (as of v362 session — 2026-04-05)
 - **Plan PDF:** 250708- Newark 2025 Citywide Slurry Seal Plans.pdf (71MB, in Cal's Downloads folder)
-- **PDF structure:** Page 1 = overview street map (thick black segments), Page 3 = site index map (numbered boxes), Pages 4-60 = zoomed-in plan sheets
-- **Plan PDF skips pages 1-3** — AI starts reading at page 4
-- **Plan PDF re-uploaded this session** with improved AI prompt — now correctly skips background context streets, only extracts gray-shaded treatment roads
-- **Export JSON:** Cal has saved `newark-schedule-2026-04-05 (2).json` in Downloads — use this to skip re-uploading the 71MB PDF
-- **~104 streets placed, 11 not found** after retry — not-found streets are small residential streets not in OpenStreetMap (Mindewine Dr, Port Tidelwood Pl, Port Tidelwood St, Mote Dr, Arquilla Ct, Tampico Pl, Eva St, Albion Ct, Garner Ave, Aldrin Ct, Munyan Dr)
-- **Clipping status:** Streets draw FULL (not clipped to exact segment). Clipping was tried twice (v316, v324) — both caused diagonal lines — reverted. Full streets is permanent decision.
-- **Map is light mode** — switched from dark theme this session for better print quality
-- **Street labels:** Bold black text only, no pill background, white outline for readability. Labels appear on print via beforeprint temporary overlays.
-- **Print workflow:** 🖨 Print Section (map only, no legend) + 🖨 Print+Legend. User zooms to each area and prints sections to assemble a big map.
-- **Manual pin mode:** ✏ Draw button on each not-found street — click start + end on map to draw manually
-- **Search bar:** Type to filter street list, Enter pans map to first match
-- **Retry not-found:** Uses full per-street Overpass + Google geocode + around:120 fallback (slow but accurate — Cal prefers accuracy over speed always)
-- **Current state:** Functional. Color schedule not yet uploaded — streets are gray (no color/date). 11 streets still not found, can be manually drawn.
-- **Next session:** Upload color schedule → streets get colored by week. Manually draw remaining 11 not-found streets using ✏ Draw. Export fresh JSON after.
+- **Export JSON:** Cal has `newark-schedule-2026-04-05 (2).json` in Downloads — import this to restore all streets without re-uploading the 71MB PDF
+- **All streets placed** — the session ended with all streets successfully on the map. Some were auto-placed via Overpass, remaining ones manually drawn using ✏ Draw Street
+- **Retry button fixed (v340):** Now cache-first + single batch Overpass call instead of per-street calls — no more 429 floods
+- **Clipping status:** Streets draw FULL (not clipped). Permanent decision — never retry clipping.
+- **Map is light mode** — for better print quality
+- **Street labels:** Rotate to match street direction, float 20px above line, bold black text + white text-shadow outline. No boxes. Collision detection pushes overlapping labels apart. Default Google Maps labels hidden.
+- **Print workflow:** Landscape. 👁 Preview hides sidebar → check framing → 🖨 Print/Save PDF in floating bar. Preserves exact center+zoom before print dialog. 
+- **Draw Street tool:** ✏ Draw Street button in toolbar → click map points → ✓ Finish → pick from schedule list or type new name. Modal is draggable.
+- **Delete street:** Click any polyline → popup shows red 🗑 Delete Street button
+- **Rotate map:** ↺ ↻ buttons in toolbar, 15° per click, ⊙ to reset
+- **Current status:** Map complete. All streets labeled, print-ready. Next step is for Cal to Export JSON (backup), then print/save as PDF and email to Terri at GRSI.
+- **Next session:** Export JSON backup → print as landscape PDF → email to Terri
 
 ### Schedule Map — Known Decisions (updated)
 | Decision | Reason |
