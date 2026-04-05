@@ -965,10 +965,9 @@ function initMap() {
     fullscreenControl: false,
     zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
     styles: [
-      { featureType: 'poi',     stylers: [{ visibility: 'off' }] },
-      { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-      { featureType: 'road',    elementType: 'labels', stylers: [{ visibility: 'off' }] },
-      { featureType: 'administrative', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+      { elementType: 'labels', stylers: [{ visibility: 'off' }] },
+      { featureType: 'poi',    stylers: [{ visibility: 'off' }] },
+      { featureType: 'transit',stylers: [{ visibility: 'off' }] },
     ],
   });
   // Define ScheduleLabel here so google.maps is guaranteed to be loaded
@@ -2661,18 +2660,33 @@ function closePrintPreview() {
 }
 
 function printFromPreview() {
+  const center = map.getCenter();
+  const zoom   = map.getZoom();
   document.body.classList.remove('preview-mode', 'print-with-legend');
   document.getElementById('preview-bar').style.display = 'none';
-  setTimeout(() => window.print(), 100);
+  google.maps.event.trigger(map, 'resize');
+  setTimeout(() => {
+    map.setCenter(center);
+    map.setZoom(zoom);
+    setTimeout(() => window.print(), 300);
+  }, 150);
 }
 
 // ─── Section Print ───────────────────────────────────────
 function printSection(withLegend) {
   if (withLegend) document.body.classList.add('print-with-legend');
   else document.body.classList.remove('print-with-legend');
+  // Snapshot current view before layout shifts
+  const center = map.getCenter();
+  const zoom   = map.getZoom();
   refreshStreetLabels();
   google.maps.event.trigger(map, 'resize');
-  setTimeout(() => window.print(), 300);
+  // Restore exact view after resize so nothing gets cut off
+  setTimeout(() => {
+    map.setCenter(center);
+    map.setZoom(zoom);
+    setTimeout(() => window.print(), 300);
+  }, 150);
 }
 
 // ─── Street Search ───────────────────────────────────────
