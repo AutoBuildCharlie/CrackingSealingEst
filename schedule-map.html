@@ -1799,8 +1799,6 @@ function refreshStreetLabels() {
     if (st.placed && st.paths && st.paths.length) st.mapNum = num++;
     else st.mapNum = null;
   }
-  buildPrintLegend();
-
   // Add/update labels for placed polyline streets
   for (const st of streets) {
     if (!st.placed || !st.paths || !st.paths.length) continue;
