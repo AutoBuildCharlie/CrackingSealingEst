@@ -2543,95 +2543,92 @@ window.addEventListener('afterprint', () => {
 });
 
 // ─── Print Packet ─────────────────────────────────────────
+function buildStaticMapUrl(group, allStreets) {
+  const src = allStreets || group;
+  const lats = src.map(s => s.lat), lngs = src.map(s => s.lng);
+  const cLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+  const latSpan = (Math.max(...lats) - Math.min(...lats)) || 0.01;
+  const lngSpan = (Math.max(...lngs) - Math.min(...lngs)) || 0.01;
+  const zoom = Math.max(12, Math.min(16, Math.floor(Math.log2(0.13 / Math.max(latSpan, lngSpan))) + 14));
+  const pathParts = group.map(s => {
+    const pts = s.paths.flat();
+    const step = Math.max(1, Math.floor(pts.length / 5));
+    const sample = [];
+    for (let i = 0; i < pts.length; i += step) sample.push(pts[i]);
+    if (sample[sample.length-1] !== pts[pts.length-1]) sample.push(pts[pts.length-1]);
+    const hex = (COLOR_HEX[s.color] || '#555555').replace('#','');
+    return `path=color:0x${hex}FF|weight:4|${sample.map(p=>`${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('|')}`;
+  });
+  const base = `https://maps.googleapis.com/maps/api/staticmap?center=${cLat},${cLng}&zoom=${zoom}&size=860x520&scale=2&style=feature:all|element:labels|visibility:off&style=feature:road|element:geometry|color:0xe5e5e5&key=${API_KEY}`;
+  return base + '&' + pathParts.join('&');
+}
+
+function buildSectionPage(group, label, pageNum, totalPages) {
+  const sorted    = group.slice().sort((a,b) => a.mapNum - b.mapNum);
+  const twoCols   = sorted.length > 18;
+  const fontSize  = twoCols ? '9px' : '11px';
+  const legendRows = sorted.map(s => {
+    const hex = COLOR_HEX[s.color] || '#555';
+    return `<div class="packet-street-row">
+      <div class="packet-checkbox"></div>
+      <div class="packet-num" style="background:${hex};-webkit-print-color-adjust:exact;print-color-adjust:exact">${s.mapNum}</div>
+      <span style="font-size:${fontSize}">${escHtml(s.name)}</span>
+    </div>`;
+  }).join('');
+  const mapUrl = buildStaticMapUrl(group);
+  return `
+    <div class="packet-page">
+      <div class="packet-header">
+        <h2>Newark 2025 Slurry Seal — ${label}</h2>
+        <span>Page ${pageNum} of ${totalPages} &nbsp;|&nbsp; ${group.length} streets</span>
+      </div>
+      <div class="packet-body">
+        <div class="packet-map">
+          <img src="${mapUrl}" alt="Section map" onerror="this.alt='Map image unavailable'">
+        </div>
+        <div class="packet-legend" style="${twoCols ? 'width:320px' : ''}">
+          <div class="packet-legend-title">Street Checklist</div>
+          <div style="${twoCols ? 'column-count:2;column-gap:10px' : ''}">
+            ${legendRows}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
 function generatePrintPacket() {
   const placed = streets.filter(s => s.placed && s.paths && s.paths.length && s.lat && s.lng && s.mapNum);
   if (!placed.length) { showToast('No streets on map yet'); return; }
-
   showToast('Building print packet…');
 
-  // Always exactly 4 pages — split by lat midpoint then lng midpoint
-  const lats = placed.map(s => s.lat);
-  const lngs = placed.map(s => s.lng);
-  const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-  const midLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
-
-  const raw = {
-    'NW': placed.filter(s => s.lat >= midLat && s.lng <  midLng),
-    'NE': placed.filter(s => s.lat >= midLat && s.lng >= midLng),
-    'SW': placed.filter(s => s.lat <  midLat && s.lng <  midLng),
-    'SE': placed.filter(s => s.lat <  midLat && s.lng >= midLng),
-  };
-  // Merge empty quadrants into the closest one with streets
-  ['NW','NE','SW','SE'].forEach(key => {
-    if (raw[key].length) return;
-    const fallback = key.startsWith('N') ? (key === 'NW' ? 'SW' : 'SE') : (key === 'SW' ? 'NW' : 'NE');
-    raw[fallback].push(...raw[key]);
-  });
-  const labels = { NW: 'North-West', NE: 'North-East', SW: 'South-West', SE: 'South-East' };
-  const sections = Object.entries(raw).filter(([,g]) => g.length > 0);
-  const total = sections.length;
-
-  // 2. Build page HTML for each section
-  let pagesHtml = '';
-  sections.forEach(([key, group], idx) => {
-    const sLats = group.map(s => s.lat);
-    const sLngs = group.map(s => s.lng);
-    const minLat = Math.min(...sLats), maxLat = Math.max(...sLats);
-    const minLng = Math.min(...sLngs), maxLng = Math.max(...sLngs);
-    const cLat   = (minLat + maxLat) / 2;
-    const cLng   = (minLng + maxLng) / 2;
-
-    // Auto zoom to fit section
-    const latSpan = (maxLat - minLat) || 0.005;
-    const lngSpan = (maxLng - minLng) || 0.005;
-    const zoom = Math.max(13, Math.min(16, Math.floor(Math.log2(0.15 / Math.max(latSpan, lngSpan))) + 14));
-
-    // Build static map paths (simplified — start, mid, end per street)
-    const pathParts = group.map(s => {
-      const pts = s.paths.flat();
-      const step = Math.max(1, Math.floor(pts.length / 5));
-      const sample = [];
-      for (let i = 0; i < pts.length; i += step) sample.push(pts[i]);
-      if (sample[sample.length-1] !== pts[pts.length-1]) sample.push(pts[pts.length-1]);
-      const hex = (COLOR_HEX[s.color] || '#555555').replace('#','');
-      const coords = sample.map(p => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('|');
-      return `path=color:0x${hex}FF|weight:4|${coords}`;
-    });
-
-    // Split into batches to stay under URL limit
-    const base = `https://maps.googleapis.com/maps/api/staticmap?center=${cLat},${cLng}&zoom=${zoom}&size=860x520&scale=2&style=feature:all|element:labels|visibility:off&style=feature:road|element:geometry|color:0xe5e5e5&key=${API_KEY}`;
-    const mapUrl = base + '&' + pathParts.join('&');
-
-    // Checklist — 2 columns if more than 20 streets so everything fits on one page
-    const sorted = group.slice().sort((a,b) => a.mapNum - b.mapNum);
-    const twoCols = sorted.length > 20;
-    const legendRows = sorted.map(s => {
-      const hex = COLOR_HEX[s.color] || '#555';
-      return `<div class="packet-street-row">
-        <div class="packet-checkbox"></div>
-        <div class="packet-num" style="background:${hex};-webkit-print-color-adjust:exact;print-color-adjust:exact">${s.mapNum}</div>
-        <span style="font-size:${twoCols ? '9px' : '11px'}">${escHtml(s.name)}</span>
-      </div>`;
-    }).join('');
-
-    pagesHtml += `
-      <div class="packet-page">
-        <div class="packet-header">
-          <h2>Newark 2025 Slurry Seal — ${labels[key]} Section</h2>
-          <span>Page ${idx+1} of ${total} &nbsp;|&nbsp; ${group.length} streets</span>
+  // Page 1: Full overview — all streets, full-width map, no checklist
+  const overviewUrl = buildStaticMapUrl(placed, placed);
+  const overviewPage = `
+    <div class="packet-page">
+      <div class="packet-header">
+        <h2>Newark 2025 Slurry Seal — Full Overview</h2>
+        <span>Page 1 of 4 &nbsp;|&nbsp; ${placed.length} total streets</span>
+      </div>
+      <div class="packet-body">
+        <div class="packet-map" style="flex:1">
+          <img src="${overviewUrl}" alt="Overview map" style="width:100%;height:100%;object-fit:cover;display:block;min-height:460px">
         </div>
-        <div class="packet-body">
-          <div class="packet-map">
-            <img src="${mapUrl}" alt="Section map" onerror="this.alt='Map image unavailable'">
-          </div>
-          <div class="packet-legend" style="${twoCols ? 'width:320px' : ''}">
-            <div class="packet-legend-title">Street Checklist</div>
-            <div style="${twoCols ? 'column-count:2;column-gap:10px' : ''}">
-              ${legendRows}
-            </div>
-          </div>
-        </div>
-      </div>`;
+      </div>
+    </div>`;
+
+  // Pages 2-4: Split into 3 sections by latitude (North / Central / South)
+  const sortedByLat = placed.slice().sort((a,b) => b.lat - a.lat);
+  const third = Math.ceil(sortedByLat.length / 3);
+  const sections = [
+    { label: 'North Section',   group: sortedByLat.slice(0, third) },
+    { label: 'Central Section', group: sortedByLat.slice(third, third * 2) },
+    { label: 'South Section',   group: sortedByLat.slice(third * 2) },
+  ].filter(s => s.group.length > 0);
+
+  let pagesHtml = overviewPage;
+  sections.forEach((sec, i) => {
+    pagesHtml += buildSectionPage(sec.group, sec.label, i + 2, sections.length + 1);
   });
 
   // 3. Show preview overlay — user sees pages before printing
