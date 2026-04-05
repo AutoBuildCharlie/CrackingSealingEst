@@ -478,15 +478,15 @@
         print-color-adjust: exact;
       }
       #pin-bar, #upgrade-bar, #status-bar { display: none !important; }
-      /* Print legend panel — hidden by default for section prints */
+      /* Print legend panel */
       body.print-with-legend #print-legend {
         display: flex !important;
         flex-direction: column;
-        width: 220px;
+        width: 260px;
         flex-shrink: 0;
         background: white;
-        border-left: 1px solid #ccc;
-        padding: 14px 12px;
+        border-left: 2px solid #ccc;
+        padding: 16px 14px;
         overflow: hidden;
         font-family: 'Inter', sans-serif;
       }
@@ -494,51 +494,65 @@
         display: none !important;
       }
       #print-legend h2 {
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 14px;
+        font-weight: 800;
         color: #111;
-        margin-bottom: 4px;
+        margin-bottom: 2px;
       }
       #print-legend .proj-sub {
-        font-size: 9px;
+        font-size: 10px;
         color: #666;
         margin-bottom: 12px;
         line-height: 1.4;
-        border-bottom: 1px solid #e5e7eb;
-        padding-bottom: 8px;
+        border-bottom: 2px solid #e5e7eb;
+        padding-bottom: 10px;
       }
       #print-legend .lg-day {
-        margin-bottom: 8px;
+        margin-bottom: 10px;
       }
       #print-legend .lg-day-header {
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-bottom: 3px;
+        margin-bottom: 5px;
+        border-bottom: 1px solid #e5e7eb;
+        padding-bottom: 4px;
       }
       #print-legend .lg-swatch {
-        width: 12px;
-        height: 12px;
-        border-radius: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
         flex-shrink: 0;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
       #print-legend .lg-day-title {
-        font-size: 10px;
-        font-weight: 700;
+        font-size: 11px;
+        font-weight: 800;
         color: #111;
       }
       #print-legend .lg-street {
-        font-size: 9px;
-        color: #333;
-        padding: 1px 0 1px 18px;
+        font-size: 11px;
+        color: #111;
+        padding: 4px 0;
         line-height: 1.4;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      #print-legend .lg-checkbox {
+        width: 14px;
+        height: 14px;
+        border: 2px solid #333;
+        border-radius: 2px;
+        flex-shrink: 0;
+        display: inline-block;
       }
       #print-legend .lg-street.split::after {
         content: ' ★';
         color: #888;
-        font-size: 8px;
+        font-size: 9px;
       }
     }
   </style>
@@ -564,7 +578,8 @@
   <button class="btn btn-clear" onclick="rotateMap(15)" title="Rotate map clockwise">↻ Rotate</button>
   <button class="btn btn-clear" onclick="rotateMap(0, true)" title="Reset rotation">⊙ Reset</button>
   <button class="btn" onclick="showPrintPreview()" style="background:#0f766e;color:#fff" title="Preview what the printed map will look like">👁 Preview</button>
-  <button class="btn btn-export" onclick="printSection(true)" title="Print map + numbered street list">🖨 Print</button>
+  <button class="btn btn-export" onclick="printSection(true)" title="Print map + checklist of streets visible on screen">🖨 Print + List</button>
+  <button class="btn btn-export" onclick="printSection(false)" title="Print just the map — no legend">🖨 Map Only</button>
   <a href="index.html" class="btn btn-back">← PavementScan</a>
 </div>
 
@@ -2347,12 +2362,13 @@ window.addEventListener('afterprint', () => {
   _printLabels = [];
 });
 
-function buildPrintLegend() {
+function buildPrintLegend(visibleIds) {
   const body = document.getElementById('print-legend-body');
   if (!body) return;
 
   const grouped = {};
   for (const s of streets) {
+    if (visibleIds && !visibleIds.has(s.id)) continue;
     const key = `${s.date}|${s.color}`;
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(s);
@@ -2366,19 +2382,25 @@ function buildPrintLegend() {
 
     html += `<div class="lg-day">
       <div class="lg-day-header">
-        <div class="lg-swatch" style="background:${hex}"></div>
+        <div class="lg-swatch" style="background:${hex};-webkit-print-color-adjust:exact;print-color-adjust:exact"></div>
         <span class="lg-day-title">${escHtml(d.label)}</span>
       </div>`;
 
     for (const s of group) {
-      const num = s.mapNum ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${hex};color:#fff;font-size:8px;font-weight:800;margin-right:5px;flex-shrink:0">${s.mapNum}</span>` : '';
-      html += `<div class="lg-street${s.split ? ' split' : ''}">${num}${escHtml(s.name)}</div>`;
+      const num = s.mapNum
+        ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:50%;background:${hex};color:#fff;font-size:9px;font-weight:800;flex-shrink:0;-webkit-print-color-adjust:exact;print-color-adjust:exact">${s.mapNum}</span>`
+        : '';
+      html += `<div class="lg-street${s.split ? ' split' : ''}">
+        <span class="lg-checkbox"></span>
+        ${num}
+        <span>${escHtml(s.name)}</span>
+      </div>`;
     }
 
     html += `</div>`;
   }
 
-  body.innerHTML = html || '<div style="font-size:10px;color:#999">No streets added yet</div>';
+  body.innerHTML = html || '<div style="font-size:10px;color:#999">No streets in this area</div>';
 }
 
 // ─── Manual Pin Mode (multi-point) ───────────────────────
@@ -2663,11 +2685,23 @@ const NO_LABEL_STYLES = [
 
 // ─── Section Print ───────────────────────────────────────
 function printSection(withLegend) {
-  if (withLegend) document.body.classList.add('print-with-legend');
-  else document.body.classList.remove('print-with-legend');
   const center = map.getCenter();
   const zoom   = map.getZoom();
-  // Force label-hiding styles before print render
+  const bounds = map.getBounds();
+
+  if (withLegend) {
+    // Build legend with only streets visible in current map view
+    const visibleIds = new Set(
+      streets
+        .filter(s => s.placed && s.lat && s.lng && bounds && bounds.contains({ lat: s.lat, lng: s.lng }))
+        .map(s => s.id)
+    );
+    buildPrintLegend(visibleIds.size ? visibleIds : null);
+    document.body.classList.add('print-with-legend');
+  } else {
+    document.body.classList.remove('print-with-legend');
+  }
+
   map.setOptions({ styles: NO_LABEL_STYLES });
   refreshStreetLabels();
   google.maps.event.trigger(map, 'resize');
