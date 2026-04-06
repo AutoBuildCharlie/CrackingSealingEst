@@ -902,6 +902,7 @@ function initMap() {
     if (infoWindow) infoWindow.close();
   });
   map.addListener('zoom_changed', () => { setTimeout(refreshStreetLabels, 300); setTimeout(resolveCollisions, 600); });
+  map.addListener('idle', () => { renderList(); });
   loadState();
 }
 
@@ -1927,6 +1928,9 @@ function renderList() {
   const container = document.getElementById('street-list');
   const banner    = document.getElementById('not-found-banner');
 
+  // Get current map bounds for viewport filtering
+  const bounds = map ? map.getBounds() : null;
+
   if (!streets.length) {
     const hint = savedSegments.length
       ? `Upload your color schedule (Step 2) to place ${[...new Set(savedSegments.map(s=>s.name))].length} streets on the map`
@@ -1973,9 +1977,13 @@ function renderList() {
   for (const d of days) {
     const group = grouped[d.key] || [];
     if (!group.length) continue;
-    // Filter by active week
+    // Filter by active week, search query, and map viewport
     const filtered = (activeWeekFilter === null ? group : group.filter(s => getStreetWeek(s) === activeWeekFilter))
-      .filter(s => !_searchQuery || s.name.toLowerCase().includes(_searchQuery));
+      .filter(s => !_searchQuery || s.name.toLowerCase().includes(_searchQuery))
+      .filter(s => {
+        if (!bounds || !s.placed || !s.lat || !s.lng) return !s.placed; // unplaced streets always show
+        return bounds.contains({ lat: s.lat, lng: s.lng });
+      });
     if (!filtered.length) continue;
     const hex    = COLOR_HEX[d.color] || '#888';
     const placed = filtered.filter(s => s.placed).length;
